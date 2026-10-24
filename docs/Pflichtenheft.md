@@ -120,7 +120,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-41 | Status und Konsole | Zustand, Position (WPos/MPos+WCO) alle 200 ms, Fehler- und Alarmcodes mit deutschem Text, Konsole mit Schnellbefehlen | ✅ |
 | LF-42 | Referenzfahrt, Entsperren, Jog | `$H`, `$X`, `$J=` mit Schrittweite und Geschwindigkeit, Richtungen passend zur Nullpunkt-Ecke, Jog-Abbruch | ✅ |
 | LF-43 | Rahmen | Umriss der Ausgabe abfahren (Laser aus oder ≤ 5 % laut Profil), Anfahrt immer im Eilgang | ✅ |
-| LF-44 | Job-Steuerung | Start, Pause (`!`), Fortsetzen (`~`), Stopp (Feed-Hold + Soft-Reset), Fortschritt, Restzeit | ✅ |
+| LF-44 | Job-Steuerung | Start, Pause (`!`), Fortsetzen (`~`), Stopp (Feed-Hold + Soft-Reset), Fortschritt, Restzeit; **fremde G-Code-Datei senden** (*Laser → G-Code-Datei senden…*: Kommentare, Leerzeilen, `%` und BOM entfernt, Bestätigung mit Warnhinweis, Inhalt ungeprüft, Restzeit aus dem Fortschritt hochgerechnet) | ✅ |
 | LF-45 | Job-Ursprung | Absolut, Benutzer-Ursprung, aktuelle Position (G91 mit fehlerfreier Rundung), 9 Ankerpunkte | ✅ |
 | LF-46 | Maschinenprofil | Fläche, Nullpunkt-Ecke, S-Max, M3/M4, Eilgang, Beschleunigung, Luft-Befehle, Empfangspuffer, Rahmen; „Werte vom Gerät“ (`$30`, `$130/$131`, `$110`, `$120`); **Scan-Versatz:** Tabelle Geschwindigkeit → gemessener Versatz zwischen hin- und zurückgefahrenen Zeilen, jede Füll- und Bildzeile (auch im Materialtest) wird um die Hälfte gegen ihre Fahrtrichtung verschoben; linear interpoliert, außerhalb proportional zur Geschwindigkeit, leer = aus | ✅ |
 | LF-47 | Simulator | GRBL-Nachbildung mit 128-Byte-Puffer, Planer (15), Echtzeitbefehlen, Alarm nach Reset | ✅ |
@@ -215,7 +215,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (113):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (114):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,

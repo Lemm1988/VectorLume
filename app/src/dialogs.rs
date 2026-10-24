@@ -316,11 +316,29 @@ fn modal(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     }
                 });
             }
+            Modal::SendFile { name, lines } => {
+                ui.label(RichText::new(trs(&format!("{} G-Code-Datei senden", icon::FILE_CODE))).font(theme::strong_font(18.0)).color(pal.warning));
+                ui.add_space(6.0);
+                ui.label(trs(&format!("„{name}“ mit {} Zeilen an den Laser senden?", lines.len())));
+                ui.add_space(4.0);
+                ui.label(RichText::new(tr("Der Inhalt wird nicht geprüft: Arbeitsbereich, Leistung und Nullpunkt müssen zu dieser Maschine passen. Laserschutzbrille tragen und den Laser nicht unbeaufsichtigt lassen.")).small().color(pal.text_weak));
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.add(Button::new(RichText::new(tr("Senden")).color(Color32::WHITE)).fill(pal.warning)).clicked() {
+                        let (name, lines) = (name.clone(), lines.clone());
+                        action = Some(Box::new(move |app: &mut VectorLumeApp| app.send_gcode_lines(name, &lines)));
+                        keep = false;
+                    }
+                    if ui.button(tr("Abbrechen")).clicked() {
+                        keep = false;
+                    }
+                });
+            }
             Modal::ConfirmStart { job } => {
                 ui.label(RichText::new(trs(&format!("{} Job trotzdem starten?", icon::WARNING))).font(theme::strong_font(18.0)).color(pal.warning));
                 ui.add_space(6.0);
                 for w in &job.warnings {
-                    ui.label(format!("• {w}"));
+                    ui.label(format!("• {}", trs(w)));
                 }
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {

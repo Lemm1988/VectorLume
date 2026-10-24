@@ -23,7 +23,7 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
 - **Kamera:** Webcam oder Foto der Arbeitsfläche, über vier Passpunkte entzerrt und halbtransparent unter dem
   Entwurf angezeigt (*Laser → Kamera…*)
 - **Laser:** USB- oder Netzwerkverbindung (TCP/Telnet, z. B. FluidNC), Status, Konsole, Referenzfahrt, Verfahren, Rahmen, Start/Pause/Stopp,
-  Job-Ursprung (absolut, Benutzer-Ursprung, aktuelle Position, 9 Ankerpunkte), Drehachse (Rollen/Futter, Y oder A)
+  fertige G-Code-Dateien senden, Job-Ursprung (absolut, Benutzer-Ursprung, aktuelle Position, 9 Ankerpunkte), Drehachse (Rollen/Futter, Y oder A)
 - **Vorschau** mit Laufzeitschätzung, Leerfahrten und Abspielregler
 - **Optimierung:** kürzeste Wege, innen vor außen, Gravieren vor Schneiden
 - **Sicherheit:** Prüfung des Laser-Modus (`$32=1`), Not-Stopp bei Abbruch/Verbindungsverlust, Bereichsprüfung

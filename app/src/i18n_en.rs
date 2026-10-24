@@ -1065,6 +1065,16 @@ pub static EN: &[(&str, &str)] = &[
     ),
     ("Eintrag entfernen", "Remove entry"),
     ("{} Messwert", "{} Measurement"),
+    ("G-Code-Datei senden", "Send G-code file"),
+    ("Die Datei enthält keine G-Code-Befehle.", "The file contains no G-code commands."),
+    (
+        "Der Inhalt wird nicht geprüft: Arbeitsbereich, Leistung und Nullpunkt müssen zu dieser Maschine passen. Laserschutzbrille tragen und den Laser nicht unbeaufsichtigt lassen.",
+        "The content is not checked: work area, power and origin must match this machine. Wear laser safety glasses and do not leave the laser unattended.",
+    ),
+    ("{} G-Code-Datei senden", "{} Send G-code file"),
+    ("„{}“ mit {} Zeilen an den Laser senden?", "Send \"{}\" with {} lines to the laser?"),
+    ("G-Code-Datei senden…", "Send G-code file…"),
+    ("Läuft seit {}", "Running for {}"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

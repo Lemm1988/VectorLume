@@ -159,12 +159,27 @@ pub enum AfterDiscard {
 }
 
 pub enum Modal {
-    ConfirmStart { job: Arc<Job> },
+    ConfirmStart {
+        job: Arc<Job>,
+    },
     LaserModeOff,
-    Safety { job: Arc<Job> },
+    Safety {
+        job: Arc<Job>,
+    },
+    /// Fremde G-Code-Datei senden (Inhalt ungeprüft).
+    SendFile {
+        name: String,
+        lines: Arc<Vec<String>>,
+    },
     Unsaved(AfterDiscard),
-    Message { title: String, text: String },
-    Recover { path: PathBuf, meta: crate::autosave::Meta },
+    Message {
+        title: String,
+        text: String,
+    },
+    Recover {
+        path: PathBuf,
+        meta: crate::autosave::Meta,
+    },
 }
 
 pub struct VectorLumeApp {
@@ -1010,6 +1025,41 @@ impl VectorLumeApp {
         } else {
             self.send_job(&job);
         }
+    }
+
+    /// G-Code-Datei aus einem anderen Programm direkt an den Laser senden.
+    pub fn send_gcode_file_dialog(&mut self) {
+        if !self.ready_to_start() {
+            return;
+        }
+        let Some(path) = rfd::FileDialog::new()
+            .set_title(tr("G-Code-Datei senden"))
+            .add_filter(tr("G-Code"), &["gcode", "nc", "gc", "ngc", "tap", "txt"])
+            .pick_file()
+        else {
+            return;
+        };
+        match std::fs::read(&path) {
+            Ok(bytes) => {
+                let lines = vl_cam::lines_from_file(&String::from_utf8_lossy(&bytes));
+                if lines.is_empty() {
+                    self.toast(ToastKind::Error, tr("Die Datei enthält keine G-Code-Befehle."));
+                } else {
+                    self.modal = Some(Modal::SendFile { name: file_name(&path), lines: Arc::new(lines) });
+                }
+            }
+            Err(e) => self.toast(ToastKind::Error, trs(&format!("Datei konnte nicht gelesen werden: {e}"))),
+        }
+    }
+
+    pub fn send_gcode_lines(&mut self, name: String, lines: &[String]) {
+        if !self.ready_to_start() {
+            return;
+        }
+        self.machine.document_job = false;
+        // Keine Schätzung: die Restzeit wird aus dem Fortschritt hochgerechnet
+        self.machine.job_estimate = 0.0;
+        self.device.send(Command::StartJob { name, lines: lines.to_vec() });
     }
 
     pub fn run_frame(&mut self, job: &Job) {

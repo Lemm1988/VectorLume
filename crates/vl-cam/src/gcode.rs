@@ -245,6 +245,12 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
     e.out
 }
 
+/// Zeilen einer fremden G-Code-Datei zum Senden: ohne Kommentare, Leerzeilen, Programmklammern `%` und BOM.
+pub fn lines_from_file(text: &str) -> Vec<String> {
+    let lines: Vec<String> = text.trim_start_matches('\u{feff}').lines().map(str::to_string).collect();
+    strip_for_streaming(&lines).into_iter().filter(|l| l != "%").collect()
+}
+
 /// Bereitet Zeilen für das Senden an die Steuerung vor: Kommentare und Leerzeilen entfernen.
 pub fn strip_for_streaming(lines: &[String]) -> Vec<String> {
     lines
@@ -267,6 +273,12 @@ pub fn fmt_mm(v: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn foreign_file_lines() {
+        let text = "\u{feff}%\r\n; Kopf\r\nG21 G90 ; mm\r\n\r\nM4 S0\r\nG1 X10 F600 S500\r\nM5\r\n%\r\n";
+        assert_eq!(lines_from_file(text), vec!["G21 G90", "M4 S0", "G1 X10 F600 S500", "M5"]);
+    }
     use crate::toolpath::Block;
 
     fn opts(mode: CoordMode) -> GcodeOptions {

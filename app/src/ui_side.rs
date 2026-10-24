@@ -606,16 +606,21 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             let elapsed = app.machine.job_started.map(|t| t.elapsed().as_secs_f64()).unwrap_or(0.0);
             ui.label(RichText::new(&app.machine.job_name).strong());
             ui.add(egui::ProgressBar::new(frac).show_percentage());
-            let remaining = (app.machine.job_estimate - elapsed).max(0.0);
-            ui.label(
-                RichText::new(trs(&format!(
+            // Ohne Schätzung (fremde G-Code-Datei) wird die Restzeit aus dem Fortschritt hochgerechnet
+            let remaining = if app.machine.job_estimate > 0.0 {
+                Some((app.machine.job_estimate - elapsed).max(0.0))
+            } else {
+                (frac > 0.02).then(|| elapsed * (1.0 - frac as f64) / frac as f64)
+            };
+            let text = match remaining {
+                Some(rest) => trs(&format!(
                     "Läuft seit {} · Rest ca. {}",
                     vl_cam::format_duration(elapsed),
-                    vl_cam::format_duration(remaining)
-                )))
-                .small()
-                .color(pal.text_weak),
-            );
+                    vl_cam::format_duration(rest)
+                )),
+                None => trs(&format!("Läuft seit {}", vl_cam::format_duration(elapsed))),
+            };
+            ui.label(RichText::new(text).small().color(pal.text_weak));
             ui.add_space(4.0);
             let paused = app.machine.status.as_ref().is_some_and(|s| s.state == MachineState::Hold);
             ui.horizontal(|ui| {
