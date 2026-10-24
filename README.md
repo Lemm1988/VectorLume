@@ -18,7 +18,7 @@ geschrieben in Rust.
   *Versatz-Füllen* und *Bild* (8 Dithering-Verfahren oder Graustufen, Helligkeit/Kontrast/Gamma)
 - **Material:** Materialtest-Generator und Materialbibliothek; Z-Versatz je Durchgang für Geräte mit Z-Achse
 - **Laser:** USB-Verbindung, Status, Konsole, Referenzfahrt, Verfahren, Rahmen, Start/Pause/Stopp,
-  Job-Ursprung (absolut, Benutzer-Ursprung, aktuelle Position, 9 Ankerpunkte)
+  Job-Ursprung (absolut, Benutzer-Ursprung, aktuelle Position, 9 Ankerpunkte), Drehachse (Rollen/Futter, Y oder A)
 - **Vorschau** mit Laufzeitschätzung, Leerfahrten und Abspielregler
 - **Optimierung:** kürzeste Wege, innen vor außen, Gravieren vor Schneiden
 - **Sicherheit:** Prüfung des Laser-Modus (`$32=1`), Not-Stopp bei Abbruch/Verbindungsverlust, Bereichsprüfung

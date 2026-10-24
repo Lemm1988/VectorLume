@@ -124,7 +124,8 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-45 | Job-Ursprung | Absolut, Benutzer-Ursprung, aktuelle Position (G91 mit fehlerfreier Rundung), 9 Ankerpunkte | ✅ |
 | LF-46 | Maschinenprofil | Fläche, Nullpunkt-Ecke, S-Max, M3/M4, Eilgang, Beschleunigung, Luft-Befehle, Empfangspuffer, Rahmen; „Werte vom Gerät“ (`$30`, `$130/$131`, `$110`, `$120`) | ✅ |
 | LF-47 | Simulator | GRBL-Nachbildung mit 128-Byte-Puffer, Planer (15), Echtzeitbefehlen, Alarm nach Reset | ✅ |
-| LF-48–50 | weitere Steuerungen, Netzwerk, Rotary/Kamera | – | ⏳ |
+| LF-48–49 | weitere Steuerungen, Netzwerk | – | ⏳ |
+| LF-50 | Drehachse, Kamera | Drehachse: Rollen oder Futter, statt Y-Motor oder als A-Achse, Weg je Umdrehung, Rollen-/Werkstückdurchmesser (auch als Umfang), Richtung; Y wird um den Ankerpunkt auf den Achsweg umgerechnet (Job, Rahmen, Verfahren), Prüfung Motivhöhe ≤ Umfang, Testdrehungen; Kamera ⏳ | 🟡 |
 
 ### 4.5 Vorschau und Optimierung
 | LF | Funktion | Umsetzung | Stand |
@@ -179,11 +180,11 @@ Luft aus, optional Rückfahrt, im Relativmodus zurück auf `G90`. Kommentare nur
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (86):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (88):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
-  Objektfang, Materialtest und -bibliothek, Z je Durchgang, Nachzeichnen, Platzhalter, Text auf Pfad.
+  Objektfang, Materialtest und -bibliothek, Z je Durchgang, Nachzeichnen, Platzhalter, Text auf Pfad, Drehachse.
 - **End-to-End:** Ein Job mit Schnitt, Kreuzschraffur und Graustufenbild sowie die Rahmenfahrt werden zeilenweise durch
   den Simulator gestreamt – jede Zeile muss mit `ok` bestätigt werden.
 - **Oberfläche:** manuell bzw. per automatisierten Klicks geprüft (Zeichnen, Drehen, Text, Import, Vorschau, Job im
@@ -225,5 +226,5 @@ offenzulegen, die eigene Software nicht). Damit bleiben Veröffentlichung als Op
 |---|---|
 | 1 ✅ | Nutzbare Version für GRBL/SF-A9 (dieses Dokument) |
 | 2 ✅ | Knotenbearbeitung, Boolesche Operationen, Offset/Offset-Füllen, Arrays, Laschen, Materialbibliothek, Testmuster-Generator, Autosicherung, Objektfang, PDF-Import |
-| 3 🟡 | Bild nachzeichnen ✅, Text auf Pfad/variabler Text ✅, Rotary, Kamera, Marlin/Smoothieware, danach Ruida und Galvo (Hardware-Tester nötig) |
+| 3 🟡 | Bild nachzeichnen ✅, Text auf Pfad/variabler Text ✅, Rotary ✅, Kamera, Marlin/Smoothieware, danach Ruida und Galvo (Hardware-Tester nötig) |
 | 4 | Eigene Verbesserungen, Installer, mehrsprachige Oberfläche, Veröffentlichung |

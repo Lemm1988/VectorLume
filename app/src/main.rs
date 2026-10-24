@@ -10,6 +10,7 @@ mod history;
 mod icon_art;
 mod materials;
 mod node_tool;
+mod rotary_ui;
 mod settings;
 mod shape_ops;
 mod snapping;

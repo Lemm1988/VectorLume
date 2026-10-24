@@ -523,6 +523,8 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     card(ui, |ui| {
         section_title(ui, icon::PLAY, "Job");
         ui.add_space(4.0);
+        crate::rotary_ui::job_row(app, ui);
+        ui.add_space(2.0);
         let mut js = app.settings.job.clone();
         egui::Grid::new("job_settings").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
             ui.label("Start von");

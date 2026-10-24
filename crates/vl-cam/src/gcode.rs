@@ -20,6 +20,8 @@ pub struct GcodeOptions {
     pub air_supported: bool,
     /// Z-Bewegungen der Blöcke ausgeben.
     pub z_axis: bool,
+    /// Die zweite Koordinate als A statt Y ausgeben (Drehachse an eigener Achse).
+    pub rotary_a: bool,
     pub coord_mode: CoordMode,
     /// Nach dem Job im Eilgang hierhin fahren (Ausgabe-Koordinaten).
     pub return_to: Option<Point>,
@@ -82,7 +84,8 @@ impl Emitter<'_> {
             if !words.is_empty() {
                 words.push(' ');
             }
-            words.push_str(&format!("Y{}", fmt_um(vy)));
+            words.push(if self.opts.rotary_a { 'A' } else { 'Y' });
+            words.push_str(&fmt_um(vy));
         }
         self.pos = Some(target);
         Some(words)
@@ -245,6 +248,7 @@ mod tests {
             air_off: "M9".into(),
             air_supported: true,
             z_axis: false,
+            rotary_a: false,
             coord_mode: mode,
             return_to: Some(Point::ZERO),
             comments: vec!["Test äöü".into()],

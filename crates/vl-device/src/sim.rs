@@ -227,7 +227,8 @@ impl SimTransport {
                 'Y' => y = Some(value),
                 'F' => self.feed = value,
                 'S' => self.spindle = value,
-                'Z' => {}
+                // Z und eine vierte Achse (Drehachse) werden angenommen, aber nicht nachgebildet.
+                'Z' | 'A' => {}
                 _ => return "error:20".into(),
             }
         }
@@ -318,6 +319,7 @@ impl SimTransport {
                 'X' => x = Some(v),
                 'Y' => y = Some(v),
                 'F' => f = Some(v),
+                'Z' | 'A' => {}
                 _ => return "error:16".into(),
             }
         }

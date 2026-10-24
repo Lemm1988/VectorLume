@@ -2,7 +2,7 @@
 
 use crate::estimate::{Estimate, estimate};
 use crate::gcode::{CoordMode, GcodeOptions, emit, fmt_mm};
-use crate::machine::{JobSettings, MachineProfile, StartFrom};
+use crate::machine::{JobSettings, MachineProfile, RotaryKind, StartFrom};
 use crate::optimize::order_polylines;
 use crate::toolpath::{Block, BlockKind, Op, RasterPreview, Toolpath, hatch_ops, line_ops, raster_ops};
 use vl_core::{Document, LayerMode, Object, ObjectId, Point, Polyline, Rect, Shape};
@@ -17,6 +17,16 @@ pub struct OutputMapping {
     anchor_machine: Point,
     base: Point,
     pub mode: CoordMode,
+    /// Drehachse: Y wird um `pivot` mit `scale` gestreckt (Oberfläche → Achsweg).
+    rotary: Option<RotaryMap>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct RotaryMap {
+    pivot: f64,
+    scale: f64,
+    /// A-Achse: der Ankerpunkt liegt bei A = 0.
+    a_axis: bool,
 }
 
 impl OutputMapping {
@@ -27,11 +37,23 @@ impl OutputMapping {
             StartFrom::UserOrigin => (anchor_machine, settings.user_origin, CoordMode::Absolute),
             StartFrom::CurrentPosition => (anchor_machine, Point::ZERO, CoordMode::Relative),
         };
-        Self { profile: profile.clone(), anchor_machine, base, mode }
+        let mut m = Self { profile: profile.clone(), anchor_machine, base, mode, rotary: None };
+        m.rotary = profile.rotary.active_scale().map(|scale| RotaryMap {
+            pivot: m.map(anchor_doc).y,
+            scale,
+            a_axis: profile.rotary.uses_a_axis(),
+        });
+        m
     }
 
+    /// Dokument → Ausgabe. Bei einer Drehachse ist y der Achsweg der Drehachse (Y oder A).
     pub fn map(&self, p: Point) -> Point {
-        self.profile.doc_to_machine(p) - self.anchor_machine + self.base
+        let mut q = self.profile.doc_to_machine(p) - self.anchor_machine + self.base;
+        if let Some(r) = self.rotary {
+            let base = if r.a_axis { 0.0 } else { r.pivot };
+            q.y = base + (q.y - r.pivot) * r.scale;
+        }
+        q
     }
 }
 
@@ -116,14 +138,13 @@ pub fn finish_job(
         }
     }
     let mut warnings = Vec::new();
+    let rotary = profile.rotary.enabled.then_some(&profile.rotary);
     if mapping.mode == CoordMode::Absolute {
         let mb = Rect::from_points(mapping.map(path_bounds.min), mapping.map(path_bounds.max));
         let eps = 1e-3;
-        if mb.min.x < -eps
-            || mb.min.y < -eps
-            || mb.max.x > profile.bed_width + eps
-            || mb.max.y > profile.bed_height + eps
-        {
+        // Mit Drehachse ist y kein Weg auf der Arbeitsfläche, nur X wird geprüft.
+        let y_out = rotary.is_none() && (mb.min.y < -eps || mb.max.y > profile.bed_height + eps);
+        if mb.min.x < -eps || mb.max.x > profile.bed_width + eps || y_out {
             warnings.push(format!(
                 "Der Job (inkl. Overscan) liegt außerhalb der Arbeitsfläche: X {} … {}, Y {} … {} mm (Fläche {} × {} mm).",
                 fmt_mm(mb.min.x),
@@ -133,6 +154,23 @@ pub fn finish_job(
                 fmt_mm(profile.bed_width),
                 fmt_mm(profile.bed_height)
             ));
+        }
+    }
+    if let Some(r) = rotary {
+        let u = r.circumference();
+        if design_bounds.height() > u + 1e-3 {
+            warnings.push(format!(
+                "Drehachse: Das Motiv ist {} mm hoch, der Umfang des Werkstücks beträgt nur {} mm – es überlappt sich.",
+                fmt_mm(design_bounds.height()),
+                fmt_mm(u)
+            ));
+        }
+        if settings.start_from == StartFrom::Absolute {
+            warnings.push(
+                "Drehachse: Mit „Absolute Koordinaten“ dreht sich das Werkstück bis zur Position des Motivs. \
+                 Empfohlen ist „Aktuelle Position“."
+                    .into(),
+            );
         }
     }
     if !profile.air_assist_supported && toolpath.blocks.iter().any(|b| b.air) {
@@ -154,6 +192,18 @@ pub fn finish_job(
         format!("Start: {}", settings.start_from.label()),
         format!("Geschaetzte Dauer: {}", est.format_duration()),
     ]);
+    if let Some(r) = rotary {
+        let kind = match r.kind {
+            RotaryKind::Roller => format!("Rollen {} mm", fmt_mm(r.roller_diameter)),
+            RotaryKind::Chuck => "Futter".into(),
+        };
+        comments.push(format!(
+            "Drehachse {}: {kind}, Werkstueck {} mm, {} je Umdrehung",
+            r.axis.letter(),
+            fmt_mm(r.object_diameter),
+            fmt_mm(r.travel_per_rotation)
+        ));
+    }
     let opts = GcodeOptions {
         s_max: profile.s_max,
         dynamic_power: profile.dynamic_power,
@@ -161,6 +211,7 @@ pub fn finish_job(
         air_off: profile.air_off.clone(),
         air_supported: profile.air_assist_supported,
         z_axis: profile.z_axis,
+        rotary_a: profile.rotary.uses_a_axis(),
         coord_mode: mapping.mode,
         return_to,
         comments,
@@ -350,6 +401,7 @@ pub fn frame_gcode(job: &Job, profile: &MachineProfile) -> Vec<String> {
         air_off: String::new(),
         air_supported: false,
         z_axis: false,
+        rotary_a: profile.rotary.uses_a_axis(),
         coord_mode: job.mapping.mode,
         return_to,
         comments: vec!["VectorLume Rahmen".into()],
@@ -405,6 +457,45 @@ mod tests {
         assert!(job.estimate.seconds > 0.0);
         // Quadrat oben links im Dokument (y=10) liegt bei Nullpunkt vorne links bei Y = 400-10 = 390.
         assert!(code.iter().any(|l| l.contains("Y390")));
+    }
+
+    #[test]
+    fn rotary_maps_surface_to_axis_travel() {
+        use crate::machine::{Rotary, RotaryAxis, RotaryKind};
+        let mut doc = Document::new();
+        doc.add_path("Quadrat", 0, VectorPath::rect(10.0, 10.0, 20.0, 20.0, 0.0));
+        // Futter, Umfang 100 mm, 50 mm Achsweg je Umdrehung → Faktor 0,5
+        let rotary = Rotary {
+            enabled: true,
+            kind: RotaryKind::Chuck,
+            travel_per_rotation: 50.0,
+            object_diameter: 100.0 / std::f64::consts::PI,
+            ..Rotary::default()
+        };
+        let mut profile = MachineProfile { rotary, ..Default::default() };
+        let settings = JobSettings { start_from: StartFrom::CurrentPosition, ..Default::default() };
+        let job = build_job(&doc, &[], &profile, &settings).unwrap();
+        assert!(job.warnings.is_empty(), "{:?}", job.warnings);
+        let (a, b) = (job.mapping.map(Point::new(10.0, 10.0)), job.mapping.map(Point::new(30.0, 30.0)));
+        assert!(((a.y - b.y).abs() - 10.0).abs() < 1e-9 && ((a.x - b.x).abs() - 20.0).abs() < 1e-9);
+        assert!(job.mapping.map(job.anchor).distance(Point::ZERO) < 1e-9);
+        let code = strip_for_streaming(&job.gcode);
+        assert!(code.iter().any(|l| l.contains("Y10") || l.contains("Y-10")), "{code:?}");
+        assert!(!code.iter().any(|l| l.contains("Y20") || l.contains("Y-20")), "{code:?}");
+
+        // A-Achse: keine Y-Bewegungen, Anker bei A = 0 auch absolut
+        profile.rotary.axis = RotaryAxis::A;
+        let abs = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
+        assert!(abs.mapping.map(abs.anchor).y.abs() < 1e-9);
+        assert!(abs.warnings.iter().any(|w| w.contains("Aktuelle Position")), "{:?}", abs.warnings);
+        let code = strip_for_streaming(&abs.gcode);
+        assert!(code.iter().any(|l| l.contains(" A") || l.starts_with('A')), "{code:?}");
+        assert!(!code.iter().any(|l| l.contains('Y')), "{code:?}");
+
+        // Motiv höher als der Umfang
+        profile.rotary.object_diameter = 5.0;
+        let small = build_job(&doc, &[], &profile, &settings).unwrap();
+        assert!(small.warnings.iter().any(|w| w.contains("Umfang")), "{:?}", small.warnings);
     }
 
     #[test]

@@ -1,6 +1,7 @@
 //! Maschinenprofil und Job-Einstellungen sowie die Umrechnung Dokument ↔ Maschine.
 
 use serde::{Deserialize, Serialize};
+use std::f64::consts::PI;
 use vl_core::{Point, Rect};
 
 /// Lage des Maschinen-Nullpunkts, von oben auf die Maschine gesehen (hinten = oben).
@@ -63,6 +64,7 @@ pub struct MachineProfile {
     pub frame_power: f64,
     pub frame_speed: f64,
     pub jog_speed: f64,
+    pub rotary: Rotary,
 }
 
 impl Default for MachineProfile {
@@ -92,6 +94,7 @@ impl MachineProfile {
             frame_power: 0.0,
             frame_speed: 3000.0,
             jog_speed: 3000.0,
+            rotary: Rotary::default(),
         }
     }
 
@@ -196,6 +199,115 @@ impl Anchor {
     }
 }
 
+/// Bauart der Drehachse.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RotaryKind {
+    /// Werkstück liegt auf angetriebenen Rollen.
+    #[default]
+    Roller,
+    /// Werkstück ist im Futter eingespannt.
+    Chuck,
+}
+
+impl RotaryKind {
+    pub const ALL: [RotaryKind; 2] = [RotaryKind::Roller, RotaryKind::Chuck];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            RotaryKind::Roller => "Rollen",
+            RotaryKind::Chuck => "Futter",
+        }
+    }
+}
+
+/// Anschluss der Drehachse an der Steuerung.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RotaryAxis {
+    /// Statt des Y-Motors angeschlossen (übliche Lösung bei GRBL-Diodenlasern).
+    #[default]
+    Y,
+    /// Eigene A-Achse (z. B. FluidNC/grblHAL mit vier Achsen).
+    A,
+}
+
+impl RotaryAxis {
+    pub const ALL: [RotaryAxis; 2] = [RotaryAxis::Y, RotaryAxis::A];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            RotaryAxis::Y => "Y-Achse (statt Y-Motor)",
+            RotaryAxis::A => "A-Achse",
+        }
+    }
+
+    pub fn letter(self) -> char {
+        match self {
+            RotaryAxis::Y => 'Y',
+            RotaryAxis::A => 'A',
+        }
+    }
+}
+
+/// Drehachse: Y im Dokument entspricht der abgewickelten Oberfläche des Werkstücks.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Rotary {
+    pub enabled: bool,
+    pub kind: RotaryKind,
+    pub axis: RotaryAxis,
+    /// Achsweg, den die Steuerung für eine volle Umdrehung der Rolle bzw. des Futters fährt
+    /// (mm bzw. Einheiten der A-Achse, z. B. 360 bei Grad).
+    pub travel_per_rotation: f64,
+    /// Durchmesser der angetriebenen Rolle (nur Rollen).
+    pub roller_diameter: f64,
+    /// Durchmesser des Werkstücks.
+    pub object_diameter: f64,
+    /// Drehrichtung umkehren.
+    pub reverse: bool,
+}
+
+impl Default for Rotary {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            kind: RotaryKind::Roller,
+            axis: RotaryAxis::Y,
+            travel_per_rotation: 100.0,
+            roller_diameter: 20.0,
+            object_diameter: 70.0,
+            reverse: false,
+        }
+    }
+}
+
+impl Rotary {
+    /// Umfang des Werkstücks in mm.
+    pub fn circumference(&self) -> f64 {
+        PI * self.object_diameter
+    }
+
+    /// Achsweg je mm Oberfläche (mit Vorzeichen). Auf Rollen bewegt sich die Oberfläche des Werkstücks
+    /// so weit wie die der Rolle – unabhängig vom Werkstückdurchmesser.
+    pub fn scale(&self) -> f64 {
+        let d = match self.kind {
+            RotaryKind::Roller => self.roller_diameter,
+            RotaryKind::Chuck => self.object_diameter,
+        };
+        let s = self.travel_per_rotation / (PI * d.max(0.1));
+        if self.reverse { -s } else { s }
+    }
+
+    /// Faktor, falls die Drehachse aktiv ist.
+    pub fn active_scale(&self) -> Option<f64> {
+        self.enabled.then(|| self.scale())
+    }
+
+    /// Ausgabe über eine eigene A-Achse.
+    pub fn uses_a_axis(&self) -> bool {
+        self.enabled && self.axis == RotaryAxis::A
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct JobSettings {
@@ -227,6 +339,21 @@ impl Default for JobSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rotary_scale() {
+        let mut r = Rotary { enabled: true, travel_per_rotation: 40.0, roller_diameter: 20.0, ..Rotary::default() };
+        // Rolle: unabhängig vom Werkstück; 20 mm Rolle → 62,83 mm Oberfläche je 40 mm Achsweg
+        assert!((r.scale() - 40.0 / (PI * 20.0)).abs() < 1e-12);
+        r.object_diameter = 200.0;
+        assert!((r.scale() - 40.0 / (PI * 20.0)).abs() < 1e-12);
+        r.kind = RotaryKind::Chuck;
+        r.reverse = true;
+        assert!((r.scale() + 40.0 / (PI * 200.0)).abs() < 1e-12);
+        assert!(!r.uses_a_axis());
+        r.enabled = false;
+        assert_eq!(r.active_scale(), None);
+    }
 
     #[test]
     fn mapping_is_involutive_for_all_corners() {

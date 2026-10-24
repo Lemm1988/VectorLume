@@ -199,6 +199,7 @@ pub struct VectorLumeApp {
     pub text_dialog: crate::text_tool::TextDialog,
     pub font_families: Arc<Mutex<Option<Vec<String>>>>,
     pub show_device_settings: bool,
+    pub show_rotary: bool,
     pub show_about: bool,
     pub right_tab: crate::ui_side::RightTab,
     pub lock_ratio: bool,
@@ -274,6 +275,7 @@ impl VectorLumeApp {
             text_dialog: Default::default(),
             font_families,
             show_device_settings: false,
+            show_rotary: false,
             show_about: false,
             right_tab: crate::ui_side::RightTab::Laser,
             lock_ratio: true,
@@ -1057,17 +1059,32 @@ impl VectorLumeApp {
     }
 
     pub fn jog(&mut self, screen_dir: Point) {
-        let d = self.settings.profile.screen_to_machine_delta(screen_dir * self.settings.jog_step);
-        let f = self.settings.profile.jog_speed.round();
+        let profile = &self.settings.profile;
+        let mut d = profile.screen_to_machine_delta(screen_dir * self.settings.jog_step);
+        // Mit Drehachse bewegt Y die Oberfläche des Werkstücks um die Schrittweite.
+        let mut y_axis = 'Y';
+        if let Some(k) = profile.rotary.active_scale() {
+            d.y *= k;
+            y_axis = profile.rotary.axis.letter();
+        }
+        let f = profile.jog_speed.round();
         let mut cmd = String::from("$J=G91 G21");
         if d.x != 0.0 {
             cmd.push_str(&format!(" X{}", vl_cam::gcode::fmt_mm(d.x)));
         }
         if d.y != 0.0 {
-            cmd.push_str(&format!(" Y{}", vl_cam::gcode::fmt_mm(d.y)));
+            cmd.push_str(&format!(" {y_axis}{}", vl_cam::gcode::fmt_mm(d.y)));
         }
         cmd.push_str(&format!(" F{f}"));
         self.send_line(cmd);
+    }
+
+    /// Dreht die Drehachse um `travel` (Achsweg) – zum Einrichten.
+    pub fn jog_rotary(&mut self, travel: f64) {
+        let profile = &self.settings.profile;
+        let axis = profile.rotary.axis.letter();
+        let f = profile.jog_speed.round();
+        self.send_line(format!("$J=G91 G21 {axis}{} F{f}", vl_cam::gcode::fmt_mm(travel)));
     }
 
     pub fn set_user_origin_here(&mut self) {

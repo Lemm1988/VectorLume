@@ -9,6 +9,7 @@ use vl_cam::{MachineProfile, OriginCorner};
 
 pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     crate::text_tool::show(app, ctx);
+    crate::rotary_ui::show(app, ctx);
     device_settings(app, ctx);
     about(app, ctx);
     modal(app, ctx);
