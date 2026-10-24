@@ -186,7 +186,7 @@ impl CutSettings {
 
     /// Z-Höhe für einen Durchgang (0-basiert) oder `None`, wenn keine Z-Bewegung eingestellt ist.
     pub fn z_for_pass(&self, pass: u32) -> Option<f64> {
-        (self.z_offset != 0.0 || self.z_step != 0.0).then(|| self.z_offset - pass as f64 * self.z_step)
+        (self.z_offset != 0.0 || self.z_step != 0.0).then_some(self.z_offset - pass as f64 * self.z_step)
     }
 
     pub fn summary(&self) -> String {
