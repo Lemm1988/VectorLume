@@ -1057,6 +1057,7 @@ pub static EN: &[(&str, &str)] = &[
     ("B", "W"),
     ("Bild", "Image"),
     ("{} ({})", "{} ({})"),
+    ("Lizenzen der Bibliotheken anzeigen", "Show third-party licenses"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

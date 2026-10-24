@@ -245,7 +245,15 @@ Alle Abhängigkeiten sind freizügig lizenziert (MIT, Apache-2.0, BSD, Zlib, ISC
 werden unter ihrer MIT/Apache-Alternative genutzt. `serialport` (und `option-ext` über `dirs`) stehen unter MPL-2.0
 (Änderungen an deren Dateien wären offenzulegen, die eigene Software nicht). `mozjpeg` (JPEG-Dekoder der Kamera) steht
 unter der IJG-Lizenz: In der Dokumentation einer Weitergabe ist zu vermerken „This software is based in part on the work
-of the Independent JPEG Group“. Damit bleiben Veröffentlichung als Open Source und Verkauf möglich.
+of the Independent JPEG Group“. Die eingebauten Ersatzschriften von egui stehen unter OFL-1.1 bzw. der Ubuntu Font
+Licence (Weitergabe mit Software erlaubt). Damit bleiben Veröffentlichung als Open Source und Verkauf möglich.
+
+**Weitergabe:** `tools\package.ps1` erzeugt das Setup (Inno Setup 6, Benutzerinstallation ohne Adminrechte, gleicher
+Ordner und gleiche Dateitypen wie `install.ps1`, Deinstallation über *Apps*, Assistent deutsch/englisch) und ein portables
+ZIP. Beide enthalten `THIRD-PARTY-LICENSES.html` mit den Lizenztexten aller mitgelieferten Bibliotheken (cargo-about;
+`tools\about.toml` listet die zulässigen Lizenzen – eine neue, nicht aufgeführte Lizenz bricht die Paketierung ab).
+Der Info-Dialog verlinkt die Datei. Inno Setup darf auch für kommerzielle Software verwendet werden. Code-Signatur ⏳
+(ohne Zertifikat warnt SmartScreen).
 
 | Paket | Zweck | Lizenz |
 |---|---|---|
@@ -273,4 +281,4 @@ of the Independent JPEG Group“. Damit bleiben Veröffentlichung als Open Sourc
 | 1 ✅ | Nutzbare Version für GRBL/SF-A9 (dieses Dokument) |
 | 2 ✅ | Knotenbearbeitung, Boolesche Operationen, Offset/Offset-Füllen, Arrays, Laschen, Materialbibliothek, Testmuster-Generator, Autosicherung, Objektfang, PDF-Import |
 | 3 🟡 | Bild nachzeichnen ✅, Text auf Pfad/variabler Text ✅, Rotary ✅, Kamera ✅, Marlin/Smoothieware ✅ (experimentell), danach Ruida und Galvo (Hardware-Tester nötig) |
-| 4 🟡 | Eigene Verbesserungen (u. a. Leistung je Objekt, LightBurn-Import ✅), Installer (Benutzerinstallation mit Verknüpfungen und Dateitypen `.vlume`/„Öffnen mit“ für `.lbrn2` ✅, Setup-Paket ⏳), mehrsprachige Oberfläche (Deutsch/Englisch ✅), Veröffentlichung |
+| 4 🟡 | Eigene Verbesserungen (u. a. Leistung je Objekt, LightBurn-Import ✅), Installer (Benutzerinstallation mit Verknüpfungen und Dateitypen `.vlume`/„Öffnen mit“ für `.lbrn2` ✅, Setup-Paket ✅, Code-Signatur ⏳), mehrsprachige Oberfläche (Deutsch/Englisch ✅), Veröffentlichung |

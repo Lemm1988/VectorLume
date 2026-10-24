@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VectorLume – Lizenzen der Bibliotheken</title>
+<style>
+  :root { color-scheme: light dark; --bg: #ffffff; --fg: #1b1f24; --muted: #5b6270; --code: #f3f4f6; --link: #2563eb; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #16181d; --fg: #e4e6eb; --muted: #9aa1ad; --code: #22252c; --link: #7aa7ff; } }
+  body { font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--fg); max-width: 960px; margin: 0 auto; padding: 24px 16px; line-height: 1.5; }
+  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+  h2 { font-size: 1.15rem; margin-top: 2rem; }
+  h3 { font-size: 1.05rem; margin: 2rem 0 .25rem; }
+  p.note { color: var(--muted); }
+  a { color: var(--link); }
+  ul { padding-left: 1.25rem; }
+  ul.used-by { columns: 2; font-size: .9rem; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--code); padding: 12px; border-radius: 6px; font-size: .8rem; }
+</style>
+</head>
+<body>
+<h1>VectorLume – Lizenzen der verwendeten Bibliotheken</h1>
+<p class="note">Third-party licenses. VectorLume uses the following open-source libraries; their license texts are reproduced below.</p>
+<p class="note">This software is based in part on the work of the Independent JPEG Group.</p>
+
+<h2>Übersicht / Overview</h2>
+<ul>
+{{#each overview}}
+  <li><a href="#{{id}}">{{name}}</a> ({{count}})</li>
+{{/each}}
+</ul>
+
+<h2>Lizenztexte / License texts</h2>
+{{#each licenses}}
+<h3 id="{{id}}">{{name}}</h3>
+<ul class="used-by">
+{{#each used_by}}
+  <li>{{crate.name}} {{crate.version}}</li>
+{{/each}}
+</ul>
+<pre>{{text}}</pre>
+{{/each}}
+</body>
+</html>

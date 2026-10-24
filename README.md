@@ -31,10 +31,11 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
 
 ## Erste Schritte
 
-1. Installieren mit `powershell -ExecutionPolicy Bypass -File tools\install.ps1` – danach über die
+1. Installieren mit **`VectorLume-Setup-<Version>.exe`** (ohne Adminrechte; entfernen über *Einstellungen → Apps*)
+   oder aus dem Quelltext mit `powershell -ExecutionPolicy Bypass -File tools\install.ps1` – danach über die
    Verknüpfung **VectorLume** auf dem Desktop bzw. im Startmenü starten (oder `cargo run --release`).
    `.vlume`-Projekte öffnen sich per Doppelklick; LightBurn-Projekte (`.lbrn2`) über *Öffnen mit → VectorLume*
-   oder *Datei → Öffnen* (die Zuordnung zu LightBurn bleibt). Entfernen mit `… install.ps1 -Uninstall`.
+   oder *Datei → Öffnen* (die Zuordnung zu LightBurn bleibt).
 2. *Hilfe → Beispielprojekt laden* zeigt alle Ebenenarten.
 3. Rechts unter **Laser** den Anschluss wählen (USB-Port des SF-A9 oder „Simulator“) und **Verbinden**.
 4. *Laser → Maschineneinstellungen → Werte vom Gerät* übernimmt Arbeitsfläche und S-Max aus der Steuerung.
@@ -50,6 +51,12 @@ cargo test --workspace           # alle Tests
 cargo clippy --workspace --all-targets
 cargo build --release            # target/release/vectorlume.exe
 ```
+
+**Weitergabe:** `powershell -ExecutionPolicy Bypass -File tools\package.ps1` baut das Programm und legt in `dist\`
+das Setup (`VectorLume-Setup-<Version>.exe`, Inno Setup 6) und ein portables ZIP ab, jeweils mit der Lizenzliste aller
+Bibliotheken (`THIRD-PARTY-LICENSES.html`, erzeugt mit cargo-about). Benötigt einmalig
+`winget install JRSoftware.InnoSetup` und `cargo install cargo-about --locked --features cli`. Die Version steht in
+`Cargo.toml` (`[workspace.package]`). Das Setup ist nicht signiert – Windows SmartScreen warnt beim ersten Start.
 
 Hilfreiche Startschalter: `VECTORLUME_DEMO=1` (Beispielprojekt), `VECTORLUME_PREVIEW=1` (Vorschau an),
 `VECTORLUME_SIMULATOR=1` (mit Simulator verbinden), `VECTORLUME_CONFIG_DIR=<Ordner>` (eigener Ordner für

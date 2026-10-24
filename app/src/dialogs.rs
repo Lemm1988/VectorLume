@@ -219,6 +219,13 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 .small()
                 .color(pal.text_weak),
             );
+            // Liegt dem Setup bzw. dem portablen Paket bei (tools\package.ps1)
+            let licenses = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("THIRD-PARTY-LICENSES.html")));
+            if let Some(path) = licenses.filter(|p| p.is_file())
+                && ui.link(tr("Lizenzen der Bibliotheken anzeigen")).clicked()
+            {
+                let _ = std::process::Command::new("explorer").arg(path).spawn();
+            }
         },
     );
     if !open {
