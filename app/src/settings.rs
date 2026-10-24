@@ -18,6 +18,8 @@ pub struct AppSettings {
     pub profile: MachineProfile,
     pub job: JobSettings,
     pub theme: ThemeChoice,
+    /// Sprache der Oberfläche; beim ersten Start die des Systems.
+    pub language: crate::i18n::Language,
     pub recent_files: Vec<PathBuf>,
     pub last_port: String,
     /// Adresse für „Netzwerk“, z. B. `192.168.4.1:23`.
@@ -38,6 +40,7 @@ impl Default for AppSettings {
             profile: MachineProfile::default(),
             job: JobSettings::default(),
             theme: ThemeChoice::Dark,
+            language: crate::i18n::Language::from_system(),
             recent_files: Vec::new(),
             last_port: String::new(),
             network_address: String::new(),

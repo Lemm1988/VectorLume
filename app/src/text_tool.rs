@@ -1,6 +1,7 @@
 //! Text: Einfügen und Bearbeiten, Text auf Pfad und variable Texte (Zähler, Datum, Uhrzeit, Datenliste).
 
 use crate::app::{ToastKind, VectorLumeApp};
+use crate::i18n::{tr, trs};
 use crate::theme;
 use egui::{Align2, Button, DragValue, RichText, vec2};
 use egui_phosphor::regular as icon;
@@ -78,7 +79,7 @@ impl VectorLumeApp {
             .flat_map(|o| o.polylines(0.05))
             .max_by(|a, b| a.length().total_cmp(&b.length()));
         let Some(line) = line.filter(|l| l.points.len() >= 2) else {
-            self.toast(ToastKind::Info, "Bitte zuerst einen Pfad (Linie, Kreis, Kurve …) auswählen.");
+            self.toast(ToastKind::Info, tr("Bitte zuerst einen Pfad (Linie, Kreis, Kurve …) auswählen."));
             return;
         };
         let d = &mut self.text_dialog;
@@ -190,7 +191,7 @@ impl VectorLumeApp {
             self.dirty = true;
         }
         if list_done {
-            self.toast(ToastKind::Info, "Datenliste: Die letzte Zeile wurde gelasert.");
+            self.toast(ToastKind::Info, tr("Datenliste: Die letzte Zeile wurde gelasert."));
         }
     }
 
@@ -213,9 +214,9 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     let mut load_csv = false;
     let editing = app.text_dialog.edit.is_some();
     let title = match (editing, app.text_dialog.on_path.is_some()) {
-        (true, _) => format!("{} Text bearbeiten", icon::TEXT_T),
-        (false, true) => format!("{} Text auf Pfad", icon::PATH),
-        (false, false) => format!("{} Text einfügen", icon::TEXT_T),
+        (true, _) => trs(&format!("{} Text bearbeiten", icon::TEXT_T)),
+        (false, true) => trs(&format!("{} Text auf Pfad", icon::PATH)),
+        (false, false) => trs(&format!("{} Text einfügen", icon::TEXT_T)),
     };
     egui::Window::new(title)
         .id(egui::Id::new("text_dialog"))
@@ -231,18 +232,20 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 egui::TextEdit::multiline(&mut d.spec.text)
                     .desired_rows(3)
                     .desired_width(f32::INFINITY)
-                    .hint_text("Text"),
+                    .hint_text(tr("Text")),
             );
             ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new("Platzhalter:").small().color(pal.text_weak));
+                ui.label(RichText::new(tr("Platzhalter:")).small().color(pal.text_weak));
                 for (p, help) in PLACEHOLDERS {
                     if ui.small_button(p).on_hover_text(help).clicked() {
                         d.spec.text.push_str(p);
                     }
                 }
                 if ui
-                    .small_button(format!("{} CSV…", icon::TABLE))
-                    .on_hover_text("Datenliste (CSV) laden: jede Spalte wird ein Platzhalter, z. B. für Namensschilder")
+                    .small_button(trs(&format!("{} CSV…", icon::TABLE)))
+                    .on_hover_text(tr(
+                        "Datenliste (CSV) laden: jede Spalte wird ein Platzhalter, z. B. für Namensschilder",
+                    ))
                     .clicked()
                 {
                     load_csv = true;
@@ -250,7 +253,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
             });
             ui.add_space(6.0);
             egui::Grid::new("text_grid").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
-                ui.label("Schrift");
+                ui.label(tr("Schrift"));
                 match &families {
                     Some(list) => {
                         egui::ComboBox::from_id_salt("font")
@@ -258,7 +261,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                             .selected_text(&d.spec.family)
                             .height(320.0)
                             .show_ui(ui, |ui| {
-                                ui.add(egui::TextEdit::singleline(&mut d.filter).hint_text("Suchen…"));
+                                ui.add(egui::TextEdit::singleline(&mut d.filter).hint_text(tr("Suchen…")));
                                 let filter = d.filter.to_lowercase();
                                 for f in list.iter().filter(|f| filter.is_empty() || f.to_lowercase().contains(&filter))
                                 {
@@ -269,29 +272,29 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     None => {
                         ui.horizontal(|ui| {
                             ui.spinner();
-                            ui.label("Schriften werden geladen…");
+                            ui.label(tr("Schriften werden geladen…"));
                         });
                     }
                 }
                 ui.end_row();
-                ui.label("Stil");
+                ui.label(tr("Stil"));
                 ui.horizontal(|ui| {
                     ui.toggle_value(&mut d.spec.bold, RichText::new("F").strong());
                     ui.toggle_value(&mut d.spec.italic, RichText::new("K").italics());
                 });
                 ui.end_row();
-                ui.label("Höhe");
+                ui.label(tr("Höhe"));
                 ui.add(DragValue::new(&mut d.spec.height_mm).speed(0.1).range(0.5..=500.0).suffix(" mm"));
                 ui.end_row();
-                ui.label("Zeichenabstand");
+                ui.label(tr("Zeichenabstand"));
                 ui.add(DragValue::new(&mut d.spec.letter_spacing).speed(0.05).range(-20.0..=100.0).suffix(" mm"));
                 ui.end_row();
                 if d.on_path.is_none() {
-                    ui.label("Zeilenabstand");
+                    ui.label(tr("Zeilenabstand"));
                     ui.add(DragValue::new(&mut d.spec.line_spacing).speed(0.01).range(0.5..=4.0).fixed_decimals(2));
                     ui.end_row();
                 }
-                ui.label("Ausrichtung");
+                ui.label(tr("Ausrichtung"));
                 ui.horizontal(|ui| {
                     use vl_core::TextAlign::*;
                     ui.selectable_value(&mut d.spec.align, Left, icon::TEXT_ALIGN_LEFT);
@@ -300,33 +303,33 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 });
                 ui.end_row();
                 if let Some(on) = &mut d.on_path {
-                    ui.label("Versatz entlang");
+                    ui.label(tr("Versatz entlang"));
                     ui.add(DragValue::new(&mut on.offset).speed(0.2).range(-10000.0..=10000.0).suffix(" mm"));
                     ui.end_row();
-                    ui.label("Abstand zum Pfad");
+                    ui.label(tr("Abstand zum Pfad"));
                     ui.add(DragValue::new(&mut on.distance).speed(0.05).range(-500.0..=500.0).suffix(" mm"));
                     ui.end_row();
                     ui.label("");
-                    ui.checkbox(&mut on.reverse, "Richtung umkehren (andere Seite)");
+                    ui.checkbox(&mut on.reverse, tr("Richtung umkehren (andere Seite)"));
                     ui.end_row();
                 }
             });
             let data = TextData { spec: d.spec.clone(), vars: d.vars.clone(), on_path: None, rendered: String::new() };
             if data.uses_counter() {
                 ui.add_space(4.0);
-                ui.label(RichText::new("Fortlaufende Nummer {n}").strong());
+                ui.label(RichText::new(tr("Fortlaufende Nummer {n}")).strong());
                 egui::Grid::new("text_counter").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
-                    ui.label("Nächster Wert");
+                    ui.label(tr("Nächster Wert"));
                     ui.horizontal(|ui| {
                         ui.add(DragValue::new(&mut d.vars.counter).speed(1.0));
-                        ui.label("Schritt");
+                        ui.label(tr("Schritt"));
                         ui.add(DragValue::new(&mut d.vars.step).speed(1.0).range(-1000..=1000));
-                        ui.label("Stellen");
+                        ui.label(tr("Stellen"));
                         ui.add(DragValue::new(&mut d.vars.digits).range(1..=12));
                     });
                     ui.end_row();
                     ui.label("");
-                    ui.checkbox(&mut d.vars.advance_after_job, "Nach jedem fertigen Job weiterzählen");
+                    ui.checkbox(&mut d.vars.advance_after_job, tr("Nach jedem fertigen Job weiterzählen"));
                     ui.end_row();
                 });
             }
@@ -334,31 +337,31 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
             if let Some(list) = &mut d.vars.data {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Datenliste").strong());
+                    ui.label(RichText::new(tr("Datenliste")).strong());
                     ui.label(
-                        RichText::new(format!("{} · {} Zeilen", list.source, list.rows.len()))
+                        RichText::new(trs(&format!("{} · {} Zeilen", list.source, list.rows.len())))
                             .small()
                             .color(pal.text_weak),
                     );
-                    if ui.small_button(icon::X).on_hover_text("Datenliste entfernen").clicked() {
+                    if ui.small_button(icon::X).on_hover_text(tr("Datenliste entfernen")).clicked() {
                         remove_list = true;
                     }
                 });
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(RichText::new("Spalten:").small().color(pal.text_weak));
+                    ui.label(RichText::new(tr("Spalten:")).small().color(pal.text_weak));
                     for h in &list.headers {
                         let p = DataList::placeholder(h);
                         if ui.small_button(&p).clicked() {
                             d.spec.text.push_str(&p);
                         }
                     }
-                    if ui.small_button(ROW_PLACEHOLDER).on_hover_text("Zeilennummer").clicked() {
+                    if ui.small_button(ROW_PLACEHOLDER).on_hover_text(tr("Zeilennummer")).clicked() {
                         d.spec.text.push_str(ROW_PLACEHOLDER);
                     }
                 });
                 ui.horizontal(|ui| {
                     let n = list.rows.len();
-                    ui.label("Zeile");
+                    ui.label(tr("Zeile"));
                     if ui.add_enabled(list.row > 0, Button::new(icon::CARET_LEFT).small()).clicked() {
                         list.row -= 1;
                     }
@@ -369,10 +372,10 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     if ui.add_enabled(list.row + 1 < n, Button::new(icon::CARET_RIGHT).small()).clicked() {
                         list.row += 1;
                     }
-                    ui.label(format!("von {n}"));
+                    ui.label(trs(&format!("von {n}")));
                 });
                 if !data.uses_counter() {
-                    ui.checkbox(&mut d.vars.advance_after_job, "Nach jedem fertigen Job zur nächsten Zeile");
+                    ui.checkbox(&mut d.vars.advance_after_job, tr("Nach jedem fertigen Job zur nächsten Zeile"));
                 }
             }
             if remove_list {
@@ -380,18 +383,21 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
             }
             if data.is_variable() {
                 ui.label(
-                    RichText::new(format!("Ergebnis jetzt: {}", data.expand(now()).lines().next().unwrap_or("")))
+                    RichText::new(trs(&format!("Ergebnis jetzt: {}", data.expand(now()).lines().next().unwrap_or(""))))
                         .small()
                         .color(pal.text_weak),
                 );
             }
             if let Some(e) = &d.error {
-                ui.label(RichText::new(e).color(pal.danger));
+                ui.label(RichText::new(trs(e)).color(pal.danger));
             }
             ui.add_space(6.0);
             let ready = families.is_some() && !d.spec.text.trim().is_empty();
-            let label =
-                if editing { format!("{} Übernehmen", icon::CHECK) } else { format!("{} Einfügen", icon::PLUS) };
+            let label = if editing {
+                trs(&format!("{} Übernehmen", icon::CHECK))
+            } else {
+                trs(&format!("{} Einfügen", icon::PLUS))
+            };
             if ui.add_enabled(ready, Button::new(label).min_size(vec2(120.0, 30.0))).clicked() {
                 insert = true;
             }
@@ -408,7 +414,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
 
 /// CSV-Datei als Datenliste für den Text im Dialog laden.
 fn load_data_list(app: &mut VectorLumeApp) {
-    let Some(path) = rfd::FileDialog::new().add_filter("CSV-Datei", &["csv", "txt", "tsv"]).pick_file() else {
+    let Some(path) = rfd::FileDialog::new().add_filter(tr("CSV-Datei"), &["csv", "txt", "tsv"]).pick_file() else {
         return;
     };
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
@@ -443,7 +449,7 @@ pub fn text_to_curves(app: &mut VectorLumeApp) {
     for id in ids {
         if let Some(o) = app.doc.get_mut(id) {
             o.text = None;
-            o.name = o.name.replacen("Text", "Kurven", 1);
+            o.name = o.name.replacen(tr("Text"), tr("Kurven"), 1);
         }
     }
     app.mark_changed();

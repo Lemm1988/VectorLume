@@ -1,6 +1,7 @@
 //! Arbeitsfläche: Darstellung von Bett, Objekten und Vorschau sowie Maus-Interaktion.
 
 use crate::app::{Tool, VectorLumeApp};
+use crate::i18n::{tr, trs};
 use crate::snapping::{Guide, SnapHint, SnapTargets};
 use crate::theme;
 use egui::epaint::Vertex;
@@ -385,7 +386,7 @@ impl VectorLumeApp {
                 };
                 let x = if b.x < a.x { a.x - w } else { a.x };
                 let y = if b.y < a.y { a.y - h } else { a.y };
-                ("Rechteck", VectorPath::rect(x, y, w, h, o.corner_radius))
+                (tr("Rechteck"), VectorPath::rect(x, y, w, h, o.corner_radius))
             }
             Tool::Ellipse => {
                 let (w, h) = if shift {
@@ -395,7 +396,7 @@ impl VectorLumeApp {
                 };
                 let x = if b.x < a.x { a.x - w } else { a.x };
                 let y = if b.y < a.y { a.y - h } else { a.y };
-                ("Ellipse", VectorPath::ellipse(Point::new(x + w / 2.0, y + h / 2.0), w / 2.0, h / 2.0))
+                (tr("Ellipse"), VectorPath::ellipse(Point::new(x + w / 2.0, y + h / 2.0), w / 2.0, h / 2.0))
             }
             Tool::Line => {
                 let mut end = b;
@@ -404,10 +405,12 @@ impl VectorLumeApp {
                     let ang = snap_angle(d.y.atan2(d.x), 45.0);
                     end = a + Point::new(ang.cos(), ang.sin()) * d.length();
                 }
-                ("Linie", VectorPath::line(a, end))
+                (tr("Linie"), VectorPath::line(a, end))
             }
-            Tool::Polygon => ("Vieleck", VectorPath::regular_polygon(a, a.distance(b), o.polygon_sides)),
-            Tool::Star => ("Stern", VectorPath::star(a, a.distance(b), a.distance(b) * o.star_inner, o.star_points)),
+            Tool::Polygon => (tr("Vieleck"), VectorPath::regular_polygon(a, a.distance(b), o.polygon_sides)),
+            Tool::Star => {
+                (tr("Stern"), VectorPath::star(a, a.distance(b), a.distance(b) * o.star_inner, o.star_points))
+            }
             Tool::Select | Tool::Text | Tool::Node => return,
         };
         let size = path.bounds(&Affine::IDENTITY);
@@ -995,57 +998,64 @@ impl VectorLumeApp {
         resp.context_menu(|ui| {
             let has = !self.selection.is_empty();
             use egui_phosphor::regular as i;
-            if ui.add_enabled(has, egui::Button::new(format!("{} Duplizieren", i::COPY))).clicked() {
+            if ui.add_enabled(has, egui::Button::new(trs(&format!("{} Duplizieren", i::COPY)))).clicked() {
                 self.duplicate();
                 ui.close();
             }
-            if ui.add_enabled(has, egui::Button::new(format!("{} Löschen", i::TRASH))).clicked() {
+            if ui.add_enabled(has, egui::Button::new(trs(&format!("{} Löschen", i::TRASH)))).clicked() {
                 self.delete_selection();
                 ui.close();
             }
             ui.separator();
             if ui
-                .add_enabled(self.selection.len() > 1, egui::Button::new(format!("{} Gruppieren", i::SELECTION)))
+                .add_enabled(self.selection.len() > 1, egui::Button::new(trs(&format!("{} Gruppieren", i::SELECTION))))
                 .clicked()
             {
                 self.group();
                 ui.close();
             }
-            if ui.add_enabled(has, egui::Button::new(format!("{} Gruppierung lösen", i::SELECTION_SLASH))).clicked() {
+            if ui
+                .add_enabled(has, egui::Button::new(trs(&format!("{} Gruppierung lösen", i::SELECTION_SLASH))))
+                .clicked()
+            {
                 self.ungroup();
                 ui.close();
             }
             if let Some(id) = self.selected_text() {
-                if ui.button(format!("{} Text bearbeiten…", i::TEXT_T)).clicked() {
+                if ui.button(trs(&format!("{} Text bearbeiten…", i::TEXT_T))).clicked() {
                     self.open_text_edit(id);
                     ui.close();
                 }
-                if ui.button(format!("{} In Kurven umwandeln", i::BEZIER_CURVE)).clicked() {
+                if ui.button(trs(&format!("{} In Kurven umwandeln", i::BEZIER_CURVE))).clicked() {
                     crate::text_tool::text_to_curves(self);
                     ui.close();
                 }
             }
             if self.selection.iter().any(|id| self.doc.get(*id).is_some_and(|o| o.is_image()))
-                && ui.button(format!("{} Bild nachzeichnen…", i::SCAN)).clicked()
+                && ui.button(trs(&format!("{} Bild nachzeichnen…", i::SCAN))).clicked()
             {
                 self.open_trace();
                 ui.close();
             }
             ui.separator();
-            if ui.add_enabled(has, egui::Button::new(format!("{} Horizontal spiegeln", i::FLIP_HORIZONTAL))).clicked() {
+            if ui
+                .add_enabled(has, egui::Button::new(trs(&format!("{} Horizontal spiegeln", i::FLIP_HORIZONTAL))))
+                .clicked()
+            {
                 self.mirror(true);
                 ui.close();
             }
-            if ui.add_enabled(has, egui::Button::new(format!("{} Vertikal spiegeln", i::FLIP_VERTICAL))).clicked() {
+            if ui.add_enabled(has, egui::Button::new(trs(&format!("{} Vertikal spiegeln", i::FLIP_VERTICAL)))).clicked()
+            {
                 self.mirror(false);
                 ui.close();
             }
-            if ui.add_enabled(has, egui::Button::new(format!("{} 90° drehen", i::ARROW_CLOCKWISE))).clicked() {
+            if ui.add_enabled(has, egui::Button::new(trs(&format!("{} 90° drehen", i::ARROW_CLOCKWISE)))).clicked() {
                 self.rotate_selection(90.0);
                 ui.close();
             }
             if ui
-                .add_enabled(has, egui::Button::new(format!("{} Auf Arbeitsfläche zentrieren", i::CROSSHAIR)))
+                .add_enabled(has, egui::Button::new(trs(&format!("{} Auf Arbeitsfläche zentrieren", i::CROSSHAIR))))
                 .clicked()
             {
                 self.center_on_bed();
@@ -1259,7 +1269,7 @@ fn draw_snap_hint(painter: &egui::Painter, tf: &ViewTf, work: egui::Rect, pal: &
         painter.text(
             s + vec2(9.0, -9.0),
             egui::Align2::LEFT_BOTTOM,
-            kind.label(),
+            tr(kind.label()),
             egui::FontId::proportional(11.0),
             pal.text,
         );

@@ -1,6 +1,7 @@
 //! Rechte Seitenleiste: Ebenen mit Laser-Einstellungen, Laser-Steuerung, Verfahren und Konsole.
 
 use crate::app::VectorLumeApp;
+use crate::i18n::{tr, trs};
 use crate::theme;
 use egui::{Align, Button, Color32, CornerRadius, DragValue, Frame, Layout, Margin, RichText, Sense, Stroke, Ui, vec2};
 use egui_phosphor::regular as icon;
@@ -58,9 +59,9 @@ pub fn right_panel(app: &mut VectorLumeApp, ui: &mut Ui) {
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         for (tab, glyph, label) in [
-                            (RightTab::Laser, icon::LIGHTNING, "Laser"),
-                            (RightTab::Jog, icon::ARROWS_OUT, "Bewegen"),
-                            (RightTab::Console, icon::TERMINAL, "Konsole"),
+                            (RightTab::Laser, icon::LIGHTNING, tr("Laser")),
+                            (RightTab::Jog, icon::ARROWS_OUT, tr("Bewegen")),
+                            (RightTab::Console, icon::TERMINAL, tr("Konsole")),
                         ] {
                             let selected = app.right_tab == tab;
                             let text = RichText::new(format!("{glyph} {label}")).color(if selected {
@@ -89,12 +90,12 @@ pub fn right_panel(app: &mut VectorLumeApp, ui: &mut Ui) {
 
 fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     let pal = theme::of(ui);
-    section_title(ui, icon::STACK, "Ebenen");
+    section_title(ui, icon::STACK, tr("Ebenen"));
     ui.add_space(4.0);
     let used = app.doc.used_layers();
     if used.is_empty() {
         ui.label(
-            RichText::new("Noch keine Objekte. Zeichne links eine Form oder importiere eine Datei (Strg+I).")
+            RichText::new(tr("Noch keine Objekte. Zeichne links eine Form oder importiere eine Datei (Strg+I)."))
                 .color(pal.text_weak),
         );
     }
@@ -117,17 +118,17 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                             let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
                             ui.painter().rect_filled(r, CornerRadius::same(4), theme::layer_color(layer.color));
                             ui.label(RichText::new(&layer.name).strong());
-                            ui.label(RichText::new(layer.settings.mode.label()).color(pal.text_weak).size(12.0));
+                            ui.label(RichText::new(tr(layer.settings.mode.label())).color(pal.text_weak).size(12.0));
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                 ui.spacing_mut().item_spacing.x = 2.0;
-                                if ui.small_button(icon::CARET_DOWN).on_hover_text("Später ausgeben").clicked() {
+                                if ui.small_button(icon::CARET_DOWN).on_hover_text(tr("Später ausgeben")).clicked() {
                                     app.checkpoint();
                                     app.doc.move_layer(l, 1);
                                     app.mark_changed();
                                 }
                                 if ui
                                     .add_enabled(pos > 0, Button::new(icon::CARET_UP).small())
-                                    .on_hover_text("Früher ausgeben")
+                                    .on_hover_text(tr("Früher ausgeben"))
                                     .clicked()
                                 {
                                     app.checkpoint();
@@ -137,9 +138,9 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                                 let lock = if layer.locked { icon::LOCK_SIMPLE } else { icon::LOCK_SIMPLE_OPEN };
                                 if ui
                                     .small_button(lock)
-                                    .on_hover_text(
+                                    .on_hover_text(tr(
                                         "Sperren: Objekte bleiben sichtbar, lassen sich aber nicht auswählen",
-                                    )
+                                    ))
                                     .clicked()
                                 {
                                     app.checkpoint();
@@ -151,7 +152,7 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                                     app.mark_changed();
                                 }
                                 let vis = if layer.visible { icon::EYE } else { icon::EYE_SLASH };
-                                if ui.small_button(vis).on_hover_text("Anzeigen/Ausblenden").clicked() {
+                                if ui.small_button(vis).on_hover_text(tr("Anzeigen/Ausblenden")).clicked() {
                                     app.checkpoint();
                                     app.doc.layers[l].visible = !layer.visible;
                                     app.mark_changed();
@@ -160,9 +161,9 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                                 if ui
                                     .small_button(RichText::new(icon::POWER).color(out_color))
                                     .on_hover_text(if layer.settings.output {
-                                        "Wird gelasert (klicken zum Abschalten)"
+                                        tr("Wird gelasert (klicken zum Abschalten)")
                                     } else {
-                                        "Wird nicht gelasert"
+                                        tr("Wird nicht gelasert")
                                     })
                                     .clicked()
                                 {
@@ -178,7 +179,7 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                                 layer.settings.speed,
                                 layer.settings.power_max,
                                 layer.settings.passes,
-                                if layer.settings.air_assist { "· Luft" } else { "" }
+                                if layer.settings.air_assist { tr("· Luft") } else { "" }
                             ))
                             .size(12.0)
                             .color(pal.text_weak),
@@ -204,8 +205,8 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             ui.add(egui::TextEdit::singleline(&mut layer.name).desired_width(120.0));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
-                    .small_button(format!("{} Material", icon::BOOKS))
-                    .on_hover_text("Materialbibliothek öffnen")
+                    .small_button(trs(&format!("{} Material", icon::BOOKS)))
+                    .on_hover_text(tr("Materialbibliothek öffnen"))
                     .clicked()
                 {
                     app.materials.open = true;
@@ -226,11 +227,11 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
 
 pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool, z_axis: bool) {
     egui::Grid::new("cut_settings").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
-        ui.label("Modus");
+        ui.label(tr("Modus"));
         let before = s.mode;
-        egui::ComboBox::from_id_salt("layer_mode").selected_text(s.mode.label()).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt("layer_mode").selected_text(tr(s.mode.label())).show_ui(ui, |ui| {
             for m in LayerMode::ALL {
-                ui.selectable_value(&mut s.mode, m, m.label());
+                ui.selectable_value(&mut s.mode, m, tr(m.label()));
             }
         });
         if s.mode != before {
@@ -241,17 +242,17 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
         }
         ui.end_row();
 
-        ui.label("Geschwindigkeit");
+        ui.label(tr("Geschwindigkeit"));
         ui.add(DragValue::new(&mut s.speed).speed(10.0).range(1.0..=60000.0).suffix(" mm/min"));
         ui.end_row();
 
-        ui.label("Leistung max.");
+        ui.label(tr("Leistung max."));
         ui.add(egui::Slider::new(&mut s.power_max, 0.0..=100.0).suffix(" %").fixed_decimals(1));
         ui.end_row();
 
         let raster = s.mode == LayerMode::Image || has_images;
         if raster && s.dither == DitherMode::Grayscale {
-            ui.label("Leistung min.");
+            ui.label(tr("Leistung min."));
             ui.add(egui::Slider::new(&mut s.power_min, 0.0..=100.0).suffix(" %").fixed_decimals(1));
             ui.end_row();
             if s.power_min > s.power_max {
@@ -259,25 +260,25 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
             }
         }
 
-        ui.label("Durchgänge");
+        ui.label(tr("Durchgänge"));
         ui.add(DragValue::new(&mut s.passes).range(1..=100));
         ui.end_row();
 
         if z_axis {
-            ui.label("Z-Versatz");
+            ui.label(tr("Z-Versatz"));
             ui.add(DragValue::new(&mut s.z_offset).speed(0.05).range(-50.0..=50.0).max_decimals(2).suffix(" mm"))
-                .on_hover_text("Fokus gegenüber der eingestellten Fokushöhe: positiv = Kopf höher (weicherer Strahl)");
+                .on_hover_text(tr("Fokus gegenüber der eingestellten Fokushöhe: positiv = Kopf höher (weicherer Strahl)"));
             ui.end_row();
             if s.passes > 1 {
-                ui.label("Z je Durchgang");
+                ui.label(tr("Z je Durchgang"));
                 ui.add(DragValue::new(&mut s.z_step).speed(0.05).range(-20.0..=20.0).max_decimals(2).suffix(" mm"))
-                    .on_hover_text("Ab dem zweiten Durchgang wird der Fokus um diesen Wert tiefer gelegt");
+                    .on_hover_text(tr("Ab dem zweiten Durchgang wird der Fokus um diesen Wert tiefer gelegt"));
                 ui.end_row();
             }
         }
 
         if s.mode != LayerMode::Line || has_images {
-            ui.label(if s.mode == LayerMode::OffsetFill { "Linienabstand" } else { "Zeilenabstand" });
+            ui.label(if s.mode == LayerMode::OffsetFill { tr("Linienabstand") } else { tr("Zeilenabstand") });
             ui.horizontal(|ui| {
                 ui.add(DragValue::new(&mut s.interval).speed(0.005).range(0.02..=2.0).max_decimals(3).suffix(" mm"));
                 ui.label(
@@ -289,63 +290,63 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
             ui.end_row();
         }
         if matches!(s.mode, LayerMode::Fill | LayerMode::Image) || has_images {
-            ui.label("Overscan");
+            ui.label(tr("Overscan"));
             ui.add(DragValue::new(&mut s.overscan).speed(0.1).range(0.0..=20.0).suffix(" mm"));
             ui.end_row();
             ui.label("");
-            ui.checkbox(&mut s.bidirectional, "Bidirektional");
+            ui.checkbox(&mut s.bidirectional, tr("Bidirektional"));
             ui.end_row();
         }
         if s.mode == LayerMode::Line {
-            ui.label("Schnittbreite");
+            ui.label(tr("Schnittbreite"));
             ui.add(DragValue::new(&mut s.kerf).speed(0.005).range(0.0..=2.0).max_decimals(3).suffix(" mm"))
                 .on_hover_text(
-                    "Kerf-Ausgleich: Außenkonturen wandern um die halbe Schnittbreite nach außen, Löcher nach innen. 0 = aus.",
+                    tr("Kerf-Ausgleich: Außenkonturen wandern um die halbe Schnittbreite nach außen, Löcher nach innen. 0 = aus."),
                 );
             ui.end_row();
-            ui.label("Laschen");
+            ui.label(tr("Laschen"));
             ui.horizontal(|ui| {
                 ui.add(DragValue::new(&mut s.tab_count).range(0..=50).custom_formatter(|v, _| {
-                    if v == 0.0 { "aus".into() } else { format!("{v:.0} je Kontur") }
+                    if v == 0.0 { tr("aus").into() } else { trs(&format!("{v:.0} je Kontur")) }
                 }));
                 if s.tab_count > 0 {
                     ui.add(DragValue::new(&mut s.tab_width).speed(0.05).range(0.1..=10.0).suffix(" mm"));
                 }
             })
             .response
-            .on_hover_text("Kleine Stege, damit ausgeschnittene Teile im Material bleiben");
+            .on_hover_text(tr("Kleine Stege, damit ausgeschnittene Teile im Material bleiben"));
             ui.end_row();
             if s.tab_count > 0 {
                 ui.label("");
-                ui.checkbox(&mut s.tabs_outer_only, "Nur Außenkonturen");
+                ui.checkbox(&mut s.tabs_outer_only, tr("Nur Außenkonturen"));
                 ui.end_row();
             }
         }
         if s.mode == LayerMode::Fill {
-            ui.label("Winkel");
+            ui.label(tr("Winkel"));
             ui.add(DragValue::new(&mut s.fill_angle).speed(1.0).range(-180.0..=180.0).suffix("°"));
             ui.end_row();
             ui.label("");
-            ui.checkbox(&mut s.crosshatch, "Kreuzschraffur");
+            ui.checkbox(&mut s.crosshatch, tr("Kreuzschraffur"));
             ui.end_row();
         }
         if raster {
-            ui.label("Bildmodus");
-            egui::ComboBox::from_id_salt("dither").selected_text(s.dither.label()).show_ui(ui, |ui| {
+            ui.label(tr("Bildmodus"));
+            egui::ComboBox::from_id_salt("dither").selected_text(tr(s.dither.label())).show_ui(ui, |ui| {
                 for d in DitherMode::ALL {
-                    ui.selectable_value(&mut s.dither, d, d.label());
+                    ui.selectable_value(&mut s.dither, d, tr(d.label()));
                 }
             });
             ui.end_row();
             ui.label("");
-            ui.checkbox(&mut s.negative, "Negativ (invertieren)");
+            ui.checkbox(&mut s.negative, tr("Negativ (invertieren)"));
             ui.end_row();
         }
         ui.label("");
-        ui.checkbox(&mut s.air_assist, "Luftunterstützung");
+        ui.checkbox(&mut s.air_assist, tr("Luftunterstützung"));
         ui.end_row();
         ui.label("");
-        ui.checkbox(&mut s.output, "Ausgeben");
+        ui.checkbox(&mut s.output, tr("Ausgeben"));
         ui.end_row();
     });
 }
@@ -357,24 +358,24 @@ fn image_adjust_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     ui.add_space(8.0);
     let mut adj = img.adjust;
     card(ui, |ui| {
-        section_title(ui, icon::IMAGE, "Bild anpassen");
+        section_title(ui, icon::IMAGE, tr("Bild anpassen"));
         ui.label(
             RichText::new(format!("{} × {} px", img.image.width, img.image.height))
                 .small()
                 .color(theme::of(ui).text_weak),
         );
         egui::Grid::new("img_adjust").num_columns(2).show(ui, |ui| {
-            ui.label("Helligkeit");
+            ui.label(tr("Helligkeit"));
             ui.add(egui::Slider::new(&mut adj.brightness, -100.0..=100.0).fixed_decimals(0));
             ui.end_row();
-            ui.label("Kontrast");
+            ui.label(tr("Kontrast"));
             ui.add(egui::Slider::new(&mut adj.contrast, -100.0..=100.0).fixed_decimals(0));
             ui.end_row();
-            ui.label("Gamma");
+            ui.label(tr("Gamma"));
             ui.add(egui::Slider::new(&mut adj.gamma, 0.2..=5.0).logarithmic(true).fixed_decimals(2));
             ui.end_row();
         });
-        if ui.button("Zurücksetzen").clicked() {
+        if ui.button(tr("Zurücksetzen")).clicked() {
             adj = vl_core::ImageAdjust::default();
         }
     });
@@ -404,11 +405,11 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     let running = app.machine.job_running;
 
     card(ui, |ui| {
-        section_title(ui, icon::PLUGS, "Verbindung");
+        section_title(ui, icon::PLUGS, tr("Verbindung"));
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             let current = app.ports.iter().find(|p| p.name == app.selected_port);
-            let label = current.map(|p| p.name.clone()).unwrap_or_else(|| "Anschluss wählen".into());
+            let label = current.map(|p| p.name.clone()).unwrap_or_else(|| tr("Anschluss wählen").into());
             ui.add_enabled_ui(!connected, |ui| {
                 egui::ComboBox::from_id_salt("port").width(150.0).selected_text(label).show_ui(ui, |ui| {
                     for p in app.ports.clone() {
@@ -420,17 +421,17 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                         ui.selectable_value(&mut app.selected_port, p.name.clone(), text);
                     }
                 });
-                if ui.button(icon::ARROWS_CLOCKWISE).on_hover_text("Anschlüsse neu suchen").clicked() {
+                if ui.button(icon::ARROWS_CLOCKWISE).on_hover_text(tr("Anschlüsse neu suchen")).clicked() {
                     app.ports = vl_device::available_ports();
                 }
             });
             if connected {
-                if ui.button(format!("{} Trennen", icon::LINK_BREAK)).clicked() {
+                if ui.button(trs(&format!("{} Trennen", icon::LINK_BREAK))).clicked() {
                     app.disconnect();
                 }
             } else if ui
                 .add(
-                    Button::new(RichText::new(format!("{} Verbinden", icon::PLUG)).color(Color32::WHITE))
+                    Button::new(RichText::new(trs(&format!("{} Verbinden", icon::PLUG))).color(Color32::WHITE))
                         .fill(pal.accent),
                 )
                 .clicked()
@@ -440,14 +441,14 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
         });
         if app.selected_port == vl_device::NETWORK_PORT {
             ui.horizontal(|ui| {
-                ui.label("Adresse");
+                ui.label(tr("Adresse"));
                 let edit = egui::TextEdit::singleline(&mut app.settings.network_address)
                     .hint_text("192.168.4.1:23")
                     .desired_width(170.0);
-                let resp = ui.add_enabled(!connected, edit).on_hover_text(
+                let resp = ui.add_enabled(!connected, edit).on_hover_text(tr(
                     "IP-Adresse oder Name der Steuerung, optional mit Port (Standard 23 = Telnet). \
                      Für FluidNC, grblHAL und ESP3D.",
-                );
+                ));
                 if resp.lost_focus() {
                     app.settings.save();
                 }
@@ -466,7 +467,7 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 _ => pal.success,
             };
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("● {}", state.label())).color(color).strong());
+                ui.label(RichText::new(format!("● {}", tr(state.label()))).color(color).strong());
                 if let Some(p) = app.machine.head_position() {
                     ui.label(RichText::new(format!("X {:.2}  Y {:.2}", p.x, p.y)).monospace());
                 }
@@ -474,33 +475,38 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             // Laser-Modus ($32) und Einstellungen gibt es nur bei GRBL.
             let fw = app.firmware();
             match app.machine.laser_mode() {
-                _ if !fw.is_grbl() => ui.label(RichText::new(fw.label()).small().color(pal.text_weak)),
+                _ if !fw.is_grbl() => ui.label(RichText::new(tr(fw.label())).small().color(pal.text_weak)),
                 Some(true) => ui.label(
-                    RichText::new(format!("{} Laser-Modus aktiv ($32=1)", icon::CHECK)).small().color(pal.success),
+                    RichText::new(trs(&format!("{} Laser-Modus aktiv ($32=1)", icon::CHECK)))
+                        .small()
+                        .color(pal.success),
                 ),
                 Some(false) => ui.label(
-                    RichText::new(format!("{} Laser-Modus aus ($32=0) – Leerfahrten könnten brennen!", icon::WARNING))
-                        .small()
-                        .color(pal.danger),
+                    RichText::new(trs(&format!(
+                        "{} Laser-Modus aus ($32=0) – Leerfahrten könnten brennen!",
+                        icon::WARNING
+                    )))
+                    .small()
+                    .color(pal.danger),
                 ),
-                None => ui.label(RichText::new("Einstellungen werden gelesen…").small().color(pal.text_weak)),
+                None => ui.label(RichText::new(tr("Einstellungen werden gelesen…")).small().color(pal.text_weak)),
             };
             if state == MachineState::Alarm {
-                ui.label(RichText::new("Alarm: Referenzfahrt oder Entsperren nötig.").small().color(pal.danger));
+                ui.label(RichText::new(tr("Alarm: Referenzfahrt oder Entsperren nötig.")).small().color(pal.danger));
             }
         }
     });
 
     ui.add_space(8.0);
     card(ui, |ui| {
-        section_title(ui, icon::TARGET, "Maschine");
+        section_title(ui, icon::TARGET, tr("Maschine"));
         ui.add_space(4.0);
         let w = (ui.available_width() - 8.0) / 2.0;
         ui.horizontal(|ui| {
             if ui
                 .add_enabled(
                     connected && !running,
-                    Button::new(format!("{} Referenzfahrt", icon::HOUSE)).min_size(vec2(w, 28.0)),
+                    Button::new(trs(&format!("{} Referenzfahrt", icon::HOUSE))).min_size(vec2(w, 28.0)),
                 )
                 .clicked()
             {
@@ -509,7 +515,7 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             if ui
                 .add_enabled(
                     connected && !running,
-                    Button::new(format!("{} Entsperren", icon::LOCK_OPEN)).min_size(vec2(w, 28.0)),
+                    Button::new(trs(&format!("{} Entsperren", icon::LOCK_OPEN))).min_size(vec2(w, 28.0)),
                 )
                 .clicked()
             {
@@ -520,9 +526,9 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             if ui
                 .add_enabled(
                     connected && !running,
-                    Button::new(format!("{} Rahmen", icon::FRAME_CORNERS)).min_size(vec2(w, 28.0)),
+                    Button::new(trs(&format!("{} Rahmen", icon::FRAME_CORNERS))).min_size(vec2(w, 28.0)),
                 )
-                .on_hover_text("Den Umriss des Jobs abfahren (Laser aus)")
+                .on_hover_text(tr("Den Umriss des Jobs abfahren (Laser aus)"))
                 .clicked()
             {
                 app.frame_job();
@@ -530,9 +536,9 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             if ui
                 .add_enabled(
                     connected && !running,
-                    Button::new(format!("{} Ursprung hier", icon::CROSSHAIR)).min_size(vec2(w, 28.0)),
+                    Button::new(trs(&format!("{} Ursprung hier", icon::CROSSHAIR))).min_size(vec2(w, 28.0)),
                 )
-                .on_hover_text("Aktuelle Kopfposition als Benutzer-Ursprung speichern")
+                .on_hover_text(tr("Aktuelle Kopfposition als Benutzer-Ursprung speichern"))
                 .clicked()
             {
                 app.set_user_origin_here();
@@ -542,21 +548,21 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
 
     ui.add_space(8.0);
     card(ui, |ui| {
-        section_title(ui, icon::PLAY, "Job");
+        section_title(ui, icon::PLAY, tr("Job"));
         ui.add_space(4.0);
         crate::rotary_ui::job_row(app, ui);
         ui.add_space(2.0);
         let mut js = app.settings.job.clone();
         egui::Grid::new("job_settings").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
-            ui.label("Start von");
-            egui::ComboBox::from_id_salt("start_from").selected_text(js.start_from.label()).show_ui(ui, |ui| {
+            ui.label(tr("Start von"));
+            egui::ComboBox::from_id_salt("start_from").selected_text(tr(js.start_from.label())).show_ui(ui, |ui| {
                 for s in StartFrom::ALL {
-                    ui.selectable_value(&mut js.start_from, s, s.label());
+                    ui.selectable_value(&mut js.start_from, s, tr(s.label()));
                 }
             });
             ui.end_row();
             if js.start_from != StartFrom::Absolute {
-                ui.label("Ankerpunkt");
+                ui.label(tr("Ankerpunkt"));
                 ui.vertical(|ui| {
                     ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
                     for row in Anchor::GRID {
@@ -574,7 +580,7 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 ui.end_row();
             }
             if js.start_from == StartFrom::UserOrigin {
-                ui.label("Ursprung");
+                ui.label(tr("Ursprung"));
                 ui.horizontal(|ui| {
                     ui.add(DragValue::new(&mut js.user_origin.x).speed(0.5).prefix("X ").suffix(" mm"));
                     ui.add(DragValue::new(&mut js.user_origin.y).speed(0.5).prefix("Y ").suffix(" mm"));
@@ -582,11 +588,11 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 ui.end_row();
             }
         });
-        ui.checkbox(&mut js.selected_only, "Nur Auswahl ausgeben");
-        ui.checkbox(&mut js.engrave_first, "Gravieren vor Schneiden")
-            .on_hover_text("Bild- und Füllebenen zuerst, Linienebenen (Schnitte) zuletzt");
-        ui.checkbox(&mut js.optimize_order, "Schnittreihenfolge optimieren");
-        ui.add_enabled(js.optimize_order, egui::Checkbox::new(&mut js.inner_first, "Innen vor außen schneiden"));
+        ui.checkbox(&mut js.selected_only, tr("Nur Auswahl ausgeben"));
+        ui.checkbox(&mut js.engrave_first, tr("Gravieren vor Schneiden"))
+            .on_hover_text(tr("Bild- und Füllebenen zuerst, Linienebenen (Schnitte) zuletzt"));
+        ui.checkbox(&mut js.optimize_order, tr("Schnittreihenfolge optimieren"));
+        ui.add_enabled(js.optimize_order, egui::Checkbox::new(&mut js.inner_first, tr("Innen vor außen schneiden")));
         if js != app.settings.job {
             app.settings.job = js;
             app.settings.save();
@@ -602,11 +608,11 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             ui.add(egui::ProgressBar::new(frac).show_percentage());
             let remaining = (app.machine.job_estimate - elapsed).max(0.0);
             ui.label(
-                RichText::new(format!(
+                RichText::new(trs(&format!(
                     "Läuft seit {} · Rest ca. {}",
                     vl_cam::format_duration(elapsed),
                     vl_cam::format_duration(remaining)
-                ))
+                )))
                 .small()
                 .color(pal.text_weak),
             );
@@ -615,18 +621,20 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             ui.horizontal(|ui| {
                 let w = (ui.available_width() - 8.0) / 2.0;
                 let (label, cmd) = if paused {
-                    (format!("{} Fortsetzen", icon::PLAY), Command::Resume)
+                    (trs(&format!("{} Fortsetzen", icon::PLAY)), Command::Resume)
                 } else {
-                    (format!("{} Pause", icon::PAUSE), Command::Pause)
+                    (trs(&format!("{} Pause", icon::PAUSE)), Command::Pause)
                 };
                 if ui.add(Button::new(label).min_size(vec2(w, 34.0))).clicked() {
                     app.device.send(cmd);
                 }
                 if ui
                     .add(
-                        Button::new(RichText::new(format!("{} Stopp", icon::STOP)).color(Color32::WHITE).strong())
-                            .fill(pal.danger)
-                            .min_size(vec2(w, 34.0)),
+                        Button::new(
+                            RichText::new(trs(&format!("{} Stopp", icon::STOP))).color(Color32::WHITE).strong(),
+                        )
+                        .fill(pal.danger)
+                        .min_size(vec2(w, 34.0)),
                     )
                     .clicked()
                 {
@@ -636,7 +644,7 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
         } else {
             if colored_button(
                 ui,
-                format!("{}  Job starten", icon::PLAY),
+                trs(&format!("{}  Job starten", icon::PLAY)),
                 pal.success,
                 connected && !app.doc.objects.is_empty(),
             ) {
@@ -648,7 +656,7 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 if ui
                     .add_enabled(
                         connected,
-                        Button::new(RichText::new(format!("{} Stopp", icon::STOP)).color(Color32::WHITE))
+                        Button::new(RichText::new(trs(&format!("{} Stopp", icon::STOP))).color(Color32::WHITE))
                             .fill(pal.danger)
                             .min_size(vec2(w, 28.0)),
                     )
@@ -659,7 +667,7 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 if ui
                     .add_enabled(
                         !app.doc.objects.is_empty(),
-                        Button::new(format!("{} G-Code", icon::EXPORT)).min_size(vec2(w, 28.0)),
+                        Button::new(trs(&format!("{} G-Code", icon::EXPORT))).min_size(vec2(w, 28.0)),
                     )
                     .clicked()
                 {
@@ -678,37 +686,37 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
 fn preview_info(app: &mut VectorLumeApp, ui: &mut Ui) {
     let pal = theme::of(ui);
     card(ui, |ui| {
-        section_title(ui, icon::EYE, "Vorschau");
+        section_title(ui, icon::EYE, tr("Vorschau"));
         ui.add_space(4.0);
         if let Some(err) = &app.preview.error {
-            ui.label(RichText::new(err).color(pal.warning));
+            ui.label(RichText::new(trs(err)).color(pal.warning));
             return;
         }
         let Some(job) = app.preview.job.clone() else {
             ui.horizontal(|ui| {
                 ui.spinner();
-                ui.label("Berechne Werkzeugweg…");
+                ui.label(tr("Berechne Werkzeugweg…"));
             });
             return;
         };
         egui::Grid::new("preview_stats").num_columns(2).show(ui, |ui| {
-            ui.label("Geschätzte Dauer");
+            ui.label(tr("Geschätzte Dauer"));
             ui.label(RichText::new(job.estimate.format_duration()).strong());
             ui.end_row();
-            ui.label("Laserweg");
+            ui.label(tr("Laserweg"));
             ui.label(format!("{:.2} m", job.estimate.burn_distance / 1000.0));
             ui.end_row();
-            ui.label("Leerfahrten");
+            ui.label(tr("Leerfahrten"));
             ui.label(format!("{:.2} m", job.estimate.travel_distance / 1000.0));
             ui.end_row();
-            ui.label("G-Code-Zeilen");
+            ui.label(tr("G-Code-Zeilen"));
             ui.label(format!("{}", job.gcode.len()));
             ui.end_row();
         });
         ui.add_space(4.0);
-        ui.label(RichText::new("Abspielen").small().color(pal.text_weak));
+        ui.label(RichText::new(tr("Abspielen")).small().color(pal.text_weak));
         ui.add(egui::Slider::new(&mut app.preview.progress, 0.0..=1.0).show_value(false));
-        if ui.checkbox(&mut app.settings.show_travel, "Leerfahrten anzeigen").changed() {
+        if ui.checkbox(&mut app.settings.show_travel, tr("Leerfahrten anzeigen")).changed() {
             app.settings.save();
         }
         for w in &job.warnings {
@@ -723,10 +731,10 @@ fn jog_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     let pal = theme::of(ui);
     let enabled = app.machine.connected && !app.machine.job_running;
     card(ui, |ui| {
-        section_title(ui, icon::ARROWS_OUT, "Verfahren");
+        section_title(ui, icon::ARROWS_OUT, tr("Verfahren"));
         ui.add_space(4.0);
         ui.horizontal(|ui| {
-            ui.label("Schritt");
+            ui.label(tr("Schritt"));
             for s in [0.1, 1.0, 5.0, 10.0, 50.0] {
                 if ui.selectable_label((app.settings.jog_step - s).abs() < 1e-9, format!("{s}")).clicked() {
                     app.settings.jog_step = s;
@@ -736,7 +744,7 @@ fn jog_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             ui.label("mm");
         });
         ui.horizontal(|ui| {
-            ui.label("Geschwindigkeit");
+            ui.label(tr("Geschwindigkeit"));
             if ui
                 .add(
                     DragValue::new(&mut app.settings.profile.jog_speed)
@@ -763,7 +771,7 @@ fn jog_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                     ui.add_space(pad);
                     for (dx, dy, glyph) in row {
                         let b = Button::new(RichText::new(glyph).size(20.0)).min_size(size);
-                        let tip = if dx == 0.0 && dy == 0.0 { "Zum Nullpunkt (X0 Y0)" } else { "Verfahren" };
+                        let tip = if dx == 0.0 && dy == 0.0 { tr("Zum Nullpunkt (X0 Y0)") } else { tr("Verfahren") };
                         if ui.add(b).on_hover_text(tip).clicked() {
                             if dx == 0.0 && dy == 0.0 {
                                 app.send_jog(false, "X0 Y0");
@@ -776,12 +784,13 @@ fn jog_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             }
             ui.add_space(6.0);
             // Nur GRBL kann eine Verfahrbewegung gezielt abbrechen (Echtzeitbefehl 0x85).
-            if app.firmware().is_grbl() && ui.button(format!("{} Bewegung abbrechen", icon::HAND_PALM)).clicked() {
+            if app.firmware().is_grbl() && ui.button(trs(&format!("{} Bewegung abbrechen", icon::HAND_PALM))).clicked()
+            {
                 app.device.send(Command::Realtime(vl_device::RT_JOG_CANCEL));
             }
         });
         if !app.machine.connected {
-            ui.label(RichText::new("Zum Verfahren bitte zuerst verbinden.").small().color(pal.text_weak));
+            ui.label(RichText::new(tr("Zum Verfahren bitte zuerst verbinden.")).small().color(pal.text_weak));
         }
     });
 }
@@ -792,16 +801,21 @@ fn console_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     let pal = theme::of(ui);
     ui.horizontal(|ui| {
         let quick: &[(&str, &str)] = if app.firmware().is_grbl() {
-            &[("$$", "Einstellungen"), ("$I", "Firmware"), ("$G", "G-Code-Zustand"), ("$#", "Koordinatensysteme")]
+            &[
+                ("$$", tr("Einstellungen")),
+                ("$I", tr("Firmware")),
+                ("$G", tr("G-Code-Zustand")),
+                ("$#", tr("Koordinatensysteme")),
+            ]
         } else {
-            &[("M115", "Firmware"), ("M114", "Position"), ("M503", "Einstellungen (Marlin)")]
+            &[("M115", tr("Firmware")), ("M114", tr("Position")), ("M503", tr("Einstellungen (Marlin)"))]
         };
         for &(cmd, tip) in quick {
             if ui.add_enabled(app.machine.connected, Button::new(cmd)).on_hover_text(tip).clicked() {
                 app.send_line(cmd);
             }
         }
-        if ui.button(icon::BROOM).on_hover_text("Konsole leeren").clicked() {
+        if ui.button(icon::BROOM).on_hover_text(tr("Konsole leeren")).clicked() {
             app.console.clear();
         }
     });
@@ -833,11 +847,11 @@ fn console_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     ui.horizontal(|ui| {
         let resp = ui.add(
             egui::TextEdit::singleline(&mut app.console_input)
-                .hint_text("Befehl, z. B. $$ oder G0 X10")
+                .hint_text(tr("Befehl, z. B. $$ oder G0 X10"))
                 .desired_width(ui.available_width() - 70.0),
         );
         let enter = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-        if (ui.button("Senden").clicked() || enter) && !app.console_input.trim().is_empty() {
+        if (ui.button(tr("Senden")).clicked() || enter) && !app.console_input.trim().is_empty() {
             let cmd = std::mem::take(&mut app.console_input);
             app.send_line(cmd.trim().to_string());
             resp.request_focus();

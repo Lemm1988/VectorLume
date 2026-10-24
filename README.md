@@ -27,6 +27,7 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
 - **Optimierung:** kürzeste Wege, innen vor außen, Gravieren vor Schneiden
 - **Sicherheit:** Prüfung des Laser-Modus (`$32=1`), Not-Stopp bei Abbruch/Verbindungsverlust, Bereichsprüfung
 - **Simulator:** alles ohne angeschlossenen Laser testen (Anschluss „Simulator“)
+- **Sprache:** Deutsch oder Englisch (*Ansicht → Sprache*, ohne Neustart); beim ersten Start die Systemsprache
 
 ## Erste Schritte
 

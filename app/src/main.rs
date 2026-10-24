@@ -8,6 +8,8 @@ mod camera;
 mod canvas;
 mod dialogs;
 mod history;
+mod i18n;
+mod i18n_en;
 mod icon_art;
 mod materials;
 mod node_tool;

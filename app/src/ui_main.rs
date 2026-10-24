@@ -1,6 +1,7 @@
 //! Menü, Werkzeugleisten, Eigenschaftsfelder, Farbpalette, Statusleiste und Tastenkürzel.
 
 use crate::app::{Tool, VectorLumeApp};
+use crate::i18n::{tr, trs};
 use crate::settings::ThemeChoice;
 use crate::theme;
 use egui::{
@@ -119,7 +120,7 @@ fn icon_button(ui: &mut Ui, glyph: &str, tooltip: &str, enabled: bool) -> bool {
 fn menu_item(ui: &mut Ui, text: &str, shortcut: &str, enabled: bool) -> bool {
     let mut b = Button::new(text);
     if !shortcut.is_empty() {
-        b = b.shortcut_text(shortcut);
+        b = b.shortcut_text(crate::i18n::shortcut(shortcut));
     }
     let clicked = ui.add_enabled(enabled, b).clicked();
     if clicked {
@@ -136,18 +137,18 @@ pub fn top_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
                 RichText::new(format!("{} VectorLume", icon::SPARKLE)).font(theme::strong_font(15.0)).color(pal.accent),
             );
             ui.add_space(10.0);
-            ui.menu_button("Datei", |ui| file_menu(app, ui));
-            ui.menu_button("Bearbeiten", |ui| edit_menu(app, ui));
-            ui.menu_button("Anordnen", |ui| arrange_menu(app, ui));
-            ui.menu_button("Ansicht", |ui| view_menu(app, ui));
-            ui.menu_button("Laser", |ui| laser_menu(app, ui));
-            ui.menu_button("Hilfe", |ui| {
-                if menu_item(ui, "Beispielprojekt laden", "", true)
+            ui.menu_button(tr("Datei"), |ui| file_menu(app, ui));
+            ui.menu_button(tr("Bearbeiten"), |ui| edit_menu(app, ui));
+            ui.menu_button(tr("Anordnen"), |ui| arrange_menu(app, ui));
+            ui.menu_button(tr("Ansicht"), |ui| view_menu(app, ui));
+            ui.menu_button(tr("Laser"), |ui| laser_menu(app, ui));
+            ui.menu_button(tr("Hilfe"), |ui| {
+                if menu_item(ui, tr("Beispielprojekt laden"), "", true)
                     && app.confirm_discard(crate::app::AfterDiscard::Demo)
                 {
                     app.load_demo();
                 }
-                if menu_item(ui, "Über VectorLume", "", true) {
+                if menu_item(ui, tr("Über VectorLume"), "", true) {
                     app.show_about = true;
                 }
             });
@@ -161,43 +162,43 @@ pub fn top_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
-                if icon_button(ui, icon::FILE_PLUS, "Neu (Strg+N)", true) {
+                if icon_button(ui, icon::FILE_PLUS, tr("Neu (Strg+N)"), true) {
                     app.new_document(false);
                 }
-                if icon_button(ui, icon::FOLDER_OPEN, "Öffnen (Strg+O)", true) {
+                if icon_button(ui, icon::FOLDER_OPEN, tr("Öffnen (Strg+O)"), true) {
                     app.open_dialog(false, None);
                 }
-                if icon_button(ui, icon::FLOPPY_DISK, "Speichern (Strg+S)", true) {
+                if icon_button(ui, icon::FLOPPY_DISK, tr("Speichern (Strg+S)"), true) {
                     app.save(false);
                 }
-                if icon_button(ui, icon::DOWNLOAD_SIMPLE, "Importieren: SVG, DXF, Bilder (Strg+I)", true) {
+                if icon_button(ui, icon::DOWNLOAD_SIMPLE, tr("Importieren: SVG, DXF, Bilder (Strg+I)"), true) {
                     app.import_dialog();
                 }
-                if icon_button(ui, icon::EXPORT, "G-Code speichern (Strg+E)", !app.doc.objects.is_empty()) {
+                if icon_button(ui, icon::EXPORT, tr("G-Code speichern (Strg+E)"), !app.doc.objects.is_empty()) {
                     app.export_gcode_dialog();
                 }
                 ui.separator();
-                if icon_button(ui, icon::ARROW_U_UP_LEFT, "Rückgängig (Strg+Z)", app.history.can_undo()) {
+                if icon_button(ui, icon::ARROW_U_UP_LEFT, tr("Rückgängig (Strg+Z)"), app.history.can_undo()) {
                     app.undo();
                 }
-                if icon_button(ui, icon::ARROW_U_UP_RIGHT, "Wiederholen (Strg+Y)", app.history.can_redo()) {
+                if icon_button(ui, icon::ARROW_U_UP_RIGHT, tr("Wiederholen (Strg+Y)"), app.history.can_redo()) {
                     app.redo();
                 }
                 ui.separator();
-                if icon_button(ui, icon::CORNERS_OUT, "Arbeitsfläche einpassen (F)", true) {
+                if icon_button(ui, icon::CORNERS_OUT, tr("Arbeitsfläche einpassen (F)"), true) {
                     app.zoom_to_fit();
                 }
-                if icon_button(ui, icon::MAGNIFYING_GLASS_PLUS, "Vergrößern", true) {
+                if icon_button(ui, icon::MAGNIFYING_GLASS_PLUS, tr("Vergrößern"), true) {
                     app.view.zoom_by(1.25);
                 }
-                if icon_button(ui, icon::MAGNIFYING_GLASS_MINUS, "Verkleinern", true) {
+                if icon_button(ui, icon::MAGNIFYING_GLASS_MINUS, tr("Verkleinern"), true) {
                     app.view.zoom_by(0.8);
                 }
                 ui.separator();
-                let label = format!("{} Vorschau", if app.preview.active { icon::EYE } else { icon::EYE_SLASH });
+                let label = trs(&format!("{} Vorschau", if app.preview.active { icon::EYE } else { icon::EYE_SLASH }));
                 let b =
                     Button::selectable(app.preview.active, RichText::new(label).size(14.0)).min_size(vec2(0.0, 28.0));
-                if ui.add(b).on_hover_text("Werkzeugweg und Laufzeit anzeigen (Alt+P)").clicked() {
+                if ui.add(b).on_hover_text(tr("Werkzeugweg und Laufzeit anzeigen (Alt+P)")).clicked() {
                     app.preview.active = !app.preview.active;
                 }
                 ui.separator();
@@ -215,15 +216,15 @@ pub fn top_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
 }
 
 fn file_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
-    if menu_item(ui, "Neu", "Strg+N", true) {
+    if menu_item(ui, tr("Neu"), "Strg+N", true) {
         app.new_document(false);
     }
-    if menu_item(ui, "Öffnen…", "Strg+O", true) {
+    if menu_item(ui, tr("Öffnen…"), "Strg+O", true) {
         app.open_dialog(false, None);
     }
     let recent = app.settings.recent_files.clone();
     ui.add_enabled_ui(!recent.is_empty(), |ui| {
-        ui.menu_button("Zuletzt geöffnet", |ui| {
+        ui.menu_button(tr("Zuletzt geöffnet"), |ui| {
             for f in recent {
                 if ui.button(crate::app::file_name(&f)).on_hover_text(f.display().to_string()).clicked() {
                     ui.close();
@@ -232,59 +233,59 @@ fn file_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
             }
         });
     });
-    if menu_item(ui, "Speichern", "Strg+S", true) {
+    if menu_item(ui, tr("Speichern"), "Strg+S", true) {
         app.save(false);
     }
-    if menu_item(ui, "Speichern unter…", "Strg+Umschalt+S", true) {
+    if menu_item(ui, tr("Speichern unter…"), tr("Strg+Umschalt+S"), true) {
         app.save(true);
     }
     ui.separator();
-    if menu_item(ui, "Importieren…", "Strg+I", true) {
+    if menu_item(ui, tr("Importieren…"), "Strg+I", true) {
         app.import_dialog();
     }
     ui.separator();
     let has = !app.doc.objects.is_empty();
-    if menu_item(ui, "G-Code speichern…", "Strg+E", has) {
+    if menu_item(ui, tr("G-Code speichern…"), "Strg+E", has) {
         app.export_gcode_dialog();
     }
-    if menu_item(ui, "Als SVG exportieren…", "", has) {
+    if menu_item(ui, tr("Als SVG exportieren…"), "", has) {
         app.export_svg_dialog();
     }
-    if menu_item(ui, "Als DXF exportieren…", "", has) {
+    if menu_item(ui, tr("Als DXF exportieren…"), "", has) {
         app.export_dxf_dialog();
     }
     ui.separator();
-    if menu_item(ui, "Beenden", "", true) {
+    if menu_item(ui, tr("Beenden"), "", true) {
         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
     }
 }
 
 fn edit_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     let has = !app.selection.is_empty();
-    if menu_item(ui, "Rückgängig", "Strg+Z", app.history.can_undo()) {
+    if menu_item(ui, tr("Rückgängig"), "Strg+Z", app.history.can_undo()) {
         app.undo();
     }
-    if menu_item(ui, "Wiederholen", "Strg+Y", app.history.can_redo()) {
+    if menu_item(ui, tr("Wiederholen"), "Strg+Y", app.history.can_redo()) {
         app.redo();
     }
     ui.separator();
-    if menu_item(ui, "Ausschneiden", "Strg+X", has) {
+    if menu_item(ui, tr("Ausschneiden"), "Strg+X", has) {
         app.cut();
     }
-    if menu_item(ui, "Kopieren", "Strg+C", has) {
+    if menu_item(ui, tr("Kopieren"), "Strg+C", has) {
         app.copy();
     }
-    if menu_item(ui, "Einfügen", "Strg+V", !app.clipboard.is_empty()) {
+    if menu_item(ui, tr("Einfügen"), "Strg+V", !app.clipboard.is_empty()) {
         app.paste();
     }
-    if menu_item(ui, "Duplizieren", "Strg+D", has) {
+    if menu_item(ui, tr("Duplizieren"), "Strg+D", has) {
         app.duplicate();
     }
-    if menu_item(ui, "Löschen", "Entf", has) {
+    if menu_item(ui, tr("Löschen"), "Entf", has) {
         app.delete_selection();
     }
     ui.separator();
-    if menu_item(ui, "Alles auswählen", "Strg+A", !app.doc.objects.is_empty()) {
+    if menu_item(ui, tr("Alles auswählen"), "Strg+A", !app.doc.objects.is_empty()) {
         app.select_all();
     }
 }
@@ -292,118 +293,127 @@ fn edit_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
 fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     let has = !app.selection.is_empty();
     let multi = app.selection.len() > 1;
-    if menu_item(ui, "Gruppieren", "Strg+G", multi) {
+    if menu_item(ui, tr("Gruppieren"), "Strg+G", multi) {
         app.group();
     }
-    if menu_item(ui, "Gruppierung lösen", "Strg+Umschalt+G", has) {
+    if menu_item(ui, tr("Gruppierung lösen"), tr("Strg+Umschalt+G"), has) {
         app.ungroup();
     }
     ui.separator();
     ui.add_enabled_ui(multi, |ui| {
-        ui.menu_button("Ausrichten", |ui| {
+        ui.menu_button(tr("Ausrichten"), |ui| {
             for (label, h, m) in [
-                ("Links", true, 0),
-                ("Horizontal zentrieren", true, 1),
-                ("Rechts", true, 2),
-                ("Oben", false, 0),
-                ("Vertikal zentrieren", false, 1),
-                ("Unten", false, 2),
+                (tr("Links"), true, 0),
+                (tr("Horizontal zentrieren"), true, 1),
+                (tr("Rechts"), true, 2),
+                (tr("Oben"), false, 0),
+                (tr("Vertikal zentrieren"), false, 1),
+                (tr("Unten"), false, 2),
             ] {
                 if menu_item(ui, label, "", true) {
                     app.align(h, m);
                 }
             }
         });
-        ui.menu_button("Verteilen", |ui| {
-            if menu_item(ui, "Horizontal", "", true) {
+        ui.menu_button(tr("Verteilen"), |ui| {
+            if menu_item(ui, tr("Horizontal"), "", true) {
                 app.distribute(true);
             }
-            if menu_item(ui, "Vertikal", "", true) {
+            if menu_item(ui, tr("Vertikal"), "", true) {
                 app.distribute(false);
             }
         });
     });
     ui.separator();
-    if menu_item(ui, "Horizontal spiegeln", "", has) {
+    if menu_item(ui, tr("Horizontal spiegeln"), "", has) {
         app.mirror(true);
     }
-    if menu_item(ui, "Vertikal spiegeln", "", has) {
+    if menu_item(ui, tr("Vertikal spiegeln"), "", has) {
         app.mirror(false);
     }
-    if menu_item(ui, "90° im Uhrzeigersinn drehen", "", has) {
+    if menu_item(ui, tr("90° im Uhrzeigersinn drehen"), "", has) {
         app.rotate_selection(90.0);
     }
-    if menu_item(ui, "90° gegen den Uhrzeigersinn drehen", "", has) {
+    if menu_item(ui, tr("90° gegen den Uhrzeigersinn drehen"), "", has) {
         app.rotate_selection(-90.0);
     }
-    if menu_item(ui, "Auf Arbeitsfläche zentrieren", "", has) {
+    if menu_item(ui, tr("Auf Arbeitsfläche zentrieren"), "", has) {
         app.center_on_bed();
     }
     ui.separator();
     ui.add_enabled_ui(has, |ui| {
-        ui.menu_button("Boolesche Operationen", |ui| {
+        ui.menu_button(tr("Boolesche Operationen"), |ui| {
             use vl_core::ops::BoolOp;
             // Abziehen: Die übrigen Formen werden von der zuerst ausgewählten abgezogen.
             for op in [BoolOp::Union, BoolOp::Difference, BoolOp::Intersection, BoolOp::Xor] {
-                if menu_item(ui, op.label(), "", multi) {
+                if menu_item(ui, tr(op.label()), "", multi) {
                     app.boolean_op(op);
                 }
             }
             ui.separator();
-            if menu_item(ui, "Verschweißen", "", has) {
+            if menu_item(ui, tr("Verschweißen"), "", has) {
                 app.weld_selection();
             }
         });
     });
-    if menu_item(ui, "Versatz…", "", has) {
+    if menu_item(ui, tr("Versatz…"), "", has) {
         app.shape_dialogs.offset_open = true;
     }
-    if menu_item(ui, "Reihen-Kopien…", "", has) {
+    if menu_item(ui, tr("Reihen-Kopien…"), "", has) {
         app.shape_dialogs.array_open = true;
     }
     ui.separator();
     let image = app.selection.iter().any(|id| app.doc.get(*id).is_some_and(|o| o.is_image()));
-    if menu_item(ui, "Bild nachzeichnen…", "", image) {
+    if menu_item(ui, tr("Bild nachzeichnen…"), "", image) {
         app.open_trace();
     }
     let path = app.selection.iter().any(|id| app.doc.get(*id).is_some_and(|o| !o.is_image() && o.text.is_none()));
-    if menu_item(ui, "Text auf Pfad…", "", path) {
+    if menu_item(ui, tr("Text auf Pfad…"), "", path) {
         app.open_text_on_path();
     }
-    if menu_item(ui, "Text in Kurven umwandeln", "", app.selected_text().is_some()) {
+    if menu_item(ui, tr("Text in Kurven umwandeln"), "", app.selected_text().is_some()) {
         crate::text_tool::text_to_curves(app);
     }
 }
 
 fn view_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
-    if menu_item(ui, "Arbeitsfläche einpassen", "F", true) {
+    if menu_item(ui, tr("Arbeitsfläche einpassen"), "F", true) {
         app.zoom_to_fit();
     }
-    if menu_item(ui, "Auf Auswahl zoomen", "", !app.selection.is_empty()) {
+    if menu_item(ui, tr("Auf Auswahl zoomen"), "", !app.selection.is_empty()) {
         let b = app.selection_bounds();
         app.view.request_fit(Some(b));
     }
     ui.separator();
-    ui.checkbox(&mut app.preview.active, "Vorschau (Alt+P)");
-    if ui.checkbox(&mut app.settings.show_travel, "Leerfahrten in der Vorschau").changed() {
+    ui.checkbox(&mut app.preview.active, tr("Vorschau (Alt+P)"));
+    if ui.checkbox(&mut app.settings.show_travel, tr("Leerfahrten in der Vorschau")).changed() {
         app.settings.save();
     }
-    if ui.checkbox(&mut app.settings.snap_to_grid, "Am Raster fangen (1 mm)").changed() {
+    if ui.checkbox(&mut app.settings.snap_to_grid, tr("Am Raster fangen (1 mm)")).changed() {
         app.settings.save();
     }
     if ui
-        .checkbox(&mut app.settings.snap_to_objects, "Objektfang")
-        .on_hover_text("Knoten, Mittelpunkte und Kanten anderer Objekte fangen (Alt gedrückt halten = aus)")
+        .checkbox(&mut app.settings.snap_to_objects, tr("Objektfang"))
+        .on_hover_text(tr("Knoten, Mittelpunkte und Kanten anderer Objekte fangen (Alt gedrückt halten = aus)"))
         .changed()
     {
         app.settings.save();
     }
     ui.separator();
-    ui.label(RichText::new("Design").small());
-    for (t, label) in [(ThemeChoice::Dark, "Dunkel"), (ThemeChoice::Light, "Hell"), (ThemeChoice::System, "Wie System")]
+    ui.label(RichText::new(tr("Design")).small());
+    for (t, label) in
+        [(ThemeChoice::Dark, tr("Dunkel")), (ThemeChoice::Light, tr("Hell")), (ThemeChoice::System, tr("Wie System"))]
     {
         if ui.radio(app.settings.theme == t, label).clicked() {
             app.set_theme(t);
+            ui.close();
+        }
+    }
+    ui.separator();
+    ui.label(RichText::new(tr("Sprache")).small());
+    for lang in crate::i18n::Language::ALL {
+        if ui.radio(app.settings.language == lang, lang.label()).clicked() {
+            app.set_language(lang);
             ui.close();
         }
     }
@@ -412,44 +422,44 @@ fn view_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
 fn laser_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     let connected = app.machine.connected;
     if connected {
-        if menu_item(ui, "Trennen", "", true) {
+        if menu_item(ui, tr("Trennen"), "", true) {
             app.disconnect();
         }
-    } else if menu_item(ui, "Verbinden", "", true) {
+    } else if menu_item(ui, tr("Verbinden"), "", true) {
         app.connect();
     }
     ui.separator();
     let fw = app.firmware();
-    if menu_item(ui, &format!("Referenzfahrt ({})", fw.home_command()), "", connected) {
+    if menu_item(ui, &trs(&format!("Referenzfahrt ({})", fw.home_command())), "", connected) {
         app.home();
     }
-    if menu_item(ui, &format!("Entsperren ({})", fw.unlock_command()), "", connected) {
+    if menu_item(ui, &trs(&format!("Entsperren ({})", fw.unlock_command())), "", connected) {
         app.unlock();
     }
-    if menu_item(ui, "Rahmen fahren", "", connected) {
+    if menu_item(ui, tr("Rahmen fahren"), "", connected) {
         app.frame_job();
     }
-    if menu_item(ui, "Job starten", "", connected && !app.machine.job_running) {
+    if menu_item(ui, tr("Job starten"), "", connected && !app.machine.job_running) {
         app.start_job();
     }
-    if menu_item(ui, "Stopp", "", connected) {
+    if menu_item(ui, tr("Stopp"), "", connected) {
         app.device.send(vl_device::Command::Stop);
     }
     ui.separator();
-    if menu_item(ui, "Materialtest…", "", true) {
+    if menu_item(ui, tr("Materialtest…"), "", true) {
         app.open_material_test();
     }
-    if menu_item(ui, "Materialbibliothek…", "", true) {
+    if menu_item(ui, tr("Materialbibliothek…"), "", true) {
         app.materials.open = true;
     }
     ui.separator();
-    if menu_item(ui, "Drehachse…", "", true) {
+    if menu_item(ui, tr("Drehachse…"), "", true) {
         app.show_rotary = true;
     }
-    if menu_item(ui, "Kamera…", "", true) {
+    if menu_item(ui, tr("Kamera…"), "", true) {
         app.camera.open = true;
     }
-    if menu_item(ui, "Maschineneinstellungen…", "", true) {
+    if menu_item(ui, tr("Maschineneinstellungen…"), "", true) {
         app.show_device_settings = true;
     }
 }
@@ -469,9 +479,12 @@ fn properties(app: &mut VectorLumeApp, ui: &mut Ui) {
         let rx = field(ui, "X", &mut x);
         let ry = field(ui, "Y", &mut y);
         ui.add_space(6.0);
-        let rw = field(ui, "B", &mut w);
+        let rw = field(ui, tr("B"), &mut w);
         let lock_icon = if app.lock_ratio { icon::LOCK } else { icon::LOCK_OPEN };
-        if ui.add(Button::selectable(app.lock_ratio, lock_icon)).on_hover_text("Seitenverhältnis beibehalten").clicked()
+        if ui
+            .add(Button::selectable(app.lock_ratio, lock_icon))
+            .on_hover_text(tr("Seitenverhältnis beibehalten"))
+            .clicked()
         {
             app.lock_ratio = !app.lock_ratio;
         }
@@ -479,7 +492,7 @@ fn properties(app: &mut VectorLumeApp, ui: &mut Ui) {
         ui.add_space(6.0);
         ui.label(RichText::new(icon::ARROW_CLOCKWISE).color(theme::of(ui).text_weak));
         ui.add(DragValue::new(&mut app.rotate_by).speed(1.0).suffix("°").range(-360.0..=360.0));
-        if ui.button("Drehen").on_hover_text("Auswahl um den eingegebenen Winkel drehen").clicked() {
+        if ui.button(tr("Drehen")).on_hover_text(tr("Auswahl um den eingegebenen Winkel drehen")).clicked() {
             let a = app.rotate_by;
             app.rotate_selection(a);
         }
@@ -525,7 +538,7 @@ fn power_scale_field(app: &mut VectorLumeApp, ui: &mut Ui) {
     let mixed = scales.iter().any(|s| *s != first);
     let pal = theme::of(ui);
     let color = if first != 100.0 || mixed { pal.accent } else { pal.text_weak };
-    ui.label(RichText::new(icon::LIGHTNING).color(color)).on_hover_text("Leistung der Auswahl");
+    ui.label(RichText::new(icon::LIGHTNING).color(color)).on_hover_text(tr("Leistung der Auswahl"));
     let mut v = first;
     let resp = ui
         .add(DragValue::new(&mut v).speed(0.5).range(1.0..=100.0).max_decimals(1).suffix(if mixed {
@@ -533,10 +546,8 @@ fn power_scale_field(app: &mut VectorLumeApp, ui: &mut Ui) {
         } else {
             " %"
         }))
-        .on_hover_text(
-            "Leistung dieser Objekte in Prozent der Ebenenleistung (100 % = wie die Ebene). \
-             Praktisch für Materialtests mit mehreren Leistungen auf einer Ebene.",
-        );
+        .on_hover_text(tr("Leistung dieser Objekte in Prozent der Ebenenleistung (100 % = wie die Ebene). \
+             Praktisch für Materialtests mit mehreren Leistungen auf einer Ebene."));
     if resp.changed() {
         app.checkpoint_coalesced("power_scale");
         for id in ids {
@@ -556,22 +567,22 @@ fn tool_options(app: &mut VectorLumeApp, ui: &mut Ui) {
     let o = &mut app.tool_options;
     match app.tool {
         Tool::Rect => {
-            ui.label("Eckenradius");
+            ui.label(tr("Eckenradius"));
             ui.add(DragValue::new(&mut o.corner_radius).speed(0.1).range(0.0..=1000.0).suffix(" mm"));
         }
         Tool::Polygon => {
-            ui.label("Ecken");
+            ui.label(tr("Ecken"));
             ui.add(DragValue::new(&mut o.polygon_sides).range(3..=64));
         }
         Tool::Star => {
-            ui.label("Zacken");
+            ui.label(tr("Zacken"));
             ui.add(DragValue::new(&mut o.star_points).range(3..=64));
-            ui.label("Innenradius");
+            ui.label(tr("Innenradius"));
             ui.add(DragValue::new(&mut o.star_inner).speed(0.01).range(0.05..=0.95).fixed_decimals(2));
         }
         _ => {}
     }
-    ui.label(RichText::new("Ziehen zum Zeichnen · Umschalt = gleichmäßig").small().color(theme::of(ui).text_weak));
+    ui.label(RichText::new(tr("Ziehen zum Zeichnen · Umschalt = gleichmäßig")).small().color(theme::of(ui).text_weak));
 }
 
 pub fn tool_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
@@ -587,7 +598,7 @@ pub fn tool_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
                     let selected = app.tool == t;
                     let text = RichText::new(t.icon()).size(19.0).color(if selected { pal.accent } else { pal.text });
                     let b = Button::selectable(selected, text).min_size(vec2(36.0, 34.0));
-                    if ui.add(b).on_hover_text(t.label()).clicked() {
+                    if ui.add(b).on_hover_text(tr(t.label())).clicked() {
                         app.tool = t;
                     }
                 }
@@ -595,25 +606,25 @@ pub fn tool_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
                 ui.separator();
                 ui.add_space(4.0);
                 let has = !app.selection.is_empty();
-                if icon_button(ui, icon::FLIP_HORIZONTAL, "Horizontal spiegeln", has) {
+                if icon_button(ui, icon::FLIP_HORIZONTAL, tr("Horizontal spiegeln"), has) {
                     app.mirror(true);
                 }
-                if icon_button(ui, icon::FLIP_VERTICAL, "Vertikal spiegeln", has) {
+                if icon_button(ui, icon::FLIP_VERTICAL, tr("Vertikal spiegeln"), has) {
                     app.mirror(false);
                 }
-                if icon_button(ui, icon::ARROW_CLOCKWISE, "90° drehen", has) {
+                if icon_button(ui, icon::ARROW_CLOCKWISE, tr("90° drehen"), has) {
                     app.rotate_selection(90.0);
                 }
-                if icon_button(ui, icon::SELECTION, "Gruppieren (Strg+G)", app.selection.len() > 1) {
+                if icon_button(ui, icon::SELECTION, tr("Gruppieren (Strg+G)"), app.selection.len() > 1) {
                     app.group();
                 }
-                if icon_button(ui, icon::SELECTION_SLASH, "Gruppierung lösen", has) {
+                if icon_button(ui, icon::SELECTION_SLASH, tr("Gruppierung lösen"), has) {
                     app.ungroup();
                 }
-                if icon_button(ui, icon::CROSSHAIR, "Auf Arbeitsfläche zentrieren", has) {
+                if icon_button(ui, icon::CROSSHAIR, tr("Auf Arbeitsfläche zentrieren"), has) {
                     app.center_on_bed();
                 }
-                if icon_button(ui, icon::TRASH, "Löschen (Entf)", has) {
+                if icon_button(ui, icon::TRASH, tr("Löschen (Entf)"), has) {
                     app.delete_selection();
                 }
             });
@@ -639,20 +650,20 @@ pub fn bottom_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
                 ui.separator();
                 let b = app.selection_bounds();
                 if app.selection.is_empty() {
-                    ui.label(small(format!("{} Objekte", app.doc.objects.len())));
+                    ui.label(small(trs(&format!("{} Objekte", app.doc.objects.len()))));
                 } else {
-                    ui.label(small(format!(
+                    ui.label(small(trs(&format!(
                         "{} ausgewählt · {:.2} × {:.2} mm",
                         app.selection.len(),
                         b.width(),
                         b.height()
-                    )));
+                    ))));
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(small(format!("{:.0} %", app.view.zoom / 3.78 * 100.0)));
                     ui.separator();
                     let (dot, text) = match (&app.machine.status, app.machine.connected) {
-                        (_, false) => (pal.text_weak, "Nicht verbunden".to_string()),
+                        (_, false) => (pal.text_weak, tr("Nicht verbunden").to_string()),
                         (Some(st), true) => {
                             let c = match st.state {
                                 vl_device::MachineState::Alarm | vl_device::MachineState::Door => pal.danger,
@@ -667,9 +678,9 @@ pub fn bottom_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
                                 .head_position()
                                 .map(|p| format!(" · X {:.2} Y {:.2}", p.x, p.y))
                                 .unwrap_or_default();
-                            (c, format!("{}{}", st.state.label(), pos))
+                            (c, format!("{}{}", tr(st.state.label()), pos))
                         }
-                        (None, true) => (pal.warning, "Verbunden, warte auf Status…".into()),
+                        (None, true) => (pal.warning, tr("Verbunden, warte auf Status…").into()),
                     };
                     ui.label(small(text));
                     let (r, painter) = ui.allocate_painter(vec2(10.0, 10.0), Sense::hover());
@@ -677,7 +688,7 @@ pub fn bottom_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
                     if app.jobs.busy > 0 {
                         ui.separator();
                         ui.spinner();
-                        ui.label(small("Berechne…".into()));
+                        ui.label(small(tr("Berechne…").into()));
                     }
                 });
             });
@@ -691,7 +702,7 @@ pub fn bottom_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 3.0;
-                ui.label(RichText::new("Ebene").size(12.0).color(pal.text_weak));
+                ui.label(RichText::new(tr("Ebene")).size(12.0).color(pal.text_weak));
                 ui.add_space(4.0);
                 let used = app.doc.used_layers();
                 for i in 0..LAYER_COUNT {
@@ -721,8 +732,8 @@ pub fn bottom_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
                         };
                         painter.circle_filled(rect.center(), 2.5, c);
                     }
-                    let tip = format!("{} – {}", layer.name, layer.settings.summary());
-                    if resp.on_hover_text(tip).on_hover_text("Klick: Auswahl dieser Ebene zuweisen").clicked() {
+                    let tip = format!("{} – {}", layer.name, trs(&layer.settings.summary()));
+                    if resp.on_hover_text(tip).on_hover_text(tr("Klick: Auswahl dieser Ebene zuweisen")).clicked() {
                         app.assign_layer(i);
                     }
                 }

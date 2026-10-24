@@ -1,6 +1,7 @@
 //! Materialbibliothek und Materialtest (Fenster).
 
 use crate::app::{ToastKind, VectorLumeApp};
+use crate::i18n::{tr, trs};
 use crate::theme;
 use egui::{Button, Color32, CornerRadius, DragValue, RichText, Sense, Stroke, Ui, pos2, vec2};
 use egui_phosphor::regular as icon;
@@ -39,11 +40,12 @@ impl MaterialsUi {
 
     fn save(&self) -> Result<(), String> {
         if self.load_error.is_some() {
-            return Err(
-                "Die Materialbibliothek konnte beim Start nicht gelesen werden und wird nicht überschrieben.".into()
-            );
+            return Err(tr(
+                "Die Materialbibliothek konnte beim Start nicht gelesen werden und wird nicht überschrieben.",
+            )
+            .into());
         }
-        let path = library_path().ok_or("Kein Ordner für Einstellungen gefunden.")?;
+        let path = library_path().ok_or(tr("Kein Ordner für Einstellungen gefunden."))?;
         self.library.save(&path)
     }
 }
@@ -55,13 +57,14 @@ pub struct TestUi {
     pub job: Option<Arc<Job>>,
     pub error: Option<String>,
     pub selected_cell: Option<(u32, u32)>,
-    built: Option<(TestPattern, MachineProfile, JobSettings)>,
+    pub(crate) built: Option<(TestPattern, MachineProfile, JobSettings)>,
 }
 
 /// Beschriftung mit einer serifenlosen Systemschrift (Oberkante bei y = 0).
 fn label_polylines(text: &str, height: f64) -> Vec<Polyline> {
     let db = vl_io::system_fonts();
-    let spec = vl_io::TextSpec { text: text.into(), family: "Arial".into(), height_mm: height, ..Default::default() };
+    // Achsentitel kommen deutsch aus vl-cam und werden in der Sprache der Oberfläche gelasert
+    let spec = vl_io::TextSpec { text: trs(text), family: "Arial".into(), height_mm: height, ..Default::default() };
     vl_io::text_to_path(&db, &spec).map(|p| p.flatten(&Affine::IDENTITY, 0.02)).unwrap_or_default()
 }
 
@@ -104,7 +107,7 @@ impl VectorLumeApp {
         self.doc.layers[l].settings = s;
         self.mark_changed();
         let name = self.doc.layers[l].name.clone();
-        self.toast(ToastKind::Success, format!("{what} auf Ebene {name} übernommen."));
+        self.toast(ToastKind::Success, trs(&format!("{what} auf Ebene {name} übernommen.")));
     }
 }
 
@@ -117,9 +120,9 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
 
 fn axis_ui(ui: &mut Ui, id: &str, axis: &mut TestAxis) {
     ui.horizontal(|ui| {
-        egui::ComboBox::from_id_salt(id).width(130.0).selected_text(axis.param.label()).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt(id).width(130.0).selected_text(tr(axis.param.label())).show_ui(ui, |ui| {
             for p in TestParam::ALL {
-                if ui.selectable_value(&mut axis.param, p, p.label()).changed() {
+                if ui.selectable_value(&mut axis.param, p, tr(p.label())).changed() {
                     let (min, max) = match p {
                         TestParam::Speed => (1000.0, 6000.0),
                         TestParam::Power => (10.0, 50.0),
@@ -142,9 +145,9 @@ fn axis_ui(ui: &mut Ui, id: &str, axis: &mut TestAxis) {
         };
         let unit = format!(" {}", axis.param.unit());
         ui.add(DragValue::new(&mut axis.min).speed(speed).range(lo..=hi).fixed_decimals(decimals).suffix(&unit));
-        ui.label("bis");
+        ui.label(tr("bis"));
         ui.add(DragValue::new(&mut axis.max).speed(speed).range(lo..=hi).fixed_decimals(decimals).suffix(&unit));
-        ui.add(DragValue::new(&mut axis.count).range(1..=vl_cam::testpattern::MAX_STEPS).suffix(" Stufen"));
+        ui.add(DragValue::new(&mut axis.count).range(1..=vl_cam::testpattern::MAX_STEPS).suffix(tr(" Stufen")));
     });
 }
 
@@ -159,7 +162,7 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
     let mut action: Option<&str> = None;
     let mut cell_click: Option<(u32, u32)> = None;
     let z_axis = app.settings.profile.z_axis;
-    egui::Window::new(format!("{} Materialtest", icon::GRID_FOUR))
+    egui::Window::new(trs(&format!("{} Materialtest", icon::GRID_FOUR)))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -167,10 +170,10 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             let pal = theme::of(ui);
             ui.label(
-                RichText::new(
+                RichText::new(tr(
                     "Brennt ein Raster aus Feldern mit gestaffelten Werten. Danach das beste Feld anklicken und als \
                      Material speichern.",
-                )
+                ))
                 .color(pal.text_weak),
             );
             ui.add_space(6.0);
@@ -178,10 +181,10 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.vertical(|ui| {
                     ui.set_width(470.0);
                     egui::Grid::new("test_grid").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
-                        ui.label("Modus");
+                        ui.label(tr("Modus"));
                         ui.horizontal(|ui| {
                             for m in [LayerMode::Fill, LayerMode::Line] {
-                                if ui.selectable_label(t.base.mode == m, m.label()).clicked() && t.base.mode != m {
+                                if ui.selectable_label(t.base.mode == m, tr(m.label())).clicked() && t.base.mode != m {
                                     let keep = (t.base.air_assist, t.base.interval);
                                     t.base = vl_core::CutSettings::default_for(m);
                                     (t.base.air_assist, t.base.interval) = keep;
@@ -189,19 +192,19 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                             }
                         });
                         ui.end_row();
-                        ui.label("Spalten");
+                        ui.label(tr("Spalten"));
                         axis_ui(ui, "test_cols", &mut t.columns);
                         ui.end_row();
-                        ui.label("Zeilen");
+                        ui.label(tr("Zeilen"));
                         axis_ui(ui, "test_rows", &mut t.rows);
                         ui.end_row();
                         if !z_axis && (t.columns.param == TestParam::Focus || t.rows.param == TestParam::Focus) {
                             ui.label("");
                             ui.label(
-                                RichText::new(format!(
+                                RichText::new(trs(&format!(
                                     "{} Der Fokustest braucht eine Z-Achse (Laser → Maschineneinstellungen).",
                                     icon::WARNING
-                                ))
+                                )))
                                 .color(pal.warning),
                             );
                             ui.end_row();
@@ -214,7 +217,7 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                             fixed(TestParam::Passes),
                             fixed(TestParam::Interval),
                         );
-                        ui.label("Feste Werte");
+                        ui.label(tr("Feste Werte"));
                         ui.horizontal(|ui| {
                             ui.add_enabled(
                                 !fs,
@@ -238,36 +241,36 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         });
                         ui.end_row();
                         if t.base.mode == LayerMode::Fill {
-                            ui.label("Füllen");
+                            ui.label(tr("Füllen"));
                             ui.horizontal(|ui| {
                                 ui.add(
                                     DragValue::new(&mut t.base.fill_angle).speed(1.0).range(-180.0..=180.0).suffix("°"),
                                 );
-                                ui.checkbox(&mut t.base.crosshatch, "Kreuz");
-                                ui.checkbox(&mut t.base.bidirectional, "Bidirektional");
+                                ui.checkbox(&mut t.base.crosshatch, tr("Kreuz"));
+                                ui.checkbox(&mut t.base.bidirectional, tr("Bidirektional"));
                                 ui.add(
                                     DragValue::new(&mut t.base.overscan)
                                         .speed(0.1)
                                         .range(0.0..=20.0)
-                                        .prefix("Overscan ")
+                                        .prefix(tr("Overscan "))
                                         .suffix(" mm"),
                                 );
                             });
                             ui.end_row();
                         }
-                        ui.label("Luftunterstützung");
+                        ui.label(tr("Luftunterstützung"));
                         ui.checkbox(&mut t.base.air_assist, "");
                         ui.end_row();
-                        ui.label("Felder");
+                        ui.label(tr("Felder"));
                         ui.horizontal(|ui| {
                             ui.add(DragValue::new(&mut t.cell_width).speed(0.1).range(1.0..=100.0).suffix(" mm"));
                             ui.label("×");
                             ui.add(DragValue::new(&mut t.cell_height).speed(0.1).range(1.0..=100.0).suffix(" mm"));
-                            ui.label("Abstand");
+                            ui.label(tr("Abstand"));
                             ui.add(DragValue::new(&mut t.gap).speed(0.1).range(0.0..=50.0).suffix(" mm"));
                         });
                         ui.end_row();
-                        ui.label("Beschriftung");
+                        ui.label(tr("Beschriftung"));
                         ui.horizontal(|ui| {
                             ui.checkbox(&mut t.labels, "");
                             ui.add_enabled_ui(t.labels, |ui| {
@@ -275,7 +278,7 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                                     DragValue::new(&mut t.label_height)
                                         .speed(0.1)
                                         .range(1.0..=20.0)
-                                        .prefix("Höhe ")
+                                        .prefix(tr("Höhe "))
                                         .suffix(" mm"),
                                 );
                                 ui.add(
@@ -288,34 +291,32 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                             });
                         });
                         ui.end_row();
-                        ui.label("Start von");
+                        ui.label(tr("Start von"));
                         ui.horizontal(|ui| {
-                            egui::ComboBox::from_id_salt("test_start").selected_text(js.start_from.label()).show_ui(
-                                ui,
-                                |ui| {
+                            egui::ComboBox::from_id_salt("test_start")
+                                .selected_text(tr(js.start_from.label()))
+                                .show_ui(ui, |ui| {
                                     for s in StartFrom::ALL {
-                                        ui.selectable_value(&mut js.start_from, s, s.label());
+                                        ui.selectable_value(&mut js.start_from, s, tr(s.label()));
                                     }
-                                },
-                            );
+                                });
                             if js.start_from != StartFrom::Absolute {
-                                egui::ComboBox::from_id_salt("test_anchor").selected_text(js.anchor.label()).show_ui(
-                                    ui,
-                                    |ui| {
+                                egui::ComboBox::from_id_salt("test_anchor")
+                                    .selected_text(tr(js.anchor.label()))
+                                    .show_ui(ui, |ui| {
                                         for &a in Anchor::GRID.iter().flatten() {
-                                            ui.selectable_value(&mut js.anchor, a, a.label());
+                                            ui.selectable_value(&mut js.anchor, a, tr(a.label()));
                                         }
-                                    },
-                                );
+                                    });
                             }
                         });
                         ui.end_row();
                         if js.start_from == StartFrom::Absolute {
-                            ui.label("Position");
+                            ui.label(tr("Position"));
                             ui.horizontal(|ui| {
                                 ui.add(DragValue::new(&mut t.position.x).speed(0.5).prefix("X ").suffix(" mm"));
                                 ui.add(DragValue::new(&mut t.position.y).speed(0.5).prefix("Y ").suffix(" mm"));
-                                ui.label(RichText::new("linke untere Ecke").small().color(pal.text_weak));
+                                ui.label(RichText::new(tr("linke untere Ecke")).small().color(pal.text_weak));
                             });
                             ui.end_row();
                         }
@@ -329,41 +330,46 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                             cell_click = Some(c);
                         }
                         let b = job.design_bounds;
-                        ui.label(format!(
+                        ui.label(trs(&format!(
                             "{} Felder · {:.0} × {:.0} mm · ca. {}",
                             t.cell_count(),
                             b.width(),
                             b.height(),
                             job.estimate.format_duration()
-                        ));
+                        )));
                         for w in &job.warnings {
                             ui.label(RichText::new(format!("{} {w}", icon::WARNING)).color(pal.warning));
                         }
                     } else if let Some(e) = &app.test.error {
                         ui.label(RichText::new(format!("{} {e}", icon::WARNING)).color(pal.danger));
                     }
-                    ui.checkbox(&mut app.test.show_on_canvas, "Auf der Arbeitsfläche anzeigen");
+                    ui.checkbox(&mut app.test.show_on_canvas, tr("Auf der Arbeitsfläche anzeigen"));
                     ui.add_space(4.0);
                     if let Some((r, c)) = app.test.selected_cell {
                         let cs = t.cell_settings(r, c);
                         crate::ui_side::card(ui, |ui| {
-                            ui.label(RichText::new(format!("Feld Zeile {}, Spalte {}", r + 1, c + 1)).strong());
-                            ui.label(cs.summary());
+                            ui.label(RichText::new(trs(&format!("Feld Zeile {}, Spalte {}", r + 1, c + 1))).strong());
+                            ui.label(trs(&cs.summary()));
                             if cs.mode == LayerMode::Fill {
-                                ui.label(format!("Zeilenabstand {:.2} mm", cs.interval));
+                                ui.label(trs(&format!("Zeilenabstand {:.2} mm", cs.interval)));
                             }
                             ui.horizontal(|ui| {
-                                if ui.button(format!("{} Als Material speichern…", icon::BOOKMARK_SIMPLE)).clicked() {
+                                if ui
+                                    .button(trs(&format!("{} Als Material speichern…", icon::BOOKMARK_SIMPLE)))
+                                    .clicked()
+                                {
                                     action = Some("save_cell");
                                 }
-                                if ui.button("Auf aktuelle Ebene").clicked() {
+                                if ui.button(tr("Auf aktuelle Ebene")).clicked() {
                                     action = Some("apply_cell");
                                 }
                             });
                         });
                     } else {
                         ui.label(
-                            RichText::new("Feld anklicken, um seine Werte zu übernehmen.").small().color(pal.text_weak),
+                            RichText::new(tr("Feld anklicken, um seine Werte zu übernehmen."))
+                                .small()
+                                .color(pal.text_weak),
                         );
                     }
                 });
@@ -373,24 +379,30 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
             ui.horizontal(|ui| {
                 let ready = app.test.job.is_some();
                 let connected = app.machine.connected && !app.machine.job_running;
-                if ui.add_enabled(ready && connected, Button::new(format!("{} Rahmen", icon::BOUNDING_BOX))).clicked() {
+                if ui
+                    .add_enabled(ready && connected, Button::new(trs(&format!("{} Rahmen", icon::BOUNDING_BOX))))
+                    .clicked()
+                {
                     action = Some("frame");
                 }
                 if ui
                     .add_enabled(
                         ready && connected,
-                        Button::new(RichText::new(format!("{} Test starten", icon::PLAY)).color(Color32::WHITE))
+                        Button::new(RichText::new(trs(&format!("{} Test starten", icon::PLAY))).color(Color32::WHITE))
                             .fill(pal.success),
                     )
                     .clicked()
                 {
                     action = Some("start");
                 }
-                if ui.add_enabled(ready, Button::new(format!("{} G-Code speichern…", icon::FLOPPY_DISK))).clicked() {
+                if ui
+                    .add_enabled(ready, Button::new(trs(&format!("{} G-Code speichern…", icon::FLOPPY_DISK))))
+                    .clicked()
+                {
                     action = Some("export");
                 }
                 if !app.machine.connected {
-                    ui.label(RichText::new("Kein Laser verbunden").small().color(pal.text_weak));
+                    ui.label(RichText::new(tr("Kein Laser verbunden")).small().color(pal.text_weak));
                 }
             });
         });
@@ -417,8 +429,8 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
         }
         (Some("export"), Some(job)) => {
             if let Some(path) = rfd::FileDialog::new()
-                .add_filter("G-Code", &["gcode", "nc"])
-                .set_file_name("Materialtest.gcode")
+                .add_filter(tr("G-Code"), &["gcode", "nc"])
+                .set_file_name(tr("Materialtest.gcode"))
                 .save_file()
             {
                 app.write_gcode(&job, &path);
@@ -426,14 +438,14 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
         }
         (Some("save_cell"), _) => {
             if let Some(cs) = cell {
-                let title = if cs.mode == LayerMode::Line { "Schneiden" } else { "Gravieren" };
+                let title = if cs.mode == LayerMode::Line { tr("Schneiden") } else { tr("Gravieren") };
                 app.materials.draft = Some(MaterialEntry { title: title.into(), settings: cs, ..Default::default() });
                 app.materials.open = true;
             }
         }
         (Some("apply_cell"), _) => {
             if let Some(cs) = cell {
-                app.apply_to_current_layer(&cs, "Testfeld");
+                app.apply_to_current_layer(&cs, tr("Testfeld"));
             }
         }
         _ => {}
@@ -522,7 +534,7 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
     let mut export = false;
     let mut changed = false;
     let layer_name = app.doc.layers[app.current_layer].name.clone();
-    egui::Window::new(format!("{} Materialbibliothek", icon::BOOKS))
+    egui::Window::new(trs(&format!("{} Materialbibliothek", icon::BOOKS)))
         .open(&mut open)
         .collapsible(false)
         .resizable(true)
@@ -532,17 +544,17 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
             let pal = theme::of(ui);
             let m = &mut app.materials;
             if let Some(e) = &m.load_error {
-                ui.label(RichText::new(format!("{} materials.json ist beschädigt: {e}", icon::WARNING)).color(pal.danger));
+                ui.label(RichText::new(trs(&format!("{} materials.json ist beschädigt: {e}", icon::WARNING))).color(pal.danger));
             }
             ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut m.filter).hint_text(format!("{} Suchen…", icon::MAGNIFYING_GLASS)).desired_width(180.0));
-                if ui.button(format!("{} Ebene {layer_name} speichern…", icon::PLUS)).clicked() {
+                ui.add(egui::TextEdit::singleline(&mut m.filter).hint_text(trs(&format!("{} Suchen…", icon::MAGNIFYING_GLASS))).desired_width(180.0));
+                if ui.button(trs(&format!("{} Ebene {layer_name} speichern…", icon::PLUS))).clicked() {
                     from_layer = true;
                 }
-                if ui.button(format!("{} Import", icon::DOWNLOAD_SIMPLE)).clicked() {
+                if ui.button(trs(&format!("{} Import", icon::DOWNLOAD_SIMPLE))).clicked() {
                     import = true;
                 }
-                if ui.add_enabled(!m.library.entries.is_empty(), Button::new(format!("{} Export", icon::EXPORT))).clicked() {
+                if ui.add_enabled(!m.library.entries.is_empty(), Button::new(trs(&format!("{} Export", icon::EXPORT)))).clicked() {
                     export = true;
                 }
             });
@@ -550,11 +562,11 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
 
             if let Some(d) = &mut m.draft {
                 crate::ui_side::card(ui, |ui| {
-                    ui.label(RichText::new("Neuer Eintrag").strong());
+                    ui.label(RichText::new(tr("Neuer Eintrag")).strong());
                     egui::Grid::new("draft").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
-                        ui.label("Material");
+                        ui.label(tr("Material"));
                         ui.horizontal(|ui| {
-                            ui.add(egui::TextEdit::singleline(&mut d.material).hint_text("z. B. Pappelsperrholz").desired_width(200.0));
+                            ui.add(egui::TextEdit::singleline(&mut d.material).hint_text(tr("z. B. Pappelsperrholz")).desired_width(200.0));
                             let known = m.library.materials();
                             if !known.is_empty() {
                                 egui::ComboBox::from_id_salt("known").selected_text("").width(24.0).show_ui(ui, |ui| {
@@ -567,26 +579,26 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                             }
                         });
                         ui.end_row();
-                        ui.label("Stärke");
+                        ui.label(tr("Stärke"));
                         ui.add(DragValue::new(&mut d.thickness).speed(0.1).range(0.0..=100.0).suffix(" mm"))
-                            .on_hover_text("0 = beliebige Stärke (z. B. Gravur)");
+                            .on_hover_text(tr("0 = beliebige Stärke (z. B. Gravur)"));
                         ui.end_row();
-                        ui.label("Bezeichnung");
-                        ui.add(egui::TextEdit::singleline(&mut d.title).hint_text("z. B. Schneiden, Gravieren dunkel").desired_width(200.0));
+                        ui.label(tr("Bezeichnung"));
+                        ui.add(egui::TextEdit::singleline(&mut d.title).hint_text(tr("z. B. Schneiden, Gravieren dunkel")).desired_width(200.0));
                         ui.end_row();
-                        ui.label("Notiz");
+                        ui.label(tr("Notiz"));
                         ui.add(egui::TextEdit::singleline(&mut d.notes).desired_width(260.0));
                         ui.end_row();
-                        ui.label("Werte");
-                        ui.label(d.settings.summary());
+                        ui.label(tr("Werte"));
+                        ui.label(trs(&d.settings.summary()));
                         ui.end_row();
                     });
                     ui.horizontal(|ui| {
                         let ok = !d.material.trim().is_empty() && !d.title.trim().is_empty();
-                        if ui.add_enabled(ok, Button::new(RichText::new("Speichern").color(Color32::WHITE)).fill(pal.accent)).clicked() {
+                        if ui.add_enabled(ok, Button::new(RichText::new(tr("Speichern")).color(Color32::WHITE)).fill(pal.accent)).clicked() {
                             save_draft = true;
                         }
-                        if ui.button("Abbrechen").clicked() {
+                        if ui.button(tr("Abbrechen")).clicked() {
                             cancel_draft = true;
                         }
                     });
@@ -596,8 +608,8 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
 
             if m.library.entries.is_empty() {
                 ui.label(RichText::new(
-                    "Noch keine Materialien. Tipp: Mit Laser → Materialtest die passenden Werte ermitteln und das beste \
-                     Feld hier speichern.",
+                    tr("Noch keine Materialien. Tipp: Mit Laser → Materialtest die passenden Werte ermitteln und das beste \
+                     Feld hier speichern."),
                 ).color(pal.text_weak));
                 return;
             }
@@ -618,7 +630,7 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     egui::CollapsingHeader::new(RichText::new(&material).strong()).default_open(true).id_salt(&material).show(ui, |ui| {
                         for i in idx {
                             let e = &m.library.entries[i];
-                            let text = format!("{} · {}  —  {}", e.thickness_label(), e.title, e.settings.summary());
+                            let text = format!("{} · {}  —  {}", trs(&e.thickness_label()), e.title, trs(&e.settings.summary()));
                             let resp = ui.selectable_label(m.selected == Some(i), text);
                             if resp.clicked() {
                                 m.selected = Some(i);
@@ -633,10 +645,10 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
             if let Some(i) = m.selected.filter(|&i| i < m.library.entries.len()) {
                 ui.separator();
                 let e = &mut m.library.entries[i];
-                ui.label(RichText::new(format!("{} {} · {}", e.material, e.thickness_label(), e.title)).strong());
+                ui.label(RichText::new(format!("{} {} · {}", e.material, trs(&e.thickness_label()), e.title)).strong());
                 let before = e.clone();
                 ui.horizontal(|ui| {
-                    ui.label("Notiz");
+                    ui.label(tr("Notiz"));
                     ui.add(egui::TextEdit::singleline(&mut e.notes).desired_width(320.0));
                 });
                 crate::ui_side::cut_settings_ui(ui, &mut e.settings, false, z_axis);
@@ -644,10 +656,10 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     changed = true;
                 }
                 ui.horizontal(|ui| {
-                    if ui.add(Button::new(RichText::new(format!("Auf Ebene {layer_name} anwenden")).color(Color32::WHITE)).fill(pal.accent)).clicked() {
+                    if ui.add(Button::new(RichText::new(trs(&format!("Auf Ebene {layer_name} anwenden"))).color(Color32::WHITE)).fill(pal.accent)).clicked() {
                         apply = Some(i);
                     }
-                    if ui.button(format!("{} Löschen", icon::TRASH)).clicked() {
+                    if ui.button(trs(&format!("{} Löschen", icon::TRASH))).clicked() {
                         delete = Some(i);
                     }
                 });
@@ -656,7 +668,7 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
 
     if from_layer {
         let s = app.doc.layers[app.current_layer].settings.clone();
-        let title = if s.mode == LayerMode::Line { "Schneiden" } else { "Gravieren" };
+        let title = if s.mode == LayerMode::Line { tr("Schneiden") } else { tr("Gravieren") };
         app.materials.draft = Some(MaterialEntry { title: title.into(), settings: s, ..Default::default() });
     }
     if cancel_draft {
@@ -665,13 +677,13 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
     if save_draft && let Some(mut d) = app.materials.draft.take() {
         d.material = d.material.trim().to_string();
         d.title = d.title.trim().to_string();
-        let label = format!("{} {} · {}", d.material, d.thickness_label(), d.title);
+        let label = format!("{} {} · {}", d.material, trs(&d.thickness_label()), d.title);
         let replaced = app.materials.library.upsert(d);
         app.materials.selected = None;
         changed = true;
         app.toast(
             ToastKind::Success,
-            if replaced { format!("{label} aktualisiert.") } else { format!("{label} gespeichert.") },
+            if replaced { trs(&format!("{label} aktualisiert.")) } else { trs(&format!("{label} gespeichert.")) },
         );
     }
     if let Some(i) = delete {
@@ -684,30 +696,33 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
         app.apply_to_current_layer(&e.settings, &format!("{} {}", e.material, e.title));
     }
     if import
-        && let Some(path) = rfd::FileDialog::new().add_filter("VectorLume-Materialien", &["vlmat", "json"]).pick_file()
+        && let Some(path) =
+            rfd::FileDialog::new().add_filter(tr("VectorLume-Materialien"), &["vlmat", "json"]).pick_file()
     {
         match MaterialLibrary::load(&path) {
             Ok(lib) => {
                 let n = app.materials.library.merge(lib);
                 changed = true;
-                app.toast(ToastKind::Success, format!("{n} Einträge importiert."));
+                app.toast(ToastKind::Success, trs(&format!("{n} Einträge importiert.")));
             }
             Err(e) => app.toast(ToastKind::Error, e),
         }
     }
     if export
         && let Some(path) = rfd::FileDialog::new()
-            .add_filter("VectorLume-Materialien", &["vlmat"])
-            .set_file_name("Materialien.vlmat")
+            .add_filter(tr("VectorLume-Materialien"), &["vlmat"])
+            .set_file_name(tr("Materialien.vlmat"))
             .save_file()
     {
         match app.materials.library.save(&path) {
-            Ok(()) => app.toast(ToastKind::Success, format!("Bibliothek exportiert: {}", crate::app::file_name(&path))),
+            Ok(()) => {
+                app.toast(ToastKind::Success, trs(&format!("Bibliothek exportiert: {}", crate::app::file_name(&path))))
+            }
             Err(e) => app.toast(ToastKind::Error, e),
         }
     }
     if changed && let Err(e) = app.materials.save() {
-        app.toast(ToastKind::Error, format!("Materialbibliothek nicht gespeichert: {e}"));
+        app.toast(ToastKind::Error, trs(&format!("Materialbibliothek nicht gespeichert: {e}")));
     }
     if !open {
         app.materials.open = false;

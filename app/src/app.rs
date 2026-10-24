@@ -2,6 +2,7 @@
 
 use crate::canvas::{GeomCache, TextureCache, View};
 use crate::history::History;
+use crate::i18n::{tr, trs};
 use crate::settings::{AppSettings, ThemeChoice};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -44,14 +45,14 @@ impl Tool {
 
     pub fn label(self) -> &'static str {
         match self {
-            Tool::Select => "Auswählen (V)",
-            Tool::Rect => "Rechteck (R)",
-            Tool::Ellipse => "Ellipse (E)",
-            Tool::Line => "Linie (L)",
-            Tool::Polygon => "Vieleck",
-            Tool::Star => "Stern",
-            Tool::Text => "Text (T)",
-            Tool::Node => "Knoten bearbeiten (N)",
+            Tool::Select => tr("Auswählen (V)"),
+            Tool::Rect => tr("Rechteck (R)"),
+            Tool::Ellipse => tr("Ellipse (E)"),
+            Tool::Line => tr("Linie (L)"),
+            Tool::Polygon => tr("Vieleck"),
+            Tool::Star => tr("Stern"),
+            Tool::Text => tr("Text (T)"),
+            Tool::Node => tr("Knoten bearbeiten (N)"),
         }
     }
 }
@@ -223,6 +224,7 @@ impl VectorLumeApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         crate::theme::install(&cc.egui_ctx);
         let settings = AppSettings::load();
+        crate::i18n::set_language(settings.language);
         apply_theme(&cc.egui_ctx, settings.theme);
         let ctx = cc.egui_ctx.clone();
         let wake = ctx.clone();
@@ -330,9 +332,18 @@ impl VectorLumeApp {
 
     // ---------------------------------------------------------------- Meldungen
 
+    pub fn set_language(&mut self, lang: crate::i18n::Language) {
+        self.settings.language = lang;
+        crate::i18n::set_language(lang);
+        self.settings.save();
+        // Beschriftungen des Materialtests neu erzeugen
+        self.test.built = None;
+    }
+
     pub fn toast(&mut self, kind: ToastKind, text: impl Into<String>) {
         let secs = if kind == ToastKind::Error { 7 } else { 4 };
-        self.toasts.push(Toast { text: text.into(), kind, until: Instant::now() + Duration::from_secs(secs) });
+        // Meldungen aus den Bibliotheken kommen deutsch an; übersetzt wird hier zentral
+        self.toasts.push(Toast { text: trs(&text.into()), kind, until: Instant::now() + Duration::from_secs(secs) });
         if self.toasts.len() > 5 {
             self.toasts.remove(0);
         }
@@ -424,10 +435,10 @@ impl VectorLumeApp {
         }
         let path = path.or_else(|| {
             rfd::FileDialog::new()
-                .set_title("Projekt öffnen")
-                .add_filter("Alle Projekte", &[vl_core::project::PROJECT_EXTENSION, "lbrn2"])
-                .add_filter("VectorLume-Projekt", &[vl_core::project::PROJECT_EXTENSION])
-                .add_filter("LightBurn-Projekt", &["lbrn2"])
+                .set_title(tr("Projekt öffnen"))
+                .add_filter(tr("Alle Projekte"), &[vl_core::project::PROJECT_EXTENSION, "lbrn2"])
+                .add_filter(tr("VectorLume-Projekt"), &[vl_core::project::PROJECT_EXTENSION])
+                .add_filter(tr("LightBurn-Projekt"), &["lbrn2"])
                 .pick_file()
         });
         if let Some(p) = path {
@@ -445,11 +456,11 @@ impl VectorLumeApp {
                 self.reset_after_load(original);
                 self.dirty = true;
                 self.zoom_to_fit();
-                self.toast(ToastKind::Success, "Sicherung wiederhergestellt. Bitte das Projekt speichern.");
+                self.toast(ToastKind::Success, tr("Sicherung wiederhergestellt. Bitte das Projekt speichern."));
             }
             Err(e) => {
                 self.autosave.clear();
-                self.toast(ToastKind::Error, format!("Sicherung unbrauchbar: {e}"));
+                self.toast(ToastKind::Error, trs(&format!("Sicherung unbrauchbar: {e}")));
             }
         }
     }
@@ -466,7 +477,7 @@ impl VectorLumeApp {
                 self.settings.add_recent(path.to_path_buf());
                 self.settings.save();
                 self.zoom_to_fit();
-                self.toast(ToastKind::Success, format!("„{}“ geöffnet.", file_name(path)));
+                self.toast(ToastKind::Success, trs(&format!("„{}“ geöffnet.", file_name(path))));
             }
             Err(e) => self.toast(ToastKind::Error, e),
         }
@@ -476,7 +487,7 @@ impl VectorLumeApp {
     fn open_lightburn(&mut self, path: &Path) {
         let bed_height = self.settings.profile.bed_height;
         let result = std::fs::read(path)
-            .map_err(|e| format!("Datei konnte nicht gelesen werden: {e}"))
+            .map_err(|e| trs(&format!("Datei konnte nicht gelesen werden: {e}")))
             .and_then(|data| vl_io::import_lightburn(&data, bed_height, path.parent()));
         match result {
             Ok(im) => {
@@ -489,10 +500,10 @@ impl VectorLumeApp {
                 self.zoom_to_fit();
                 self.toast(
                     ToastKind::Success,
-                    format!(
+                    trs(&format!(
                         "LightBurn-Projekt „{}“ übernommen. Gespeichert wird als VectorLume-Projekt.",
                         file_name(path)
-                    ),
+                    )),
                 );
                 for w in im.warnings {
                     self.toast(ToastKind::Info, w);
@@ -506,13 +517,13 @@ impl VectorLumeApp {
         let path = match (&self.file_path, save_as) {
             (Some(p), false) => Some(p.clone()),
             _ => rfd::FileDialog::new()
-                .set_title("Projekt speichern")
+                .set_title(tr("Projekt speichern"))
                 .set_file_name(format!(
                     "{}.{}",
-                    self.name_hint.as_deref().unwrap_or("Projekt"),
+                    self.name_hint.as_deref().unwrap_or(tr("Projekt")),
                     vl_core::project::PROJECT_EXTENSION
                 ))
-                .add_filter("VectorLume-Projekt", &[vl_core::project::PROJECT_EXTENSION])
+                .add_filter(tr("VectorLume-Projekt"), &[vl_core::project::PROJECT_EXTENSION])
                 .save_file(),
         };
         let Some(mut path) = path else { return false };
@@ -525,7 +536,7 @@ impl VectorLumeApp {
                 self.autosave.clear();
                 self.settings.add_recent(path.clone());
                 self.settings.save();
-                self.toast(ToastKind::Success, format!("Gespeichert: {}", file_name(&path)));
+                self.toast(ToastKind::Success, trs(&format!("Gespeichert: {}", file_name(&path))));
                 self.file_path = Some(path);
                 true
             }
@@ -540,10 +551,10 @@ impl VectorLumeApp {
         let mut all: Vec<&str> = vl_io::VECTOR_EXTENSIONS.to_vec();
         all.extend_from_slice(vl_io::IMAGE_EXTENSIONS);
         if let Some(files) = rfd::FileDialog::new()
-            .set_title("Importieren")
-            .add_filter("Alle unterstützten Dateien", &all)
-            .add_filter("Vektorgrafik (SVG, DXF, PDF, AI, EPS, HPGL)", vl_io::VECTOR_EXTENSIONS)
-            .add_filter("Bilder", vl_io::IMAGE_EXTENSIONS)
+            .set_title(tr("Importieren"))
+            .add_filter(tr("Alle unterstützten Dateien"), &all)
+            .add_filter(tr("Vektorgrafik (SVG, DXF, PDF, AI, EPS, HPGL)"), vl_io::VECTOR_EXTENSIONS)
+            .add_filter(tr("Bilder"), vl_io::IMAGE_EXTENSIONS)
             .pick_files()
         {
             for f in files {
@@ -570,7 +581,7 @@ impl VectorLumeApp {
                     self.place_imported(&ids);
                     self.selection = ids;
                     self.mark_changed();
-                    self.toast(ToastKind::Success, format!("„{}“ importiert.", file_name(path)));
+                    self.toast(ToastKind::Success, trs(&format!("„{}“ importiert.", file_name(path))));
                 }
                 for w in warnings {
                     self.toast(ToastKind::Info, w);
@@ -597,12 +608,17 @@ impl VectorLumeApp {
     }
 
     pub fn export_gcode_dialog(&mut self) {
-        let name =
-            self.file_path.as_ref().and_then(|p| p.file_stem()).and_then(|s| s.to_str()).unwrap_or("Job").to_string();
+        let name = self
+            .file_path
+            .as_ref()
+            .and_then(|p| p.file_stem())
+            .and_then(|s| s.to_str())
+            .unwrap_or(tr("Job"))
+            .to_string();
         if let Some(path) = rfd::FileDialog::new()
-            .set_title("G-Code speichern")
+            .set_title(tr("G-Code speichern"))
             .set_file_name(format!("{name}.gcode"))
-            .add_filter("G-Code", &["gcode", "nc", "gc"])
+            .add_filter(tr("G-Code"), &["gcode", "nc", "gc"])
             .save_file()
         {
             self.request_job(JobPurpose::Export(path));
@@ -611,39 +627,39 @@ impl VectorLumeApp {
 
     pub fn export_svg_dialog(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .set_title("Als SVG exportieren")
-            .set_file_name("Export.svg")
+            .set_title(tr("Als SVG exportieren"))
+            .set_file_name(tr("Export.svg"))
             .add_filter("SVG", &["svg"])
             .save_file()
         {
             let p = &self.settings.profile;
             let svg = vl_io::svg::export_svg(&self.doc, p.bed_width, p.bed_height);
             match std::fs::write(&path, svg) {
-                Ok(()) => self.toast(ToastKind::Success, format!("SVG gespeichert: {}", file_name(&path))),
-                Err(e) => self.toast(ToastKind::Error, format!("SVG konnte nicht gespeichert werden: {e}")),
+                Ok(()) => self.toast(ToastKind::Success, trs(&format!("SVG gespeichert: {}", file_name(&path)))),
+                Err(e) => self.toast(ToastKind::Error, trs(&format!("SVG konnte nicht gespeichert werden: {e}"))),
             }
         }
     }
 
     pub fn export_dxf_dialog(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .set_title("Als DXF exportieren")
-            .set_file_name("Export.dxf")
+            .set_title(tr("Als DXF exportieren"))
+            .set_file_name(tr("Export.dxf"))
             .add_filter("DXF", &["dxf"])
             .save_file()
         {
             let out = vl_io::dxf::export_dxf(&self.doc, self.settings.profile.bed_height);
             match std::fs::write(&path, out.text) {
                 Ok(()) => {
-                    self.toast(ToastKind::Success, format!("DXF gespeichert: {}", file_name(&path)));
+                    self.toast(ToastKind::Success, trs(&format!("DXF gespeichert: {}", file_name(&path))));
                     if out.skipped_images > 0 {
                         self.toast(
                             ToastKind::Info,
-                            format!("{} Bild(er) sind im DXF nicht enthalten.", out.skipped_images),
+                            trs(&format!("{} Bild(er) sind im DXF nicht enthalten.", out.skipped_images)),
                         );
                     }
                 }
-                Err(e) => self.toast(ToastKind::Error, format!("DXF konnte nicht gespeichert werden: {e}")),
+                Err(e) => self.toast(ToastKind::Error, trs(&format!("DXF konnte nicht gespeichert werden: {e}"))),
             }
         }
     }
@@ -862,13 +878,13 @@ impl VectorLumeApp {
         let mut doc = Document::new();
         doc.layers[0].settings =
             CutSettings { speed: 600.0, power_max: 85.0, ..CutSettings::default_for(LayerMode::Line) };
-        doc.layers[0].name = "Schneiden".into();
-        let frame = doc.add_path("Rahmen", 0, VectorPath::rect(30.0, 30.0, 170.0, 120.0, 8.0));
-        let hole = doc.add_path("Loch", 0, VectorPath::ellipse(Point::new(180.0, 50.0), 8.0, 8.0));
+        doc.layers[0].name = tr("Schneiden").into();
+        let frame = doc.add_path(tr("Rahmen"), 0, VectorPath::rect(30.0, 30.0, 170.0, 120.0, 8.0));
+        let hole = doc.add_path(tr("Loch"), 0, VectorPath::ellipse(Point::new(180.0, 50.0), 8.0, 8.0));
         doc.group(&[frame, hole]);
         doc.layers[1].settings = CutSettings { fill_angle: 45.0, ..CutSettings::default_for(LayerMode::Fill) };
-        doc.layers[1].name = "Gravur".into();
-        doc.add_path("Stern", 1, VectorPath::star(Point::new(80.0, 80.0), 36.0, 15.0, 5));
+        doc.layers[1].name = tr("Gravur").into();
+        doc.add_path(tr("Stern"), 1, VectorPath::star(Point::new(80.0, 80.0), 36.0, 15.0, 5));
         let db = vl_io::system_fonts();
         let family = ["Segoe UI", "Arial"]
             .iter()
@@ -884,7 +900,7 @@ impl VectorLumeApp {
                 ..Default::default()
             };
             if let Ok(p) = vl_io::text_to_path(&db, &spec) {
-                let id = doc.add("Text „VectorLume“", 1, Affine::translate(45.0, 126.0), vl_core::Shape::Path(p));
+                let id = doc.add(tr("Text „VectorLume“"), 1, Affine::translate(45.0, 126.0), vl_core::Shape::Path(p));
                 if let Some(o) = doc.get_mut(id) {
                     let rendered = spec.text.clone();
                     o.text = Some(Box::new(vl_core::TextData { spec, rendered, ..Default::default() }));
@@ -908,9 +924,9 @@ impl VectorLumeApp {
             height_mm: 48.0,
             adjust: ImageAdjust::default(),
         };
-        doc.add_image("Verlauf", 3, img, Point::new(220.0, 40.0));
+        doc.add_image(tr("Verlauf"), 3, img, Point::new(220.0, 40.0));
         doc.layers[3].settings.dither = DitherMode::Jarvis;
-        doc.layers[3].name = "Foto".into();
+        doc.layers[3].name = tr("Foto").into();
         self.doc = doc;
         self.reset_after_load(None);
         self.dirty = true;
@@ -998,7 +1014,7 @@ impl VectorLumeApp {
 
     pub fn run_frame(&mut self, job: &Job) {
         let lines = strip_for_streaming(&vl_cam::frame_gcode(job, &self.settings.profile));
-        self.device.send(Command::StartJob { name: "Rahmen".into(), lines });
+        self.device.send(Command::StartJob { name: tr("Rahmen").into(), lines });
     }
 
     pub fn write_gcode(&mut self, job: &Job, path: &Path) {
@@ -1006,28 +1022,31 @@ impl VectorLumeApp {
         text.push('\n');
         match std::fs::write(path, text) {
             Ok(()) => {
-                let mut msg =
-                    format!("G-Code gespeichert: {} (geschätzt {})", file_name(path), job.estimate.format_duration());
+                let mut msg = trs(&format!(
+                    "G-Code gespeichert: {} (geschätzt {})",
+                    file_name(path),
+                    job.estimate.format_duration()
+                ));
                 if !job.warnings.is_empty() {
-                    msg.push_str(" – mit Warnungen");
+                    msg.push_str(tr(" – mit Warnungen"));
                 }
                 self.toast(ToastKind::Success, msg);
                 for w in &job.warnings {
                     self.toast(ToastKind::Info, w.clone());
                 }
             }
-            Err(e) => self.toast(ToastKind::Error, format!("Speichern fehlgeschlagen: {e}")),
+            Err(e) => self.toast(ToastKind::Error, trs(&format!("Speichern fehlgeschlagen: {e}"))),
         }
     }
 
     /// Prüft, ob ein Job gestartet werden darf, und meldet sonst den Grund.
     pub fn ready_to_start(&mut self) -> bool {
         if !self.machine.connected {
-            self.toast(ToastKind::Error, "Kein Laser verbunden.");
+            self.toast(ToastKind::Error, tr("Kein Laser verbunden."));
             return false;
         }
         if self.machine.job_running {
-            self.toast(ToastKind::Info, "Es läuft bereits ein Job.");
+            self.toast(ToastKind::Info, tr("Es läuft bereits ein Job."));
             return false;
         }
         if self.machine.laser_mode() == Some(false) {
@@ -1039,7 +1058,7 @@ impl VectorLumeApp {
 
     pub fn ready_to_frame(&mut self) -> bool {
         if !self.machine.connected {
-            self.toast(ToastKind::Error, "Kein Laser verbunden.");
+            self.toast(ToastKind::Error, tr("Kein Laser verbunden."));
             return false;
         }
         if self.machine.job_running {
@@ -1069,7 +1088,7 @@ impl VectorLumeApp {
         self.machine.document_job = self.document_job.take() == Some(job as *const Job as usize);
         let lines = strip_for_streaming(&job.gcode);
         self.machine.job_estimate = job.estimate.seconds;
-        let name = self.file_path.as_ref().map(|p| file_name(p)).unwrap_or_else(|| "Job".into());
+        let name = self.file_path.as_ref().map(|p| file_name(p)).unwrap_or_else(|| tr("Job").into());
         self.device.send(Command::StartJob { name, lines });
     }
 
@@ -1089,7 +1108,7 @@ impl VectorLumeApp {
     pub fn connect(&mut self) {
         let port = self.selected_port.clone();
         if port.is_empty() {
-            self.toast(ToastKind::Error, "Kein Anschluss ausgewählt.");
+            self.toast(ToastKind::Error, tr("Kein Anschluss ausgewählt."));
             return;
         }
         self.settings.last_port = port.clone();
@@ -1097,7 +1116,10 @@ impl VectorLumeApp {
         let port = if port == vl_device::NETWORK_PORT {
             let addr = self.settings.network_address.trim();
             if addr.is_empty() {
-                self.toast(ToastKind::Error, "Bitte die Netzwerkadresse der Steuerung eingeben (z. B. 192.168.4.1).");
+                self.toast(
+                    ToastKind::Error,
+                    tr("Bitte die Netzwerkadresse der Steuerung eingeben (z. B. 192.168.4.1)."),
+                );
                 return;
             }
             format!("{}{}", vl_device::TCP_PREFIX, vl_device::with_default_port(addr))
@@ -1168,9 +1190,9 @@ impl VectorLumeApp {
                 self.settings.job.user_origin = p;
                 self.settings.job.start_from = StartFrom::UserOrigin;
                 self.settings.save();
-                self.toast(ToastKind::Success, format!("Benutzer-Ursprung gesetzt: X {:.2} Y {:.2}", p.x, p.y));
+                self.toast(ToastKind::Success, trs(&format!("Benutzer-Ursprung gesetzt: X {:.2} Y {:.2}", p.x, p.y)));
             }
-            None => self.toast(ToastKind::Error, "Position unbekannt – ist der Laser verbunden?"),
+            None => self.toast(ToastKind::Error, tr("Position unbekannt – ist der Laser verbunden?")),
         }
     }
 
@@ -1181,7 +1203,7 @@ impl VectorLumeApp {
         let mut changed = Vec::new();
         if let Some(v) = m.setting_f64(30) {
             p.s_max = v;
-            changed.push("S-Max");
+            changed.push(tr("S-Max"));
         }
         if let (Some(x), Some(y)) = (m.setting_f64(130), m.setting_f64(131))
             && x > 0.0
@@ -1189,22 +1211,22 @@ impl VectorLumeApp {
         {
             p.bed_width = x;
             p.bed_height = y;
-            changed.push("Arbeitsfläche");
+            changed.push(tr("Arbeitsfläche"));
         }
         if let Some(v) = m.setting_f64(110) {
             p.rapid_rate = v;
-            changed.push("Eilgang");
+            changed.push(tr("Eilgang"));
         }
         if let Some(v) = m.setting_f64(120) {
             p.acceleration = v;
-            changed.push("Beschleunigung");
+            changed.push(tr("Beschleunigung"));
         }
         self.settings.save();
         self.view.request_fit(None);
         if changed.is_empty() {
-            self.toast(ToastKind::Info, "Keine Werte vom Gerät verfügbar – bitte verbinden.");
+            self.toast(ToastKind::Info, tr("Keine Werte vom Gerät verfügbar – bitte verbinden."));
         } else {
-            self.toast(ToastKind::Success, format!("Übernommen: {}", changed.join(", ")));
+            self.toast(ToastKind::Success, trs(&format!("Übernommen: {}", changed.join(", "))));
         }
     }
 
@@ -1213,8 +1235,8 @@ impl VectorLumeApp {
             match ev {
                 Event::Connected { port } => {
                     self.machine.connected = true;
-                    self.console_push(Direction::Info, format!("Verbunden mit {port}"));
-                    self.toast(ToastKind::Success, format!("Verbunden mit {port}"));
+                    self.console_push(Direction::Info, trs(&format!("Verbunden mit {port}")));
+                    self.toast(ToastKind::Success, trs(&format!("Verbunden mit {port}")));
                     self.machine.port = Some(port);
                 }
                 Event::Disconnected { reason } => {
@@ -1227,7 +1249,7 @@ impl VectorLumeApp {
                             self.console_push(Direction::Info, r.clone());
                             self.toast(ToastKind::Error, r);
                         }
-                        None if was => self.toast(ToastKind::Info, "Verbindung getrennt."),
+                        None if was => self.toast(ToastKind::Info, tr("Verbindung getrennt.")),
                         None => {}
                     }
                 }
@@ -1242,7 +1264,7 @@ impl VectorLumeApp {
                     let first_laser_mode = n == 32 && !self.machine.settings.contains_key(&32);
                     self.machine.settings.insert(n, v);
                     if first_laser_mode && self.machine.laser_mode() == Some(false) {
-                        self.toast(ToastKind::Error, "Achtung: GRBL-Laser-Modus ist aus ($32=0).");
+                        self.toast(ToastKind::Error, tr("Achtung: GRBL-Laser-Modus ist aus ($32=0)."));
                     }
                 }
                 Event::JobStarted { name, total } => {
@@ -1260,7 +1282,7 @@ impl VectorLumeApp {
                     let text = format!("{message} ({})", vl_cam::format_duration(seconds));
                     self.toast(if ok { ToastKind::Success } else { ToastKind::Error }, text);
                 }
-                Event::Alarm(code, text) => self.toast(ToastKind::Error, format!("Alarm {code}: {text}")),
+                Event::Alarm(code, text) => self.toast(ToastKind::Error, trs(&format!("Alarm {code}: {text}"))),
             }
         }
     }
@@ -1272,8 +1294,9 @@ impl VectorLumeApp {
             if self.machine.job_running {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.modal = Some(Modal::Message {
-                    title: "Job läuft".into(),
-                    text: "Bitte den laufenden Job erst stoppen oder abwarten, bevor VectorLume beendet wird.".into(),
+                    title: tr("Job läuft").into(),
+                    text: tr("Bitte den laufenden Job erst stoppen oder abwarten, bevor VectorLume beendet wird.")
+                        .into(),
                 });
             } else if self.dirty && !self.doc.objects.is_empty() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
@@ -1310,7 +1333,7 @@ impl VectorLumeApp {
             .as_ref()
             .map(|p| file_name(p))
             .or_else(|| self.name_hint.clone())
-            .unwrap_or_else(|| "Unbenannt".into());
+            .unwrap_or_else(|| tr("Unbenannt").into());
         let title = format!("{}{} – VectorLume", name, if self.dirty { " •" } else { "" });
         if title != self.last_title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));

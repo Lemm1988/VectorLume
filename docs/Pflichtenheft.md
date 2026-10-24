@@ -152,8 +152,19 @@ Formatversionen werden mit Hinweis abgelehnt.
 
 ### 5.3 Einstellungen
 `%APPDATA%\VectorLume\settings.json`: Maschinenprofil (inkl. Steuerung und Drehachse), Job-Optionen, Design, letzte
-Dateien, Netzwerkadresse, Jog-Schritt, Sicherheitshinweis bestätigt. Mit `VECTORLUME_CONFIG_DIR` lässt sich ein anderer
-Ordner verwenden (Tests).
+Dateien, Netzwerkadresse, Jog-Schritt, Sicherheitshinweis bestätigt, Kamera, Sprache. Mit `VECTORLUME_CONFIG_DIR` lässt
+sich ein anderer Ordner verwenden (Tests).
+
+### 5.4 Sprache der Oberfläche
+Deutsch und Englisch, umschaltbar unter *Ansicht → Sprache* ohne Neustart; beim ersten Start gilt die Sprache des
+Systems (`sys-locale`). Die Texte stehen im Quelltext auf Deutsch und werden zur Laufzeit nachgeschlagen
+(`app/src/i18n.rs`, Tabelle `app/src/i18n_en.rs`): `tr("…")` für feste Texte, `trs(&format!(…))` für zusammengesetzte.
+Zusammengesetzte Meldungen – auch Fehlermeldungen der Bibliotheken, die zentral bei Hinweisen und Dialogen übersetzt
+werden – erkennt eine Vorlage mit `{}`; die eingesetzten Werte (Dateinamen, Zahlen, Modusnamen) bleiben erhalten und
+werden ihrerseits übersetzt, wenn sie bekannt sind. Fehlt eine Übersetzung, erscheint der deutsche Text. Ein Test
+prüft, dass jeder `tr`/`trs`-Text im Quelltext einen englischen Eintrag hat. Die Beschriftung des Materialtests wird in
+der eingestellten Sprache gelasert; Namen von Ebenen und Objekten sind Benutzerdaten und werden nicht übersetzt.
+Weitere Sprachen: eine Tabelle wie `i18n_en.rs` und ein Eintrag in `Language`.
 
 ## 6. Schnittstellen
 
@@ -204,14 +215,15 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (107):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (111):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
   Objektfang, Materialtest und -bibliothek, Z je Durchgang, Nachzeichnen, Platzhalter, Text auf Pfad, Drehachse,
   G-Code-Dialekte und Streaming für Marlin/Smoothieware (Simulator), Netzwerkverbindung, CSV-Datenlisten,
   LightBurn-Import (Ebenen, Formen, Gruppen, gemeinsame Punktlisten, Werkzeugebenen), Leistung je Objekt, EPS (mit
-  Ghostscript, sonst übersprungen), Homographie und Entzerrung des Kamerabildes. Zusätzlich
+  Ghostscript, sonst übersprungen), Homographie und Entzerrung des Kamerabildes, Übersetzung (Vorlagen, verschachtelte
+  Meldungen, Vollständigkeit der englischen Tabelle). Zusätzlich
   prüft ein abschaltbarer Test echte LightBurn-Projekte aus einem Ordner (`VL_LBRN_DIR`).
 - **End-to-End:** Ein Job mit Schnitt, Kreuzschraffur und Graustufenbild sowie die Rahmenfahrt werden zeilenweise durch
   den Simulator gestreamt – jede Zeile muss mit `ok` bestätigt werden.
@@ -250,6 +262,7 @@ of the Independent JPEG Group“. Damit bleiben Veröffentlichung als Open Sourc
 | fontdb 0.24, ttf-parser 0.25 | Schriften | MIT, MIT/Apache-2.0 |
 | serde, serde_json, base64, dirs, log | Infrastruktur | MIT/Apache-2.0 |
 | roxmltree | XML lesen (LightBurn-Projekte) | MIT/Apache-2.0 |
+| sys-locale 0.3 | Systemsprache beim ersten Start | MIT/Apache-2.0 |
 | nokhwa 0.10 | Kamera (Media Foundation unter Windows) | Apache-2.0 |
 | mozjpeg 0.10 (über nokhwa) | JPEG-Bilder der Kamera | IJG, Zlib, BSD-3-Clause |
 
@@ -260,4 +273,4 @@ of the Independent JPEG Group“. Damit bleiben Veröffentlichung als Open Sourc
 | 1 ✅ | Nutzbare Version für GRBL/SF-A9 (dieses Dokument) |
 | 2 ✅ | Knotenbearbeitung, Boolesche Operationen, Offset/Offset-Füllen, Arrays, Laschen, Materialbibliothek, Testmuster-Generator, Autosicherung, Objektfang, PDF-Import |
 | 3 🟡 | Bild nachzeichnen ✅, Text auf Pfad/variabler Text ✅, Rotary ✅, Kamera ✅, Marlin/Smoothieware ✅ (experimentell), danach Ruida und Galvo (Hardware-Tester nötig) |
-| 4 🟡 | Eigene Verbesserungen (u. a. Leistung je Objekt, LightBurn-Import ✅), Installer (Benutzerinstallation mit Verknüpfungen und Dateitypen `.vlume`/„Öffnen mit“ für `.lbrn2` ✅, Setup-Paket ⏳), mehrsprachige Oberfläche, Veröffentlichung |
+| 4 🟡 | Eigene Verbesserungen (u. a. Leistung je Objekt, LightBurn-Import ✅), Installer (Benutzerinstallation mit Verknüpfungen und Dateitypen `.vlume`/„Öffnen mit“ für `.lbrn2` ✅, Setup-Paket ⏳), mehrsprachige Oberfläche (Deutsch/Englisch ✅), Veröffentlichung |

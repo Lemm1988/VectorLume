@@ -1,6 +1,7 @@
 //! Objektfang: Knoten, Mittelpunkte und Ausrichtungslinien anderer Objekte beim Zeichnen, Verschieben und
 //! Bearbeiten von Knoten.
 
+use crate::i18n::tr;
 use vl_core::nodes;
 use vl_core::{Document, ObjectId, Point, Rect as DRect, Shape};
 
@@ -14,9 +15,9 @@ pub enum SnapKind {
 impl SnapKind {
     pub fn label(self) -> &'static str {
         match self {
-            SnapKind::Node => "Knoten",
-            SnapKind::Center => "Mitte",
-            SnapKind::Corner => "Ecke",
+            SnapKind::Node => tr("Knoten"),
+            SnapKind::Center => tr("Mitte"),
+            SnapKind::Corner => tr("Ecke"),
         }
     }
 }

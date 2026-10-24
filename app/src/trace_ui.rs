@@ -1,6 +1,7 @@
 //! Dialog „Bild nachzeichnen“: Vektorkonturen aus einem Bild erzeugen, mit Live-Vorschau auf der Arbeitsfläche.
 
 use crate::app::{ToastKind, VectorLumeApp};
+use crate::i18n::{tr, trs};
 use crate::theme;
 use egui::{Align2, Button, Color32, DragValue, RichText, vec2};
 use egui_phosphor::regular as icon;
@@ -44,7 +45,7 @@ impl VectorLumeApp {
     pub fn open_trace(&mut self) {
         let target = self.selection.iter().copied().find(|id| self.doc.get(*id).is_some_and(|o| o.is_image()));
         let Some(target) = target else {
-            self.toast(ToastKind::Info, "Bitte zuerst ein Bild auswählen.");
+            self.toast(ToastKind::Info, tr("Bitte zuerst ein Bild auswählen."));
             return;
         };
         let t = &mut self.trace;
@@ -101,7 +102,7 @@ impl VectorLumeApp {
         let Some(paths) = self.trace.result.clone() else { return };
         let Some(id) = self.trace.target else { return };
         if paths.is_empty() {
-            self.toast(ToastKind::Info, "Mit diesen Einstellungen wurden keine Konturen gefunden.");
+            self.toast(ToastKind::Info, tr("Mit diesen Einstellungen wurden keine Konturen gefunden."));
             return;
         }
         let mut all = VectorPath::default();
@@ -109,14 +110,14 @@ impl VectorLumeApp {
             all.append(p.clone());
         }
         self.checkpoint();
-        let new_id = self.doc.add_path("Nachgezeichnet", self.trace_layer(), all);
+        let new_id = self.doc.add_path(tr("Nachgezeichnet"), self.trace_layer(), all);
         if self.trace.remove_image {
             self.doc.remove(&[id]);
         }
         self.selection = vec![new_id];
         self.mark_changed();
         self.trace.open = false;
-        self.toast(ToastKind::Success, format!("{} Konturen erzeugt.", paths.len()));
+        self.toast(ToastKind::Success, trs(&format!("{} Konturen erzeugt.", paths.len())));
     }
 }
 
@@ -128,7 +129,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     let mut open = true;
     let mut apply = false;
     let layer_name = app.doc.layers[app.trace_layer()].name.clone();
-    egui::Window::new(format!("{} Bild nachzeichnen", icon::SCAN))
+    egui::Window::new(trs(&format!("{} Bild nachzeichnen", icon::SCAN)))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -137,39 +138,39 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
             let pal = theme::of(ui);
             let t = &mut app.trace;
             egui::Grid::new("trace").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
-                ui.label("Schwellwert");
+                ui.label(tr("Schwellwert"));
                 ui.add(egui::Slider::new(&mut t.opts.threshold, 1..=254))
-                    .on_hover_text("Grauwerte darunter (dunkler) werden nachgezeichnet");
+                    .on_hover_text(tr("Grauwerte darunter (dunkler) werden nachgezeichnet"));
                 ui.end_row();
                 ui.label("");
-                ui.checkbox(&mut t.opts.invert, "Helle Bereiche nachzeichnen");
+                ui.checkbox(&mut t.opts.invert, tr("Helle Bereiche nachzeichnen"));
                 ui.end_row();
-                ui.label("Flecken ignorieren");
+                ui.label(tr("Flecken ignorieren"));
                 ui.add(DragValue::new(&mut t.opts.min_area).speed(0.5).range(0.0..=10000.0).suffix(" px²"))
-                    .on_hover_text("Konturen mit kleinerer Fläche werden verworfen (Staub, Rauschen)");
+                    .on_hover_text(tr("Konturen mit kleinerer Fläche werden verworfen (Staub, Rauschen)"));
                 ui.end_row();
-                ui.label("Vereinfachen");
+                ui.label(tr("Vereinfachen"));
                 ui.add(egui::Slider::new(&mut t.opts.tolerance, 0.0..=5.0).suffix(" px").fixed_decimals(1))
-                    .on_hover_text("Erlaubte Abweichung: höher = weniger Knoten");
+                    .on_hover_text(tr("Erlaubte Abweichung: höher = weniger Knoten"));
                 ui.end_row();
-                ui.label("Glätten");
+                ui.label(tr("Glätten"));
                 ui.add(egui::Slider::new(&mut t.opts.smoothing, 0.0..=1.0).fixed_decimals(2))
-                    .on_hover_text("0 = gerade Linien, 1 = runde Kurven");
+                    .on_hover_text(tr("0 = gerade Linien, 1 = runde Kurven"));
                 ui.end_row();
-                ui.label("Eckenwinkel");
+                ui.label(tr("Eckenwinkel"));
                 ui.add(egui::Slider::new(&mut t.opts.corner_angle, 20.0..=150.0).suffix("°").fixed_decimals(0))
-                    .on_hover_text("Stärkere Knicke bleiben beim Glätten spitze Ecken");
+                    .on_hover_text(tr("Stärkere Knicke bleiben beim Glätten spitze Ecken"));
                 ui.end_row();
                 ui.label("");
-                ui.checkbox(&mut t.remove_image, "Bild danach entfernen");
+                ui.checkbox(&mut t.remove_image, tr("Bild danach entfernen"));
                 ui.end_row();
             });
             ui.add_space(4.0);
             let status = match (&t.result, t.busy) {
-                (_, true) => format!("{} Berechne …", icon::HOURGLASS),
+                (_, true) => trs(&format!("{} Berechne …", icon::HOURGLASS)),
                 (Some(r), false) => {
                     let nodes: usize = r.iter().map(|p| p.segment_count()).sum();
-                    format!("{} Konturen · {} Segmente · Ziel-Ebene „{}“", r.len(), nodes, layer_name)
+                    trs(&format!("{} Konturen · {} Segmente · Ziel-Ebene „{}“", r.len(), nodes, layer_name))
                 }
                 (None, false) => String::new(),
             };
@@ -178,12 +179,15 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
             ui.horizontal(|ui| {
                 let ready = t.result.as_ref().is_some_and(|r| !r.is_empty()) && !t.busy;
                 if ui
-                    .add_enabled(ready, Button::new(RichText::new("Übernehmen").color(Color32::WHITE)).fill(pal.accent))
+                    .add_enabled(
+                        ready,
+                        Button::new(RichText::new(tr("Übernehmen")).color(Color32::WHITE)).fill(pal.accent),
+                    )
                     .clicked()
                 {
                     apply = true;
                 }
-                if ui.button("Abbrechen").clicked() {
+                if ui.button(tr("Abbrechen")).clicked() {
                     t.open = false;
                 }
             });

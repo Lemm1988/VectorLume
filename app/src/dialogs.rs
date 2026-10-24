@@ -1,6 +1,7 @@
 //! Fenster und Abfragen: Maschineneinstellungen, Info, Sicherheitsabfragen, Benachrichtigungen.
 
 use crate::app::{Modal, ToastKind, VectorLumeApp};
+use crate::i18n::{tr, trs};
 use crate::theme;
 use egui::{Align2, Button, Color32, CornerRadius, DragValue, Frame, Margin, RichText, Stroke, vec2};
 use egui_phosphor::regular as icon;
@@ -25,7 +26,7 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
     let mut p = app.settings.profile.clone();
     let have_device_values = !app.machine.settings.is_empty();
     let mut apply_device = false;
-    egui::Window::new(format!("{} Maschineneinstellungen", icon::GEAR))
+    egui::Window::new(trs(&format!("{} Maschineneinstellungen", icon::GEAR)))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -34,56 +35,56 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
         .default_pos(ctx.content_rect().center())
         .show(ctx, |ui| {
             egui::Grid::new("profile").num_columns(2).spacing(vec2(12.0, 6.0)).show(ui, |ui| {
-                ui.label("Name");
+                ui.label(tr("Name"));
                 ui.text_edit_singleline(&mut p.name);
                 ui.end_row();
-                ui.label("Steuerung");
+                ui.label(tr("Steuerung"));
                 let before = p.firmware;
-                egui::ComboBox::from_id_salt("firmware").selected_text(p.firmware.label()).show_ui(ui, |ui| {
+                egui::ComboBox::from_id_salt("firmware").selected_text(tr(p.firmware.label())).show_ui(ui, |ui| {
                     for f in Firmware::ALL {
-                        ui.selectable_value(&mut p.firmware, f, f.label());
+                        ui.selectable_value(&mut p.firmware, f, tr(f.label()));
                     }
                 });
                 if p.firmware != before && p.s_max == before.default_s_max() {
                     p.s_max = p.firmware.default_s_max();
                 }
                 ui.end_row();
-                ui.label("Arbeitsfläche");
+                ui.label(tr("Arbeitsfläche"));
                 ui.horizontal(|ui| {
                     ui.add(DragValue::new(&mut p.bed_width).speed(1.0).range(10.0..=3000.0).suffix(" mm"));
                     ui.label("×");
                     ui.add(DragValue::new(&mut p.bed_height).speed(1.0).range(10.0..=3000.0).suffix(" mm"));
                 });
                 ui.end_row();
-                ui.label("Nullpunkt");
-                egui::ComboBox::from_id_salt("origin").selected_text(p.origin.label()).show_ui(ui, |ui| {
+                ui.label(tr("Nullpunkt"));
+                egui::ComboBox::from_id_salt("origin").selected_text(tr(p.origin.label())).show_ui(ui, |ui| {
                     for o in OriginCorner::ALL {
-                        ui.selectable_value(&mut p.origin, o, o.label());
+                        ui.selectable_value(&mut p.origin, o, tr(o.label()));
                     }
                 });
                 ui.end_row();
                 let (s_label, s_tip) = match p.firmware {
-                    Firmware::Grbl => ("S-Max ($30)", "Höchstwert für S, wie in $30 eingestellt"),
-                    Firmware::Marlin => ("S-Max", "Höchstwert für S, meist 255 (PWM) oder 100 (Prozent)"),
-                    Firmware::Smoothieware => ("S-Max", "Smoothieware erwartet 0…1 – S-Max 1 = volle Leistung"),
+                    Firmware::Grbl => (tr("S-Max ($30)"), tr("Höchstwert für S, wie in $30 eingestellt")),
+                    Firmware::Marlin => (tr("S-Max"), tr("Höchstwert für S, meist 255 (PWM) oder 100 (Prozent)")),
+                    Firmware::Smoothieware => (tr("S-Max"), tr("Smoothieware erwartet 0…1 – S-Max 1 = volle Leistung")),
                 };
                 ui.label(s_label);
                 let s_speed = if p.s_max <= 10.0 { 0.01 } else { 10.0 };
                 ui.add(DragValue::new(&mut p.s_max).speed(s_speed).range(0.01..=100000.0)).on_hover_text(s_tip);
                 ui.end_row();
-                ui.label("Leistungsmodus");
+                ui.label(tr("Leistungsmodus"));
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut p.dynamic_power, true, "M4 dynamisch");
-                    ui.radio_value(&mut p.dynamic_power, false, "M3 konstant");
+                    ui.radio_value(&mut p.dynamic_power, true, tr("M4 dynamisch"));
+                    ui.radio_value(&mut p.dynamic_power, false, tr("M3 konstant"));
                 });
                 ui.end_row();
-                ui.label("Eilgang");
+                ui.label(tr("Eilgang"));
                 ui.add(DragValue::new(&mut p.rapid_rate).speed(50.0).range(100.0..=100000.0).suffix(" mm/min"));
                 ui.end_row();
-                ui.label("Beschleunigung");
+                ui.label(tr("Beschleunigung"));
                 ui.add(DragValue::new(&mut p.acceleration).speed(10.0).range(10.0..=50000.0).suffix(" mm/s²"));
                 ui.end_row();
-                ui.label("Luftunterstützung");
+                ui.label(tr("Luftunterstützung"));
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut p.air_assist_supported, "");
                     ui.add_enabled(
@@ -96,13 +97,13 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     );
                 });
                 ui.end_row();
-                ui.label("Z-Achse");
-                ui.checkbox(&mut p.z_axis, "vorhanden (Fokus per G-Code)").on_hover_text(
+                ui.label(tr("Z-Achse"));
+                ui.checkbox(&mut p.z_axis, tr("vorhanden (Fokus per G-Code)")).on_hover_text(tr(
                     "Nur aktivieren, wenn die Steuerung eine Z-Achse bzw. einen motorischen Tisch hat. \
                      Dann werden Z-Versatz und Absenkung je Durchgang ausgegeben.",
-                );
+                ));
                 ui.end_row();
-                ui.label("Baudrate");
+                ui.label(tr("Baudrate"));
                 egui::ComboBox::from_id_salt("baud").selected_text(p.baud.to_string()).show_ui(ui, |ui| {
                     for b in [9600, 38400, 57600, 115_200, 230_400, 250_000, 921_600] {
                         ui.selectable_value(&mut p.baud, b, b.to_string());
@@ -110,18 +111,18 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 });
                 ui.end_row();
                 if p.firmware == Firmware::Grbl {
-                    ui.label("Empfangspuffer");
-                    ui.add(DragValue::new(&mut p.rx_buffer).range(32..=4096).suffix(" Byte"));
+                    ui.label(tr("Empfangspuffer"));
+                    ui.add(DragValue::new(&mut p.rx_buffer).range(32..=4096).suffix(tr(" Byte")));
                     ui.end_row();
                 }
-                ui.label("Nach dem Job");
-                ui.checkbox(&mut p.return_to_origin, "Zum Ursprung zurückfahren");
+                ui.label(tr("Nach dem Job"));
+                ui.checkbox(&mut p.return_to_origin, tr("Zum Ursprung zurückfahren"));
                 ui.end_row();
-                ui.label("Rahmen");
+                ui.label(tr("Rahmen"));
                 ui.horizontal(|ui| {
                     ui.add(DragValue::new(&mut p.frame_speed).speed(50.0).range(100.0..=30000.0).suffix(" mm/min"));
                     ui.add(DragValue::new(&mut p.frame_power).speed(0.1).range(0.0..=5.0).suffix(" %"))
-                        .on_hover_text("0 % = Laser aus. Höchstens 5 %, nur mit Schutzbrille!");
+                        .on_hover_text(tr("0 % = Laser aus. Höchstens 5 %, nur mit Schutzbrille!"));
                 });
                 ui.end_row();
             });
@@ -129,28 +130,31 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.add_space(4.0);
                 let note = match p.firmware {
                     Firmware::Marlin => {
-                        "Marlin: Laser im Inline-Modus (M3/M4 I), Zeile für Zeile mit Warten auf „ok“. \
-                         Für sofortiges Stoppen EMERGENCY_PARSER in der Firmware aktivieren."
+                        tr("Marlin: Laser im Inline-Modus (M3/M4 I), Zeile für Zeile mit Warten auf „ok“. \
+                         Für sofortiges Stoppen EMERGENCY_PARSER in der Firmware aktivieren.")
                     }
-                    _ => "Smoothieware: Leistung als S 0…1, Zeile für Zeile mit Warten auf „ok“.",
+                    _ => tr("Smoothieware: Leistung als S 0…1, Zeile für Zeile mit Warten auf „ok“."),
                 };
                 ui.label(RichText::new(note).small().color(theme::of(ui).text_weak));
             }
             if app.machine.connected && p.firmware != app.settings.profile.firmware {
-                ui.label(RichText::new("Wirkt beim nächsten Verbinden.").small().color(theme::of(ui).warning));
+                ui.label(RichText::new(tr("Wirkt beim nächsten Verbinden.")).small().color(theme::of(ui).warning));
             }
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(have_device_values, Button::new(format!("{} Werte vom Gerät", icon::DOWNLOAD_SIMPLE)))
-                    .on_hover_text(
-                        "S-Max ($30), Arbeitsfläche ($130/$131), Eilgang ($110) und Beschleunigung ($120) übernehmen",
+                    .add_enabled(
+                        have_device_values,
+                        Button::new(trs(&format!("{} Werte vom Gerät", icon::DOWNLOAD_SIMPLE))),
                     )
+                    .on_hover_text(tr(
+                        "S-Max ($30), Arbeitsfläche ($130/$131), Eilgang ($110) und Beschleunigung ($120) übernehmen",
+                    ))
                     .clicked()
                 {
                     apply_device = true;
                 }
-                if ui.button("Sculpfun SF-A9 Standard").clicked() {
+                if ui.button(tr("Sculpfun SF-A9 Standard")).clicked() {
                     // Drehachse ist Zubehör und bleibt erhalten.
                     p = MachineProfile { rotary: p.rotary.clone(), ..MachineProfile::sculpfun_sf_a9() };
                 }
@@ -179,27 +183,27 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
         return;
     }
     let mut open = true;
-    egui::Window::new("Über VectorLume").open(&mut open).collapsible(false).resizable(false).default_width(420.0).show(
+    egui::Window::new(tr("Über VectorLume")).open(&mut open).collapsible(false).resizable(false).default_width(420.0).show(
         ctx,
         |ui| {
             let pal = theme::of(ui);
             ui.label(
                 RichText::new(format!("{} VectorLume", icon::SPARKLE)).font(theme::strong_font(22.0)).color(pal.accent),
             );
-            ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
+            ui.label(trs(&format!("Version {}", env!("CARGO_PKG_VERSION"))));
             ui.add_space(6.0);
-            ui.label("Software zum Gestalten und Lasern für Diodenlaser mit GRBL, Marlin oder Smoothieware. Eigenständig in Rust entwickelt.");
+            ui.label(tr("Software zum Gestalten und Lasern für Diodenlaser mit GRBL, Marlin oder Smoothieware. Eigenständig in Rust entwickelt."));
             ui.add_space(6.0);
-            ui.label(RichText::new("Tastenkürzel").strong());
+            ui.label(RichText::new(tr("Tastenkürzel")).strong());
             egui::Grid::new("keys").num_columns(2).show(ui, |ui| {
                 for (k, d) in [
-                    ("V / R / E / L / T", "Auswahl, Rechteck, Ellipse, Linie, Text"),
-                    ("Mausrad", "Zoomen"),
-                    ("Mittlere Maustaste / Leertaste + Ziehen", "Ansicht verschieben"),
-                    ("Umschalt beim Ziehen", "Seitenverhältnis frei / 15°-Schritte / Achse fixieren"),
-                    ("Pfeiltasten (+Umschalt)", "Auswahl 1 mm (10 mm) verschieben"),
-                    ("Alt+P", "Vorschau"),
-                    ("F", "Arbeitsfläche einpassen"),
+                    ("V / R / E / L / T", tr("Auswahl, Rechteck, Ellipse, Linie, Text")),
+                    (tr("Mausrad"), tr("Zoomen")),
+                    (tr("Mittlere Maustaste / Leertaste + Ziehen"), tr("Ansicht verschieben")),
+                    (tr("Umschalt beim Ziehen"), tr("Seitenverhältnis frei / 15°-Schritte / Achse fixieren")),
+                    (tr("Pfeiltasten (+Umschalt)"), tr("Auswahl 1 mm (10 mm) verschieben")),
+                    ("Alt+P", tr("Vorschau")),
+                    ("F", tr("Arbeitsfläche einpassen")),
                 ] {
                     ui.label(RichText::new(k).monospace());
                     ui.label(d);
@@ -207,10 +211,10 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 }
             });
             ui.add_space(6.0);
-            ui.label(RichText::new("Privates Projekt – alle Rechte vorbehalten.").small().color(pal.text_weak));
+            ui.label(RichText::new(tr("Privates Projekt – alle Rechte vorbehalten.")).small().color(pal.text_weak));
             ui.label(
                 RichText::new(
-                    "Verwendet freie Bibliotheken (u. a. egui, usvg, lopdf, image, serialport, nokhwa).                      This software is based in part on the work of the Independent JPEG Group.",
+                    tr("Verwendet freie Bibliotheken (u. a. egui, usvg, lopdf, image, serialport, nokhwa).\nThis software is based in part on the work of the Independent JPEG Group."),
                 )
                 .small()
                 .color(pal.text_weak),
@@ -234,21 +238,21 @@ fn modal(app: &mut VectorLumeApp, ctx: &egui::Context) {
         ui.set_max_width(440.0);
         match &m {
             Modal::Safety { job } => {
-                ui.label(RichText::new(format!("{} Sicherheitshinweis", icon::WARNING)).font(theme::strong_font(18.0)).color(pal.warning));
+                ui.label(RichText::new(trs(&format!("{} Sicherheitshinweis", icon::WARNING))).font(theme::strong_font(18.0)).color(pal.warning));
                 ui.add_space(6.0);
-                ui.label("Laser dieser Leistungsklasse (Klasse 4) können Augen dauerhaft schädigen und Brände verursachen.");
+                ui.label(tr("Laser dieser Leistungsklasse (Klasse 4) können Augen dauerhaft schädigen und Brände verursachen."));
                 ui.add_space(4.0);
                 for t in [
-                    "Immer eine zur Wellenlänge passende Laserschutzbrille tragen (Diodenlaser: ca. 450 nm).",
-                    "Den Laser während des Betriebs nie unbeaufsichtigt lassen, Feuerlöscher bereithalten.",
-                    "Für Absaugung bzw. Belüftung sorgen. Kein PVC/Vinyl lasern (giftige Gase).",
-                    "Neue Einstellungen zuerst mit geringer Leistung testen.",
+                    tr("Immer eine zur Wellenlänge passende Laserschutzbrille tragen (Diodenlaser: ca. 450 nm)."),
+                    tr("Den Laser während des Betriebs nie unbeaufsichtigt lassen, Feuerlöscher bereithalten."),
+                    tr("Für Absaugung bzw. Belüftung sorgen. Kein PVC/Vinyl lasern (giftige Gase)."),
+                    tr("Neue Einstellungen zuerst mit geringer Leistung testen."),
                 ] {
                     ui.label(format!("• {t}"));
                 }
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    if ui.add(Button::new(RichText::new("Verstanden, Job starten").color(Color32::WHITE)).fill(pal.success)).clicked() {
+                    if ui.add(Button::new(RichText::new(tr("Verstanden, Job starten")).color(Color32::WHITE)).fill(pal.success)).clicked() {
                         let job = job.clone();
                         action = Some(Box::new(move |app: &mut VectorLumeApp| {
                             app.settings.safety_acknowledged = true;
@@ -261,57 +265,57 @@ fn modal(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         }));
                         keep = false;
                     }
-                    if ui.button("Abbrechen").clicked() {
+                    if ui.button(tr("Abbrechen")).clicked() {
                         keep = false;
                     }
                 });
             }
             Modal::ConfirmStart { job } => {
-                ui.label(RichText::new(format!("{} Job trotzdem starten?", icon::WARNING)).font(theme::strong_font(18.0)).color(pal.warning));
+                ui.label(RichText::new(trs(&format!("{} Job trotzdem starten?", icon::WARNING))).font(theme::strong_font(18.0)).color(pal.warning));
                 ui.add_space(6.0);
                 for w in &job.warnings {
                     ui.label(format!("• {w}"));
                 }
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    if ui.add(Button::new(RichText::new("Trotzdem starten").color(Color32::WHITE)).fill(pal.warning)).clicked() {
+                    if ui.add(Button::new(RichText::new(tr("Trotzdem starten")).color(Color32::WHITE)).fill(pal.warning)).clicked() {
                         let job = job.clone();
                         action = Some(Box::new(move |app: &mut VectorLumeApp| app.send_job(&job)));
                         keep = false;
                     }
-                    if ui.button("Abbrechen").clicked() {
+                    if ui.button(tr("Abbrechen")).clicked() {
                         keep = false;
                     }
                 });
             }
             Modal::LaserModeOff => {
-                ui.label(RichText::new(format!("{} Laser-Modus ist ausgeschaltet", icon::WARNING)).font(theme::strong_font(18.0)).color(pal.danger));
+                ui.label(RichText::new(trs(&format!("{} Laser-Modus ist ausgeschaltet", icon::WARNING))).font(theme::strong_font(18.0)).color(pal.danger));
                 ui.add_space(6.0);
-                ui.label("Die Steuerung meldet $32=0. In diesem Zustand bleibt der Laser bei Leerfahrten an und brennt Linien zwischen den Formen. Außerdem hält die Maschine bei jeder Leistungsänderung kurz an.");
+                ui.label(tr("Die Steuerung meldet $32=0. In diesem Zustand bleibt der Laser bei Leerfahrten an und brennt Linien zwischen den Formen. Außerdem hält die Maschine bei jeder Leistungsänderung kurz an."));
                 ui.add_space(4.0);
-                ui.label("Empfehlung: Laser-Modus mit „$32=1“ dauerhaft einschalten.");
+                ui.label(tr("Empfehlung: Laser-Modus mit „$32=1“ dauerhaft einschalten."));
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    if ui.add(Button::new(RichText::new("$32=1 senden").color(Color32::WHITE)).fill(pal.accent)).clicked() {
+                    if ui.add(Button::new(RichText::new(tr("$32=1 senden")).color(Color32::WHITE)).fill(pal.accent)).clicked() {
                         action = Some(Box::new(|app: &mut VectorLumeApp| {
                             app.send_line("$32=1");
                             app.send_line("$$");
-                            app.toast(ToastKind::Info, "Laser-Modus wird eingeschaltet…");
+                            app.toast(ToastKind::Info, tr("Laser-Modus wird eingeschaltet…"));
                         }));
                         keep = false;
                     }
-                    if ui.button("Abbrechen").clicked() {
+                    if ui.button(tr("Abbrechen")).clicked() {
                         keep = false;
                     }
                 });
             }
             Modal::Unsaved(then) => {
-                ui.label(RichText::new("Ungespeicherte Änderungen").font(theme::strong_font(18.0)));
+                ui.label(RichText::new(tr("Ungespeicherte Änderungen")).font(theme::strong_font(18.0)));
                 ui.add_space(6.0);
-                ui.label("Das aktuelle Projekt wurde geändert. Möchtest du es vorher speichern?");
+                ui.label(tr("Das aktuelle Projekt wurde geändert. Möchtest du es vorher speichern?"));
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    if ui.add(Button::new(RichText::new("Speichern").color(Color32::WHITE)).fill(pal.accent)).clicked() {
+                    if ui.add(Button::new(RichText::new(tr("Speichern")).color(Color32::WHITE)).fill(pal.accent)).clicked() {
                         let then = then.clone();
                         action = Some(Box::new(move |app: &mut VectorLumeApp| {
                             if app.save(false) {
@@ -320,7 +324,7 @@ fn modal(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         }));
                         keep = false;
                     }
-                    if ui.button("Verwerfen").clicked() {
+                    if ui.button(tr("Verwerfen")).clicked() {
                         let then = then.clone();
                         action = Some(Box::new(move |app: &mut VectorLumeApp| {
                             app.dirty = false;
@@ -328,27 +332,27 @@ fn modal(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         }));
                         keep = false;
                     }
-                    if ui.button("Abbrechen").clicked() {
+                    if ui.button(tr("Abbrechen")).clicked() {
                         keep = false;
                     }
                 });
             }
             Modal::Recover { path, meta } => {
-                ui.label(RichText::new(format!("{} Ungespeicherte Arbeit gefunden", icon::CLOCK_COUNTER_CLOCKWISE)).font(theme::strong_font(18.0)));
+                ui.label(RichText::new(trs(&format!("{} Ungespeicherte Arbeit gefunden", icon::CLOCK_COUNTER_CLOCKWISE))).font(theme::strong_font(18.0)));
                 ui.add_space(6.0);
-                let of = meta.original.as_deref().map(crate::app::file_name).map(|n| format!(" von „{n}“")).unwrap_or_default();
-                ui.label(format!(
+                let of = meta.original.as_deref().map(crate::app::file_name).map(|n| trs(&format!(" von „{n}“"))).unwrap_or_default();
+                ui.label(trs(&format!(
                     "VectorLume wurde zuletzt nicht regulär beendet. Es gibt eine automatische Sicherung{of} ({}).",
                     meta.age_label()
-                ));
+                )));
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    if ui.add(Button::new(RichText::new("Wiederherstellen").color(Color32::WHITE)).fill(pal.accent)).clicked() {
+                    if ui.add(Button::new(RichText::new(tr("Wiederherstellen")).color(Color32::WHITE)).fill(pal.accent)).clicked() {
                         let (path, original) = (path.clone(), meta.original.clone());
                         action = Some(Box::new(move |app: &mut VectorLumeApp| app.restore_autosave(&path, original)));
                         keep = false;
                     }
-                    if ui.button("Verwerfen").clicked() {
+                    if ui.button(tr("Verwerfen")).clicked() {
                         let path = path.clone();
                         action = Some(Box::new(move |_: &mut VectorLumeApp| crate::autosave::discard_previous(&path)));
                         keep = false;
@@ -356,9 +360,9 @@ fn modal(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 });
             }
             Modal::Message { title, text } => {
-                ui.label(RichText::new(title).font(theme::strong_font(18.0)));
+                ui.label(RichText::new(trs(title)).font(theme::strong_font(18.0)));
                 ui.add_space(6.0);
-                ui.label(text);
+                ui.label(trs(text));
                 ui.add_space(8.0);
                 if ui.button("OK").clicked() {
                     keep = false;

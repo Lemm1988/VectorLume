@@ -1,6 +1,7 @@
 //! Formoperationen auf der Auswahl: Boolesche Operationen, Verschweißen, Versatz und Reihen-Kopien.
 
 use crate::app::{ToastKind, VectorLumeApp};
+use crate::i18n::{tr, trs};
 use crate::theme;
 use egui::{Align2, Button, Color32, DragValue, RichText, vec2};
 use egui_phosphor::regular as icon;
@@ -124,11 +125,11 @@ impl VectorLumeApp {
     pub fn boolean_op(&mut self, op: BoolOp) {
         let units = self.ordered_units();
         if units.len() < 2 {
-            self.toast(ToastKind::Info, "Bitte mindestens zwei Objekte (oder Gruppen) auswählen.");
+            self.toast(ToastKind::Info, tr("Bitte mindestens zwei Objekte (oder Gruppen) auswählen."));
             return;
         }
         if self.has_images_selected() {
-            self.toast(ToastKind::Info, "Bilder werden bei Formoperationen nicht berücksichtigt.");
+            self.toast(ToastKind::Info, tr("Bilder werden bei Formoperationen nicht berücksichtigt."));
         }
         let subject = self.unit_polylines(&units[0]);
         let others: Vec<Vec<Polyline>> = units[1..].iter().map(|u| self.unit_polylines(u)).collect();
@@ -148,12 +149,12 @@ impl VectorLumeApp {
         if result.is_empty() {
             self.toast(
                 ToastKind::Error,
-                format!("{}: Das Ergebnis ist leer (nur geschlossene Formen zählen).", op.label()),
+                trs(&format!("{}: Das Ergebnis ist leer (nur geschlossene Formen zählen).", tr(op.label()))),
             );
             return;
         }
         let layer = self.unit_layer(&units[0]);
-        self.replace_selection(op.label(), layer, &result);
+        self.replace_selection(tr(op.label()), layer, &result);
     }
 
     /// Vereinigt alle ausgewählten Objekte – auch überlappende Buchstaben – zu einer Kontur.
@@ -171,11 +172,11 @@ impl VectorLumeApp {
             .collect();
         let result = vl_core::ops::weld(&objects);
         if result.is_empty() {
-            self.toast(ToastKind::Error, "Verschweißen: Es gibt keine geschlossenen Formen.");
+            self.toast(ToastKind::Error, tr("Verschweißen: Es gibt keine geschlossenen Formen."));
             return;
         }
         let layer = self.unit_layer(&units[0]);
-        self.replace_selection("Verschweißt", layer, &result);
+        self.replace_selection(tr("Verschweißt"), layer, &result);
     }
 
     fn apply_offset(&mut self) {
@@ -184,7 +185,7 @@ impl VectorLumeApp {
         let (corner, keep) = (d.offset_corner, d.offset_keep_original);
         let units = self.ordered_units();
         if units.is_empty() {
-            self.toast(ToastKind::Info, "Bitte zuerst Objekte auswählen.");
+            self.toast(ToastKind::Info, tr("Bitte zuerst Objekte auswählen."));
             return;
         }
         let results: Vec<(usize, Vec<Polyline>)> = units
@@ -193,7 +194,7 @@ impl VectorLumeApp {
             .filter(|(_, p)| !p.is_empty())
             .collect();
         if results.is_empty() {
-            self.toast(ToastKind::Error, "Versatz: Das Ergebnis ist leer (zu weit nach innen?).");
+            self.toast(ToastKind::Error, tr("Versatz: Das Ergebnis ist leer (zu weit nach innen?)."));
             return;
         }
         self.checkpoint();
@@ -203,7 +204,7 @@ impl VectorLumeApp {
         }
         let mut new_ids = Vec::new();
         for (layer, polys) in results {
-            new_ids.push(self.doc.add_path("Versatz", layer, polylines_to_path(&polys)));
+            new_ids.push(self.doc.add_path(tr("Versatz"), layer, polylines_to_path(&polys)));
         }
         self.selection = new_ids;
         self.mark_changed();
@@ -226,17 +227,18 @@ impl VectorLumeApp {
 
     fn unit_name(&self, unit: &[ObjectId]) -> String {
         let name = unit.first().and_then(|id| self.doc.get(*id)).map(|o| o.name.clone()).unwrap_or_default();
+        let name = trs(&name);
         if unit.len() > 1 { format!("{name} (+{})", unit.len() - 1) } else { name }
     }
 
     fn apply_along_path(&mut self) {
         let Some((path_unit, templates)) = self.path_and_templates() else {
-            self.toast(ToastKind::Info, "Bitte die Vorlage und danach den Pfad auswählen (Umschalt+Klick).");
+            self.toast(ToastKind::Info, tr("Bitte die Vorlage und danach den Pfad auswählen (Umschalt+Klick)."));
             return;
         };
         let Some(line) = self.unit_polylines(&path_unit).into_iter().max_by(|a, b| a.length().total_cmp(&b.length()))
         else {
-            self.toast(ToastKind::Error, "Der Pfad enthält keine Linien.");
+            self.toast(ToastKind::Error, tr("Der Pfad enthält keine Linien."));
             return;
         };
         let d = &self.shape_dialogs;
@@ -263,7 +265,7 @@ impl VectorLumeApp {
         }
         self.selection = created;
         self.mark_changed();
-        self.toast(ToastKind::Success, format!("{} Exemplare entlang des Pfades angelegt.", spots.len()));
+        self.toast(ToastKind::Success, trs(&format!("{} Exemplare entlang des Pfades angelegt.", spots.len())));
     }
 
     fn apply_array(&mut self) {
@@ -272,7 +274,7 @@ impl VectorLumeApp {
             return;
         }
         if self.selection.is_empty() {
-            self.toast(ToastKind::Info, "Bitte zuerst Objekte auswählen.");
+            self.toast(ToastKind::Info, tr("Bitte zuerst Objekte auswählen."));
             return;
         }
         let d = &self.shape_dialogs;
@@ -321,7 +323,7 @@ impl VectorLumeApp {
         let n = all.len() / originals.len().max(1);
         self.selection = all;
         self.mark_changed();
-        self.toast(ToastKind::Success, format!("{n} Exemplare angelegt."));
+        self.toast(ToastKind::Success, trs(&format!("{n} Exemplare angelegt.")));
     }
 }
 
@@ -337,7 +339,7 @@ fn offset_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
     let mut open = true;
     let mut apply = false;
     let has = !app.selection.is_empty();
-    egui::Window::new(format!("{} Versatz", icon::SQUARES_FOUR))
+    egui::Window::new(trs(&format!("{} Versatz", icon::SQUARES_FOUR)))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -346,36 +348,36 @@ fn offset_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
             let pal = theme::of(ui);
             let d = &mut app.shape_dialogs;
             egui::Grid::new("offset").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
-                ui.label("Abstand");
+                ui.label(tr("Abstand"));
                 ui.add(DragValue::new(&mut d.offset_distance).speed(0.05).range(0.01..=200.0).suffix(" mm"));
                 ui.end_row();
-                ui.label("Richtung");
+                ui.label(tr("Richtung"));
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut d.offset_inward, false, "Nach außen");
-                    ui.radio_value(&mut d.offset_inward, true, "Nach innen");
+                    ui.radio_value(&mut d.offset_inward, false, tr("Nach außen"));
+                    ui.radio_value(&mut d.offset_inward, true, tr("Nach innen"));
                 });
                 ui.end_row();
-                ui.label("Ecken");
+                ui.label(tr("Ecken"));
                 ui.horizontal(|ui| {
                     for c in Corner::ALL {
-                        ui.radio_value(&mut d.offset_corner, c, c.label());
+                        ui.radio_value(&mut d.offset_corner, c, tr(c.label()));
                     }
                 });
                 ui.end_row();
                 ui.label("");
-                ui.checkbox(&mut d.offset_keep_original, "Original behalten");
+                ui.checkbox(&mut d.offset_keep_original, tr("Original behalten"));
                 ui.end_row();
             });
-            ui.label(RichText::new("Offene Pfade werden mit dem Abstand umrandet.").small().color(pal.text_weak));
+            ui.label(RichText::new(tr("Offene Pfade werden mit dem Abstand umrandet.")).small().color(pal.text_weak));
             ui.add_space(6.0);
             if ui
-                .add_enabled(has, Button::new(RichText::new("Anwenden").color(Color32::WHITE)).fill(pal.accent))
+                .add_enabled(has, Button::new(RichText::new(tr("Anwenden")).color(Color32::WHITE)).fill(pal.accent))
                 .clicked()
             {
                 apply = true;
             }
             if !has {
-                ui.label(RichText::new("Nichts ausgewählt").small().color(pal.text_weak));
+                ui.label(RichText::new(tr("Nichts ausgewählt")).small().color(pal.text_weak));
             }
         });
     if apply {
@@ -398,11 +400,11 @@ fn array_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 let names: Vec<String> = t.iter().map(|u| app.unit_name(u)).collect();
                 (app.unit_name(&p), names.join(", "), true)
             }
-            None => ("–".to_string(), "Vorlage und Pfad auswählen".to_string(), false),
+            None => ("–".to_string(), tr("Vorlage und Pfad auswählen").to_string(), false),
         },
         _ => (String::new(), String::new(), !app.selection.is_empty()),
     };
-    egui::Window::new(format!("{} Reihen-Kopien", icon::GRID_NINE))
+    egui::Window::new(trs(&format!("{} Reihen-Kopien", icon::GRID_NINE)))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -411,21 +413,25 @@ fn array_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
             let pal = theme::of(ui);
             let d = &mut app.shape_dialogs;
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut d.array_mode, ArrayMode::Grid, format!("{} Raster", icon::GRID_FOUR));
-                ui.selectable_value(&mut d.array_mode, ArrayMode::Circle, format!("{} Kreis", icon::CIRCLE_DASHED));
-                ui.selectable_value(&mut d.array_mode, ArrayMode::Path, format!("{} Entlang Pfad", icon::PATH));
+                ui.selectable_value(&mut d.array_mode, ArrayMode::Grid, trs(&format!("{} Raster", icon::GRID_FOUR)));
+                ui.selectable_value(
+                    &mut d.array_mode,
+                    ArrayMode::Circle,
+                    trs(&format!("{} Kreis", icon::CIRCLE_DASHED)),
+                );
+                ui.selectable_value(&mut d.array_mode, ArrayMode::Path, trs(&format!("{} Entlang Pfad", icon::PATH)));
             });
             ui.add_space(6.0);
             egui::Grid::new("array").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| match d.array_mode {
                 ArrayMode::Grid => {
-                    ui.label("Spalten × Zeilen");
+                    ui.label(tr("Spalten × Zeilen"));
                     ui.horizontal(|ui| {
                         ui.add(DragValue::new(&mut d.columns).range(1..=100));
                         ui.label("×");
                         ui.add(DragValue::new(&mut d.rows).range(1..=100));
                     });
                     ui.end_row();
-                    ui.label("Abstand X / Y");
+                    ui.label(tr("Abstand X / Y"));
                     ui.horizontal(|ui| {
                         ui.add(DragValue::new(&mut d.gap_x).speed(0.1).range(-500.0..=500.0).suffix(" mm"));
                         ui.add(DragValue::new(&mut d.gap_y).speed(0.1).range(-500.0..=500.0).suffix(" mm"));
@@ -433,47 +439,47 @@ fn array_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     ui.end_row();
                 }
                 ArrayMode::Circle => {
-                    ui.label("Anzahl");
+                    ui.label(tr("Anzahl"));
                     ui.add(DragValue::new(&mut d.circle_count).range(2..=360));
                     ui.end_row();
-                    ui.label("Radius");
+                    ui.label(tr("Radius"));
                     ui.add(DragValue::new(&mut d.circle_radius).speed(0.2).range(0.1..=2000.0).suffix(" mm"));
                     ui.end_row();
-                    ui.label("Winkelbereich");
+                    ui.label(tr("Winkelbereich"));
                     ui.add(DragValue::new(&mut d.circle_angle).speed(1.0).range(1.0..=360.0).suffix("°"));
                     ui.end_row();
                     ui.label("");
-                    ui.checkbox(&mut d.circle_rotate, "Kopien mitdrehen");
+                    ui.checkbox(&mut d.circle_rotate, tr("Kopien mitdrehen"));
                     ui.end_row();
                 }
                 ArrayMode::Path => {
-                    ui.label("Pfad");
+                    ui.label(tr("Pfad"));
                     ui.label(RichText::new(&path_label).strong());
                     ui.end_row();
-                    ui.label("Vorlage");
+                    ui.label(tr("Vorlage"));
                     ui.label(&template_label);
                     ui.end_row();
                     ui.label("");
-                    ui.checkbox(&mut d.path_swap, "Pfad und Vorlage tauschen");
+                    ui.checkbox(&mut d.path_swap, tr("Pfad und Vorlage tauschen"));
                     ui.end_row();
-                    ui.label("Anzahl");
+                    ui.label(tr("Anzahl"));
                     ui.add(DragValue::new(&mut d.path_count).range(1..=1000));
                     ui.end_row();
                     ui.label("");
-                    ui.checkbox(&mut d.path_rotate, "An Pfadrichtung ausrichten");
+                    ui.checkbox(&mut d.path_rotate, tr("An Pfadrichtung ausrichten"));
                     ui.end_row();
                     ui.label("");
-                    ui.checkbox(&mut d.path_remove_template, "Vorlage entfernen");
+                    ui.checkbox(&mut d.path_remove_template, tr("Vorlage entfernen"));
                     ui.end_row();
                 }
             });
             ui.label(
                 RichText::new(match d.array_mode {
-                    ArrayMode::Grid => "Abstand = Lücke zwischen den Kopien.",
-                    ArrayMode::Circle => "Das Original liegt oben, der Kreismittelpunkt um den Radius darunter.",
+                    ArrayMode::Grid => tr("Abstand = Lücke zwischen den Kopien."),
+                    ArrayMode::Circle => tr("Das Original liegt oben, der Kreismittelpunkt um den Radius darunter."),
                     ArrayMode::Path => {
-                        "Vorlage auswählen, dann mit Umschalt+Klick den Pfad. Die Kopien werden gleichmäßig \
-                         verteilt (offene Pfade von Anfang bis Ende)."
+                        tr("Vorlage auswählen, dann mit Umschalt+Klick den Pfad. Die Kopien werden gleichmäßig \
+                         verteilt (offene Pfade von Anfang bis Ende).")
                     }
                 })
                 .small()
@@ -481,7 +487,10 @@ fn array_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
             );
             ui.add_space(6.0);
             if ui
-                .add_enabled(has, Button::new(RichText::new("Kopien anlegen").color(Color32::WHITE)).fill(pal.accent))
+                .add_enabled(
+                    has,
+                    Button::new(RichText::new(tr("Kopien anlegen")).color(Color32::WHITE)).fill(pal.accent),
+                )
                 .clicked()
             {
                 apply = true;

@@ -2,6 +2,7 @@
 
 use crate::app::VectorLumeApp;
 use crate::canvas::{Drag, HANDLE, ViewTf};
+use crate::i18n::tr;
 use crate::snapping::{SnapKind, SnapTargets};
 use crate::theme;
 use egui::{CursorIcon, PointerButton, Pos2, RichText, Stroke, Ui, vec2};
@@ -278,16 +279,16 @@ fn node_buttons(app: &mut VectorLumeApp, ui: &mut Ui, close: bool) {
         }
         r
     };
-    if clicked(ui, icon::TRASH, "Knoten löschen", "Gewählten Knoten entfernen (Entf)") {
+    if clicked(ui, icon::TRASH, tr("Knoten löschen"), tr("Gewählten Knoten entfernen (Entf)")) {
         app.delete_selected_node();
     }
-    if clicked(ui, icon::LINE_SEGMENT, "Zur Linie", "Segment vor dem Knoten in eine gerade Linie umwandeln") {
+    if clicked(ui, icon::LINE_SEGMENT, tr("Zur Linie"), tr("Segment vor dem Knoten in eine gerade Linie umwandeln")) {
         app.node_op(|p, n| nodes::convert_segment(p, n, false));
     }
-    if clicked(ui, icon::BEZIER_CURVE, "Zur Kurve", "Segment vor dem Knoten in eine Bézierkurve umwandeln") {
+    if clicked(ui, icon::BEZIER_CURVE, tr("Zur Kurve"), tr("Segment vor dem Knoten in eine Bézierkurve umwandeln")) {
         app.node_op(|p, n| nodes::convert_segment(p, n, true));
     }
-    if clicked(ui, icon::LINK_BREAK, "Öffnen/Schließen", "Teilpfad des Knotens öffnen bzw. schließen") {
+    if clicked(ui, icon::LINK_BREAK, tr("Öffnen/Schließen"), tr("Teilpfad des Knotens öffnen bzw. schließen")) {
         app.node_op(|p, n| nodes::toggle_closed(p, n.sub));
     }
 }
@@ -296,9 +297,9 @@ fn node_buttons(app: &mut VectorLumeApp, ui: &mut Ui, close: bool) {
 pub fn options(app: &mut VectorLumeApp, ui: &mut Ui) {
     node_buttons(app, ui, false);
     let hint = if app.node_edit.target.is_none() {
-        "Pfad anklicken, um seine Knoten zu bearbeiten"
+        tr("Pfad anklicken, um seine Knoten zu bearbeiten")
     } else {
-        "Ziehen = verschieben · Doppelklick auf Linie = Knoten einfügen · Entf = Knoten löschen"
+        tr("Ziehen = verschieben · Doppelklick auf Linie = Knoten einfügen · Entf = Knoten löschen")
     };
     ui.label(RichText::new(hint).small().color(theme::of(ui).text_weak));
 }

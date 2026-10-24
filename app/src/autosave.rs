@@ -1,5 +1,6 @@
 //! Automatische Sicherung: ungespeicherte Änderungen werden regelmäßig gesichert und nach einem Absturz angeboten.
 
+use crate::i18n::{tr, trs};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -27,11 +28,11 @@ impl Meta {
         let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
         let mins = now.saturating_sub(self.saved_at) / 60;
         match mins {
-            0 => "vor weniger als einer Minute".into(),
-            1 => "vor 1 Minute".into(),
-            m if m < 120 => format!("vor {m} Minuten"),
-            m if m < 48 * 60 => format!("vor {} Stunden", m / 60),
-            m => format!("vor {} Tagen", m / 60 / 24),
+            0 => tr("vor weniger als einer Minute").into(),
+            1 => tr("vor 1 Minute").into(),
+            m if m < 120 => trs(&format!("vor {m} Minuten")),
+            m if m < 48 * 60 => trs(&format!("vor {} Stunden", m / 60)),
+            m => trs(&format!("vor {} Tagen", m / 60 / 24)),
         }
     }
 }
