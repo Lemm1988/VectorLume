@@ -151,7 +151,9 @@ Base64-PNG, 30 Ebenen, Ebenenreihenfolge). Ältere Dateien werden beim Laden rep
 Formatversionen werden mit Hinweis abgelehnt.
 
 ### 5.3 Einstellungen
-`%APPDATA%\VectorLume\settings.json`: Maschinenprofil, Job-Optionen, Design, letzte Dateien, Jog-Schritt, Sicherheitshinweis bestätigt.
+`%APPDATA%\VectorLume\settings.json`: Maschinenprofil (inkl. Steuerung und Drehachse), Job-Optionen, Design, letzte
+Dateien, Netzwerkadresse, Jog-Schritt, Sicherheitshinweis bestätigt. Mit `VECTORLUME_CONFIG_DIR` lässt sich ein anderer
+Ordner verwenden (Tests).
 
 ## 6. Schnittstellen
 
@@ -166,6 +168,27 @@ Formatversionen werden mit Hinweis abgelehnt.
 `G21`, `G90`/`G91`, einmalig `M4 S0` (oder `M3`), danach Leistung über `S` je Bewegung, `G0` für Eilgänge,
 modale Befehle und unveränderte Achsen werden weggelassen (weniger Bytes → flüssigeres Rastern). Am Ende `M5`,
 Luft aus, optional Rückfahrt, im Relativmodus zurück auf `G90`. Kommentare nur ASCII, beim Senden entfernt.
+
+### 6.3 Marlin und Smoothieware (experimentell)
+- **Streaming:** Senden und Warten – eine Zeile, dann auf `ok` (auch `ok …` mit Anhang) warten. Außerhalb eines Jobs
+  gilt eine Zeile nach 3 s ohne jede Antwort als beantwortet, damit die Verbindung nach einem Stopp nicht hängen bleibt.
+- **Job fertig:** der Treiber hängt `M400` an; dessen `ok` kommt erst, wenn alle Bewegungen ausgeführt sind.
+- **Status:** Smoothieware über `?` (auch älteres Format `<Idle,MPos:…>`); Marlin im Ruhezustand über `M114` alle
+  500 ms (ohne Konsolenausgabe), während des Jobs wird der Zustand aus dem Treiber gemeldet.
+- **Pause:** im Programm – es werden keine weiteren Zeilen gesendet, die Steuerung hält nach ihrem Puffer an.
+- **Stopp:** Marlin `M410` (sofort mit `EMERGENCY_PARSER`) und `M5`; Smoothieware Strg-X, `M112` als Rückfallebene,
+  Freigabe mit `M999`. Halt-Meldungen (`!!`, `kill()`) beenden den Job.
+- **G-Code:** Marlin `M3 I`/`M4 I` (Inline-Modus: Leistung nur bei G1), S bis 255; Smoothieware ohne Einschaltbefehl,
+  S als Anteil 0…1 mit bis zu vier Nachkommastellen.
+
+### 6.4 Netzwerk
+Anschluss „Netzwerk“ mit Adresse `Host[:Port]` (Standard 23): rohe TCP-Verbindung wie bei FluidNC, grblHAL und ESP3D,
+für alle Steuerungsarten. Da Netzwerksteuerungen beim Verbinden nicht neu starten, wird nur 0,3 s gewartet.
+
+### 6.5 Drehachse
+Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − Anker) · k` mit
+`k = Weg je Umdrehung / (π · Durchmesser)` (Rolle: Rollendurchmesser, Futter: Werkstückdurchmesser), bei A-Achse als
+`A`-Wörter mit dem Anker bei A = 0. Gilt für Job, Rahmen und Verfahren in Y.
 
 ## 7. Sicherheitskonzept
 
