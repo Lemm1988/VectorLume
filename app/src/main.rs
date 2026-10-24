@@ -10,6 +10,7 @@ mod history;
 mod icon_art;
 mod materials;
 mod settings;
+mod shape_ops;
 mod theme;
 mod ui_main;
 mod ui_side;

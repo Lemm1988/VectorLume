@@ -293,14 +293,14 @@ impl SimTransport {
                     }
                     return self.jog(jog);
                 }
-                if let Some((k, v)) = cmd.split_once('=') {
-                    if let Ok(n) = k.parse::<u32>() {
-                        match self.settings.iter_mut().find(|(key, _)| *key == n) {
-                            Some(entry) => entry.1 = v.to_string(),
-                            None => self.settings.push((n, v.to_string())),
-                        }
-                        return "ok".into();
+                if let Some((k, v)) = cmd.split_once('=')
+                    && let Ok(n) = k.parse::<u32>()
+                {
+                    match self.settings.iter_mut().find(|(key, _)| *key == n) {
+                        Some(entry) => entry.1 = v.to_string(),
+                        None => self.settings.push((n, v.to_string())),
                     }
+                    return "ok".into();
                 }
                 "error:3".into()
             }

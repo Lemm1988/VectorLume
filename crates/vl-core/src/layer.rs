@@ -48,16 +48,19 @@ pub enum LayerMode {
     Fill,
     /// Bilder rastern (Graustufen oder Dithering).
     Image,
+    /// Geschlossene Formen mit konzentrischen Linien von außen nach innen füllen.
+    OffsetFill,
 }
 
 impl LayerMode {
-    pub const ALL: [LayerMode; 3] = [LayerMode::Line, LayerMode::Fill, LayerMode::Image];
+    pub const ALL: [LayerMode; 4] = [LayerMode::Line, LayerMode::Fill, LayerMode::OffsetFill, LayerMode::Image];
 
     pub fn label(self) -> &'static str {
         match self {
             LayerMode::Line => "Linie",
             LayerMode::Fill => "Füllen",
             LayerMode::Image => "Bild",
+            LayerMode::OffsetFill => "Versatz-Füllen",
         }
     }
 }
@@ -129,6 +132,14 @@ pub struct CutSettings {
     pub overscan: f64,
     pub dither: DitherMode,
     pub negative: bool,
+    /// Schnittbreite in mm (nur Linie): geschlossene Konturen werden um die halbe Breite nach außen versetzt,
+    /// Löcher nach innen, damit die Teile maßhaltig werden.
+    pub kerf: f64,
+    /// Laschen je geschlossener Kontur (0 = keine), damit Teile nicht herausfallen.
+    pub tab_count: u32,
+    pub tab_width: f64,
+    /// Laschen nur an Außenkonturen (nicht an Löchern).
+    pub tabs_outer_only: bool,
 }
 
 impl Default for CutSettings {
@@ -143,6 +154,7 @@ impl CutSettings {
             LayerMode::Line => (1500.0, 30.0),
             LayerMode::Fill => (6000.0, 25.0),
             LayerMode::Image => (6000.0, 35.0),
+            LayerMode::OffsetFill => (3000.0, 25.0),
         };
         Self {
             mode,
@@ -159,6 +171,10 @@ impl CutSettings {
             overscan: 2.5,
             dither: DitherMode::Jarvis,
             negative: false,
+            kerf: 0.0,
+            tab_count: 0,
+            tab_width: 0.5,
+            tabs_outer_only: true,
         }
     }
 

@@ -149,11 +149,12 @@ pub fn hatch_ops(
             continue;
         }
         xs.sort_by(f64::total_cmp);
-        let mut segs: Vec<(f64, f64)> = xs.chunks_exact(2).map(|c| (c[0], c[1])).filter(|s| s.1 - s.0 > 1e-6).collect();
+        let mut segs: Vec<(f64, f64)> =
+            xs.as_chunks::<2>().0.iter().map(|c| (c[0], c[1])).filter(|s| s.1 - s.0 > 1e-6).collect();
         if segs.is_empty() {
             continue;
         }
-        let forward = !bidirectional || row_count % 2 == 0;
+        let forward = !bidirectional || row_count.is_multiple_of(2);
         if !forward {
             segs.reverse();
             for s in &mut segs {
@@ -218,7 +219,7 @@ pub fn raster_ops(r: &RasterResult, settings: &CutSettings) -> Vec<Op> {
             c = e + 1;
         }
 
-        let forward = !settings.bidirectional || emitted % 2 == 0;
+        let forward = !settings.bidirectional || emitted.is_multiple_of(2);
         let (start_x, edge_x) =
             if forward { (x_at(first) - overscan, x_at(first)) } else { (x_at(last + 1) + overscan, x_at(last + 1)) };
         let start = Point::new(start_x, y);
@@ -259,10 +260,10 @@ mod tests {
         let mut cur = Point::ZERO;
         let mut sum = 0.0;
         for op in ops {
-            if let Op::Move { to, power } = *op {
-                if power > 0.0 {
-                    sum += cur.distance(to);
-                }
+            if let Op::Move { to, power } = *op
+                && power > 0.0
+            {
+                sum += cur.distance(to);
             }
             cur = op.target();
         }

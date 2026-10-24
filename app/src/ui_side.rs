@@ -256,7 +256,7 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
         ui.end_row();
 
         if s.mode != LayerMode::Line || has_images {
-            ui.label("Zeilenabstand");
+            ui.label(if s.mode == LayerMode::OffsetFill { "Linienabstand" } else { "Zeilenabstand" });
             ui.horizontal(|ui| {
                 ui.add(DragValue::new(&mut s.interval).speed(0.005).range(0.02..=2.0).max_decimals(3).suffix(" mm"));
                 ui.label(
@@ -266,12 +266,39 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
                 );
             });
             ui.end_row();
+        }
+        if matches!(s.mode, LayerMode::Fill | LayerMode::Image) || has_images {
             ui.label("Overscan");
             ui.add(DragValue::new(&mut s.overscan).speed(0.1).range(0.0..=20.0).suffix(" mm"));
             ui.end_row();
             ui.label("");
             ui.checkbox(&mut s.bidirectional, "Bidirektional");
             ui.end_row();
+        }
+        if s.mode == LayerMode::Line {
+            ui.label("Schnittbreite");
+            ui.add(DragValue::new(&mut s.kerf).speed(0.005).range(0.0..=2.0).max_decimals(3).suffix(" mm"))
+                .on_hover_text(
+                    "Kerf-Ausgleich: Außenkonturen wandern um die halbe Schnittbreite nach außen, Löcher nach innen.                      0 = aus.",
+                );
+            ui.end_row();
+            ui.label("Laschen");
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut s.tab_count).range(0..=50).custom_formatter(|v, _| {
+                    if v == 0.0 { "aus".into() } else { format!("{v:.0} je Kontur") }
+                }));
+                if s.tab_count > 0 {
+                    ui.add(DragValue::new(&mut s.tab_width).speed(0.05).range(0.1..=10.0).suffix(" mm"));
+                }
+            })
+            .response
+            .on_hover_text("Kleine Stege, damit ausgeschnittene Teile im Material bleiben");
+            ui.end_row();
+            if s.tab_count > 0 {
+                ui.label("");
+                ui.checkbox(&mut s.tabs_outer_only, "Nur Außenkonturen");
+                ui.end_row();
+            }
         }
         if s.mode == LayerMode::Fill {
             ui.label("Winkel");
@@ -332,10 +359,10 @@ fn image_adjust_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     });
     if adj != img.adjust {
         app.checkpoint_coalesced("image_adjust");
-        if let Some(o) = app.doc.get_mut(id) {
-            if let Shape::Image(i) = &mut o.shape {
-                i.adjust = adj;
-            }
+        if let Some(o) = app.doc.get_mut(id)
+            && let Shape::Image(i) = &mut o.shape
+        {
+            i.adjust = adj;
         }
         app.mark_changed();
     }

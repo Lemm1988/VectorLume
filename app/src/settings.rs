@@ -63,10 +63,10 @@ impl AppSettings {
         if let Some(dir) = p.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
-        if let Ok(text) = serde_json::to_string_pretty(self) {
-            if let Err(e) = std::fs::write(&p, text) {
-                log::warn!("Einstellungen konnten nicht gespeichert werden: {e}");
-            }
+        if let Ok(text) = serde_json::to_string_pretty(self)
+            && let Err(e) = std::fs::write(&p, text)
+        {
+            log::warn!("Einstellungen konnten nicht gespeichert werden: {e}");
         }
     }
 

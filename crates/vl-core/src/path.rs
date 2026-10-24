@@ -346,10 +346,10 @@ impl PathBuilder {
 
     pub fn close(&mut self) {
         if let Some(mut sp) = self.current.take() {
-            if let Some(Segment::Line(p)) = sp.segments.last() {
-                if p.distance(sp.start) < 1e-9 {
-                    sp.segments.pop();
-                }
+            if let Some(Segment::Line(p)) = sp.segments.last()
+                && p.distance(sp.start) < 1e-9
+            {
+                sp.segments.pop();
             }
             sp.closed = true;
             if !sp.segments.is_empty() {
@@ -389,10 +389,10 @@ impl PathBuilder {
     }
 
     fn flush(&mut self) {
-        if let Some(sp) = self.current.take() {
-            if !sp.segments.is_empty() {
-                self.path.subpaths.push(sp);
-            }
+        if let Some(sp) = self.current.take()
+            && !sp.segments.is_empty()
+        {
+            self.path.subpaths.push(sp);
         }
     }
 

@@ -299,10 +299,10 @@ impl VectorLumeApp {
             }
             match &obj.shape {
                 DocShape::Image(img) => {
-                    if let Some(inv) = obj.transform.inverse() {
-                        if img.local_rect().expanded(tol).contains(inv.apply(p)) {
-                            return Some(obj.id);
-                        }
+                    if let Some(inv) = obj.transform.inverse()
+                        && img.local_rect().expanded(tol).contains(inv.apply(p))
+                    {
+                        return Some(obj.id);
                     }
                 }
                 DocShape::Path(_) => {
@@ -527,18 +527,17 @@ impl VectorLumeApp {
             }
         }
 
-        if preview_active {
-            if let Some(job) = self.preview.job.clone() {
-                let generation = self.preview.texture_generation;
-                let textures: Vec<TextureId> =
-                    self.textures.preview(&ctx, &job, generation).iter().map(|t| t.id()).collect();
-                self.draw_job(&clip, &tf, pal, dark, &job, self.preview.progress, &textures, true);
-            }
+        if preview_active && let Some(job) = self.preview.job.clone() {
+            let generation = self.preview.texture_generation;
+            let textures: Vec<TextureId> =
+                self.textures.preview(&ctx, &job, generation).iter().map(|t| t.id()).collect();
+            self.draw_job(&clip, &tf, pal, dark, &job, self.preview.progress, &textures, true);
         }
-        if self.test.open && self.test.show_on_canvas {
-            if let Some(job) = self.test.job.clone() {
-                self.draw_job(&clip, &tf, pal, dark, &job, 1.0, &[], false);
-            }
+        if self.test.open
+            && self.test.show_on_canvas
+            && let Some(job) = self.test.job.clone()
+        {
+            self.draw_job(&clip, &tf, pal, dark, &job, 1.0, &[], false);
         }
 
         // Laserkopf und Benutzer-Ursprung
@@ -680,16 +679,15 @@ impl VectorLumeApp {
         // Mauszeiger über Griffen
         if let (Some(hover), Some(r), Tool::Select, true) =
             (resp.hover_pos(), sel_screen, self.tool, self.drag.is_idle())
+            && let Some((h, _)) = handle_positions(r).into_iter().find(|(_, p)| p.distance(hover) <= HANDLE + 3.0)
         {
-            if let Some((h, _)) = handle_positions(r).into_iter().find(|(_, p)| p.distance(hover) <= HANDLE + 3.0) {
-                ctx.set_cursor_icon(match h {
-                    Handle::Corner(0) | Handle::Corner(2) => CursorIcon::ResizeNwSe,
-                    Handle::Corner(_) => CursorIcon::ResizeNeSw,
-                    Handle::Edge(0) | Handle::Edge(2) => CursorIcon::ResizeVertical,
-                    Handle::Edge(_) => CursorIcon::ResizeHorizontal,
-                    Handle::Rotate => CursorIcon::Alias,
-                });
-            }
+            ctx.set_cursor_icon(match h {
+                Handle::Corner(0) | Handle::Corner(2) => CursorIcon::ResizeNwSe,
+                Handle::Corner(_) => CursorIcon::ResizeNeSw,
+                Handle::Edge(0) | Handle::Edge(2) => CursorIcon::ResizeVertical,
+                Handle::Edge(_) => CursorIcon::ResizeHorizontal,
+                Handle::Rotate => CursorIcon::Alias,
+            });
         }
         if self.tool != Tool::Select && resp.hovered() && !space {
             ctx.set_cursor_icon(if self.tool == Tool::Text { CursorIcon::Text } else { CursorIcon::Crosshair });
@@ -737,68 +735,69 @@ impl VectorLumeApp {
             self.drag = Drag::Pan;
         }
 
-        if resp.dragged_by(PointerButton::Primary) && !space {
-            if let Some(cur) = resp.interact_pointer_pos() {
-                let p = tf.to_doc(cur);
-                match std::mem::replace(&mut self.drag, Drag::None) {
-                    Drag::Move { start, originals } => {
-                        let mut d = p - start;
-                        if shift {
-                            if d.x.abs() > d.y.abs() { d.y = 0.0 } else { d.x = 0.0 }
-                        }
-                        if self.settings.snap_to_grid {
-                            d = self.snap(d);
-                        }
-                        self.apply_originals(&originals, &Affine::translate(d.x, d.y));
-                        ctx.set_cursor_icon(CursorIcon::Move);
-                        self.drag = Drag::Move { start, originals };
+        if resp.dragged_by(PointerButton::Primary)
+            && !space
+            && let Some(cur) = resp.interact_pointer_pos()
+        {
+            let p = tf.to_doc(cur);
+            match std::mem::replace(&mut self.drag, Drag::None) {
+                Drag::Move { start, originals } => {
+                    let mut d = p - start;
+                    if shift {
+                        if d.x.abs() > d.y.abs() { d.y = 0.0 } else { d.x = 0.0 }
                     }
-                    Drag::Scale { handle, bounds, originals } => {
-                        let (moving, anchor) = match handle {
-                            Handle::Corner(0) => (bounds.min, bounds.max),
-                            Handle::Corner(1) => {
-                                (Point::new(bounds.max.x, bounds.min.y), Point::new(bounds.min.x, bounds.max.y))
-                            }
-                            Handle::Corner(2) => (bounds.max, bounds.min),
-                            Handle::Corner(_) => {
-                                (Point::new(bounds.min.x, bounds.max.y), Point::new(bounds.max.x, bounds.min.y))
-                            }
-                            Handle::Edge(0) => (bounds.min, bounds.max),
-                            Handle::Edge(1) => (bounds.max, bounds.min),
-                            Handle::Edge(2) => (bounds.max, bounds.min),
-                            Handle::Edge(_) => (bounds.min, bounds.max),
-                            Handle::Rotate => (bounds.max, bounds.min),
-                        };
-                        let fx = |p: f64, m: f64, a: f64| if (m - a).abs() < 1e-9 { 1.0 } else { (p - a) / (m - a) };
-                        let mut sx = fx(p.x, moving.x, anchor.x);
-                        let mut sy = fx(p.y, moving.y, anchor.y);
-                        match handle {
-                            Handle::Edge(0) | Handle::Edge(2) => sx = 1.0,
-                            Handle::Edge(_) => sy = 1.0,
-                            _ if !shift && self.lock_ratio => {
-                                let s = if (sx - 1.0).abs() > (sy - 1.0).abs() { sx } else { sy };
-                                sx = s;
-                                sy = s;
-                            }
-                            _ => {}
-                        }
-                        let clamp = |s: f64| {
-                            if s.abs() < 0.005 { 0.005_f64.copysign(if s == 0.0 { 1.0 } else { s }) } else { s }
-                        };
-                        self.apply_originals(&originals, &Affine::scale_about(clamp(sx), clamp(sy), anchor));
-                        self.drag = Drag::Scale { handle, bounds, originals };
+                    if self.settings.snap_to_grid {
+                        d = self.snap(d);
                     }
-                    Drag::Rotate { center, start_angle, originals } => {
-                        let mut a = (p.y - center.y).atan2(p.x - center.x) - start_angle;
-                        if shift {
-                            a = snap_angle(a, 15.0);
-                        }
-                        self.apply_originals(&originals, &Affine::rotate_about(a, center));
-                        ctx.set_cursor_icon(CursorIcon::Alias);
-                        self.drag = Drag::Rotate { center, start_angle, originals };
-                    }
-                    other => self.drag = other,
+                    self.apply_originals(&originals, &Affine::translate(d.x, d.y));
+                    ctx.set_cursor_icon(CursorIcon::Move);
+                    self.drag = Drag::Move { start, originals };
                 }
+                Drag::Scale { handle, bounds, originals } => {
+                    let (moving, anchor) = match handle {
+                        Handle::Corner(0) => (bounds.min, bounds.max),
+                        Handle::Corner(1) => {
+                            (Point::new(bounds.max.x, bounds.min.y), Point::new(bounds.min.x, bounds.max.y))
+                        }
+                        Handle::Corner(2) => (bounds.max, bounds.min),
+                        Handle::Corner(_) => {
+                            (Point::new(bounds.min.x, bounds.max.y), Point::new(bounds.max.x, bounds.min.y))
+                        }
+                        Handle::Edge(0) => (bounds.min, bounds.max),
+                        Handle::Edge(1) => (bounds.max, bounds.min),
+                        Handle::Edge(2) => (bounds.max, bounds.min),
+                        Handle::Edge(_) => (bounds.min, bounds.max),
+                        Handle::Rotate => (bounds.max, bounds.min),
+                    };
+                    let fx = |p: f64, m: f64, a: f64| if (m - a).abs() < 1e-9 { 1.0 } else { (p - a) / (m - a) };
+                    let mut sx = fx(p.x, moving.x, anchor.x);
+                    let mut sy = fx(p.y, moving.y, anchor.y);
+                    match handle {
+                        Handle::Edge(0) | Handle::Edge(2) => sx = 1.0,
+                        Handle::Edge(_) => sy = 1.0,
+                        _ if !shift && self.lock_ratio => {
+                            let s = if (sx - 1.0).abs() > (sy - 1.0).abs() { sx } else { sy };
+                            sx = s;
+                            sy = s;
+                        }
+                        _ => {}
+                    }
+                    let clamp = |s: f64| {
+                        if s.abs() < 0.005 { 0.005_f64.copysign(if s == 0.0 { 1.0 } else { s }) } else { s }
+                    };
+                    self.apply_originals(&originals, &Affine::scale_about(clamp(sx), clamp(sy), anchor));
+                    self.drag = Drag::Scale { handle, bounds, originals };
+                }
+                Drag::Rotate { center, start_angle, originals } => {
+                    let mut a = (p.y - center.y).atan2(p.x - center.x) - start_angle;
+                    if shift {
+                        a = snap_angle(a, 15.0);
+                    }
+                    self.apply_originals(&originals, &Affine::rotate_about(a, center));
+                    ctx.set_cursor_icon(CursorIcon::Alias);
+                    self.drag = Drag::Rotate { center, start_angle, originals };
+                }
+                other => self.drag = other,
             }
         }
 
@@ -846,41 +845,42 @@ impl VectorLumeApp {
             }
         }
 
-        if resp.clicked() && !self.preview.active {
-            if let Some(pos) = resp.interact_pointer_pos() {
-                let p = tf.to_doc(pos);
-                match self.tool {
-                    Tool::Select => match self.hit_test(p, tol) {
-                        Some(id) => {
-                            let group = self.doc.expand_groups(&[id]);
-                            if shift || ctrl {
-                                if self.selection.contains(&id) {
-                                    self.selection.retain(|s| !group.contains(s));
-                                } else {
-                                    self.selection.extend(group);
-                                }
+        if resp.clicked()
+            && !self.preview.active
+            && let Some(pos) = resp.interact_pointer_pos()
+        {
+            let p = tf.to_doc(pos);
+            match self.tool {
+                Tool::Select => match self.hit_test(p, tol) {
+                    Some(id) => {
+                        let group = self.doc.expand_groups(&[id]);
+                        if shift || ctrl {
+                            if self.selection.contains(&id) {
+                                self.selection.retain(|s| !group.contains(s));
                             } else {
-                                self.selection = group;
+                                self.selection.extend(group);
                             }
-                            if let Some(o) = self.doc.get(id) {
-                                self.current_layer = o.layer;
-                            }
+                        } else {
+                            self.selection = group;
                         }
-                        None => {
-                            if !shift {
-                                self.selection.clear();
-                            }
+                        if let Some(o) = self.doc.get(id) {
+                            self.current_layer = o.layer;
                         }
-                    },
-                    Tool::Text => {
-                        let at = self.snap(p);
-                        let TextDialog { open, at: dialog_at, error, .. } = &mut self.text_dialog;
-                        *open = true;
-                        *dialog_at = at;
-                        *error = None;
                     }
-                    _ => {}
+                    None => {
+                        if !shift {
+                            self.selection.clear();
+                        }
+                    }
+                },
+                Tool::Text => {
+                    let at = self.snap(p);
+                    let TextDialog { open, at: dialog_at, error, .. } = &mut self.text_dialog;
+                    *open = true;
+                    *dialog_at = at;
+                    *error = None;
                 }
+                _ => {}
             }
         }
 
@@ -984,13 +984,13 @@ impl VectorLumeApp {
                         textured_quad(painter, tex, c, burn);
                     }
                 }
-                if let Some(first) = block.ops.first() {
-                    if show_travel {
-                        travel_shapes.push(Shape::line_segment(
-                            [tf.to_screen(cur), tf.to_screen(first.target())],
-                            Stroke::new(1.0, pal.travel),
-                        ));
-                    }
+                if let Some(first) = block.ops.first()
+                    && show_travel
+                {
+                    travel_shapes.push(Shape::line_segment(
+                        [tf.to_screen(cur), tf.to_screen(first.target())],
+                        Stroke::new(1.0, pal.travel),
+                    ));
                 }
                 count += block.ops.len();
                 if let Some(last) = block.ops.last() {

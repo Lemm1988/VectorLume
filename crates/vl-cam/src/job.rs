@@ -212,9 +212,20 @@ pub fn generate(doc: &Document, objects: &[&Object], settings: &JobSettings, sta
 
         let (vector_kind, vector_ops) = match cs.mode {
             LayerMode::Line => {
-                let ordered =
+                if cs.kerf.abs() > 1e-6 {
+                    polys = apply_kerf(polys, cs.kerf);
+                }
+                let mut ordered =
                     if settings.optimize_order { order_polylines(polys, cur, settings.inner_first) } else { polys };
+                if cs.tab_count > 0 && cs.tab_width > 0.0 {
+                    ordered = apply_tabs(ordered, cs.tab_count as usize, cs.tab_width, cs.tabs_outer_only);
+                }
                 (BlockKind::Line, line_ops(&ordered, power))
+            }
+            LayerMode::OffsetFill => {
+                let rings = vl_core::ops::offset_fill(&polys, cs.interval, MAX_OFFSET_RINGS);
+                let ordered = if settings.optimize_order { order_polylines(rings, cur, false) } else { rings };
+                (BlockKind::Fill, line_ops(&ordered, power))
             }
             LayerMode::Fill | LayerMode::Image => {
                 let mut ops = hatch_ops(&polys, cs.interval, cs.fill_angle, cs.bidirectional, cs.overscan, power);
@@ -261,6 +272,43 @@ pub fn generate(doc: &Document, objects: &[&Object], settings: &JobSettings, sta
         }
     }
     Ok(tp)
+}
+
+/// Obergrenze für konzentrische Linien beim Versatz-Füllen (schützt vor riesigen Jobs bei kleinem Abstand).
+const MAX_OFFSET_RINGS: usize = 5000;
+
+/// Schnittbreitenausgleich: geschlossene Konturen um die halbe Schnittbreite versetzen (Außenkonturen nach
+/// außen, Löcher nach innen), offene Pfade bleiben unverändert.
+fn apply_kerf(polys: Vec<Polyline>, kerf: f64) -> Vec<Polyline> {
+    let (closed, open): (Vec<Polyline>, Vec<Polyline>) = polys.into_iter().partition(|p| p.closed);
+    let mut out = vl_core::ops::offset(&closed, kerf / 2.0, vl_core::ops::Corner::Sharp);
+    out.extend(open);
+    out
+}
+
+/// Unterbricht geschlossene Konturen für Laschen; die Reihenfolge der Konturen bleibt erhalten.
+fn apply_tabs(polys: Vec<Polyline>, count: usize, width: f64, outer_only: bool) -> Vec<Polyline> {
+    let bounds: Vec<Rect> = polys.iter().map(|p| p.bounds()).collect();
+    let is_inner = |i: usize| {
+        let p = &polys[i];
+        let Some(&probe) = p.points.first() else { return false };
+        (0..polys.len()).any(|j| {
+            j != i
+                && polys[j].closed
+                && bounds[j].contains_rect(&bounds[i])
+                && bounds[j] != bounds[i]
+                && vl_core::path::point_in_polylines(probe, std::slice::from_ref(&polys[j]))
+        })
+    };
+    let mut out = Vec::with_capacity(polys.len() * (count + 1));
+    for (i, p) in polys.iter().enumerate() {
+        if p.closed && !(outer_only && is_inner(i)) {
+            out.extend(vl_core::ops::split_for_tabs(p, count, width));
+        } else {
+            out.push(p.clone());
+        }
+    }
+    out
 }
 
 /// G-Code zum Abfahren des Job-Umrisses (Laser aus oder mit geringer Leistung laut Profil).
@@ -387,5 +435,57 @@ mod tests {
         let id = doc.objects[0].id;
         let job = build_job(&doc, &[id], &MachineProfile::default(), &settings).unwrap();
         assert_eq!(job.toolpath.blocks.len(), 1);
+    }
+
+    fn cut_lengths(job: &Job) -> f64 {
+        let mut cur = job.start;
+        let mut len = 0.0;
+        for b in &job.toolpath.blocks {
+            for op in &b.ops {
+                if let Op::Move { to, power } = *op
+                    && power > 0.0
+                {
+                    len += cur.distance(to);
+                }
+                cur = op.target();
+            }
+        }
+        len
+    }
+
+    #[test]
+    fn kerf_and_tabs_change_the_cut() {
+        let mut doc = Document::new();
+        doc.add_path("Platte", 0, VectorPath::rect(10.0, 10.0, 40.0, 40.0, 0.0));
+        doc.add_path("Loch", 0, VectorPath::rect(20.0, 20.0, 10.0, 10.0, 0.0));
+        let profile = MachineProfile::default();
+        let plain = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
+        assert!((cut_lengths(&plain) - 200.0).abs() < 1e-6);
+
+        doc.layers[0].settings.kerf = 0.2;
+        let kerf = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
+        // außen +0,1 je Seite (Umfang +0,8), Loch −0,1 je Seite (Umfang −0,8)
+        assert!((cut_lengths(&kerf) - 200.0).abs() < 1e-6);
+        assert!((kerf.design_bounds.width() - 40.0).abs() < 1e-9, "Entwurfsumriss bleibt gleich");
+        assert!((kerf.path_bounds.width() - 40.2).abs() < 1e-6, "{:?}", kerf.path_bounds);
+
+        doc.layers[0].settings.kerf = 0.0;
+        doc.layers[0].settings.tab_count = 4;
+        doc.layers[0].settings.tab_width = 1.0;
+        let tabs = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
+        // nur die Außenkontur bekommt Laschen: 4 × 1 mm weniger
+        assert!((cut_lengths(&tabs) - 196.0).abs() < 1e-6, "{}", cut_lengths(&tabs));
+    }
+
+    #[test]
+    fn offset_fill_engraves_rings() {
+        let mut doc = Document::new();
+        doc.add_path("Quadrat", 0, VectorPath::rect(10.0, 10.0, 10.0, 10.0, 0.0));
+        doc.layers[0].settings = vl_core::CutSettings::default_for(LayerMode::OffsetFill);
+        doc.layers[0].settings.interval = 1.0;
+        let job = build_job(&doc, &[], &MachineProfile::default(), &JobSettings::default()).unwrap();
+        assert_eq!(job.toolpath.blocks[0].kind, BlockKind::Fill);
+        // Ringe mit 9, 7, 5, 3, 1 mm Kantenlänge
+        assert!((cut_lengths(&job) - 4.0 * 25.0).abs() < 1e-3, "{}", cut_lengths(&job));
     }
 }

@@ -50,10 +50,10 @@ pub fn order_polylines(polys: Vec<Polyline>, start: Point, inner_first: bool) ->
             }
             let p = slots[i].as_ref().unwrap();
             // Grobe Vorauswahl über die Umrandung spart bei vielen Konturen viel Zeit.
-            if let Some((_, bd, ..)) = best {
-                if rect_distance_sq(&bounds[i], cur) > bd {
-                    continue;
-                }
+            if let Some((_, bd, ..)) = best
+                && rect_distance_sq(&bounds[i], cur) > bd
+            {
+                continue;
             }
             let (d, idx, rev) = best_entry(p, cur);
             if best.is_none_or(|(_, bd, ..)| d < bd) {

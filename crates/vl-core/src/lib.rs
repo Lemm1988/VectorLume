@@ -4,6 +4,7 @@ pub mod document;
 pub mod geom;
 pub mod layer;
 pub mod material;
+pub mod ops;
 pub mod path;
 pub mod project;
 

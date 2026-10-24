@@ -647,19 +647,17 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
     if cancel_draft {
         app.materials.draft = None;
     }
-    if save_draft {
-        if let Some(mut d) = app.materials.draft.take() {
-            d.material = d.material.trim().to_string();
-            d.title = d.title.trim().to_string();
-            let label = format!("{} {} · {}", d.material, d.thickness_label(), d.title);
-            let replaced = app.materials.library.upsert(d);
-            app.materials.selected = None;
-            changed = true;
-            app.toast(
-                ToastKind::Success,
-                if replaced { format!("{label} aktualisiert.") } else { format!("{label} gespeichert.") },
-            );
-        }
+    if save_draft && let Some(mut d) = app.materials.draft.take() {
+        d.material = d.material.trim().to_string();
+        d.title = d.title.trim().to_string();
+        let label = format!("{} {} · {}", d.material, d.thickness_label(), d.title);
+        let replaced = app.materials.library.upsert(d);
+        app.materials.selected = None;
+        changed = true;
+        app.toast(
+            ToastKind::Success,
+            if replaced { format!("{label} aktualisiert.") } else { format!("{label} gespeichert.") },
+        );
     }
     if let Some(i) = delete {
         app.materials.library.entries.remove(i);
@@ -670,37 +668,31 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
         let e = app.materials.library.entries[i].clone();
         app.apply_to_current_layer(&e.settings, &format!("{} {}", e.material, e.title));
     }
-    if import {
-        if let Some(path) = rfd::FileDialog::new().add_filter("VectorLume-Materialien", &["vlmat", "json"]).pick_file()
-        {
-            match MaterialLibrary::load(&path) {
-                Ok(lib) => {
-                    let n = app.materials.library.merge(lib);
-                    changed = true;
-                    app.toast(ToastKind::Success, format!("{n} Einträge importiert."));
-                }
-                Err(e) => app.toast(ToastKind::Error, e),
+    if import
+        && let Some(path) = rfd::FileDialog::new().add_filter("VectorLume-Materialien", &["vlmat", "json"]).pick_file()
+    {
+        match MaterialLibrary::load(&path) {
+            Ok(lib) => {
+                let n = app.materials.library.merge(lib);
+                changed = true;
+                app.toast(ToastKind::Success, format!("{n} Einträge importiert."));
             }
+            Err(e) => app.toast(ToastKind::Error, e),
         }
     }
-    if export {
-        if let Some(path) = rfd::FileDialog::new()
+    if export
+        && let Some(path) = rfd::FileDialog::new()
             .add_filter("VectorLume-Materialien", &["vlmat"])
             .set_file_name("Materialien.vlmat")
             .save_file()
-        {
-            match app.materials.library.save(&path) {
-                Ok(()) => {
-                    app.toast(ToastKind::Success, format!("Bibliothek exportiert: {}", crate::app::file_name(&path)))
-                }
-                Err(e) => app.toast(ToastKind::Error, e),
-            }
+    {
+        match app.materials.library.save(&path) {
+            Ok(()) => app.toast(ToastKind::Success, format!("Bibliothek exportiert: {}", crate::app::file_name(&path))),
+            Err(e) => app.toast(ToastKind::Error, e),
         }
     }
-    if changed {
-        if let Err(e) = app.materials.save() {
-            app.toast(ToastKind::Error, format!("Materialbibliothek nicht gespeichert: {e}"));
-        }
+    if changed && let Err(e) = app.materials.save() {
+        app.toast(ToastKind::Error, format!("Materialbibliothek nicht gespeichert: {e}"));
     }
     if !open {
         app.materials.open = false;

@@ -147,20 +147,19 @@ pub fn parse_response(line: &str) -> Response {
     if let Some(code) = l.strip_prefix("ALARM:") {
         return Response::Alarm(code.trim().parse().unwrap_or(0));
     }
-    if l.starts_with('<') {
-        if let Some(st) = parse_status(l) {
-            return Response::Status(st);
-        }
+    if l.starts_with('<')
+        && let Some(st) = parse_status(l)
+    {
+        return Response::Status(st);
     }
     if l.starts_with("Grbl ") || l.starts_with("GrblHAL ") {
         return Response::Welcome(l.to_string());
     }
-    if let Some(rest) = l.strip_prefix('$') {
-        if let Some((k, v)) = rest.split_once('=') {
-            if let Ok(n) = k.parse() {
-                return Response::Setting(n, v.to_string());
-            }
-        }
+    if let Some(rest) = l.strip_prefix('$')
+        && let Some((k, v)) = rest.split_once('=')
+        && let Ok(n) = k.parse()
+    {
+        return Response::Setting(n, v.to_string());
     }
     if l.starts_with('[') && l.ends_with(']') {
         return Response::Feedback(l[1..l.len() - 1].to_string());

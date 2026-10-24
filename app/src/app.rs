@@ -206,6 +206,7 @@ pub struct VectorLumeApp {
     pub materials: crate::materials::MaterialsUi,
     pub test: crate::materials::TestUi,
     pub autosave: crate::autosave::Autosave,
+    pub shape_dialogs: crate::shape_ops::ShapeDialogs,
     last_edit: Option<(&'static str, Instant)>,
     last_title: String,
     close_confirmed: bool,
@@ -280,6 +281,7 @@ impl VectorLumeApp {
             materials: crate::materials::MaterialsUi::load(),
             test: crate::materials::TestUi::default(),
             autosave: crate::autosave::Autosave::default(),
+            shape_dialogs: crate::shape_ops::ShapeDialogs::default(),
             last_edit: None,
             last_title: String::new(),
             close_confirmed: false,
@@ -610,7 +612,7 @@ impl VectorLumeApp {
         self.mark_changed();
     }
 
-    fn selected_objects(&self) -> Vec<Object> {
+    pub(crate) fn selected_objects(&self) -> Vec<Object> {
         self.doc.objects.iter().filter(|o| self.selection.contains(&o.id)).cloned().collect()
     }
 
@@ -753,7 +755,7 @@ impl VectorLumeApp {
     }
 
     /// Auswahl aufgeteilt in Gruppen bzw. Einzelobjekte.
-    fn selection_units(&self) -> Vec<Vec<ObjectId>> {
+    pub(crate) fn selection_units(&self) -> Vec<Vec<ObjectId>> {
         let mut units: Vec<Vec<ObjectId>> = Vec::new();
         let mut groups: Vec<(u64, usize)> = Vec::new();
         for o in self.doc.objects.iter().filter(|o| self.selection.contains(&o.id)) {
@@ -1078,12 +1080,13 @@ impl VectorLumeApp {
             p.s_max = v;
             changed.push("S-Max");
         }
-        if let (Some(x), Some(y)) = (m.setting_f64(130), m.setting_f64(131)) {
-            if x > 0.0 && y > 0.0 {
-                p.bed_width = x;
-                p.bed_height = y;
-                changed.push("Arbeitsfläche");
-            }
+        if let (Some(x), Some(y)) = (m.setting_f64(130), m.setting_f64(131))
+            && x > 0.0
+            && y > 0.0
+        {
+            p.bed_width = x;
+            p.bed_height = y;
+            changed.push("Arbeitsfläche");
         }
         if let Some(v) = m.setting_f64(110) {
             p.rapid_rate = v;
@@ -1241,6 +1244,7 @@ impl eframe::App for VectorLumeApp {
 
         crate::dialogs::show(self, &ctx);
         crate::materials::show(self, &ctx);
+        crate::shape_ops::show(self, &ctx);
         self.update_preview();
         self.update_title(&ctx);
         self.autosave.tick(&self.doc, self.revision, self.dirty, self.file_path.as_deref());

@@ -334,6 +334,28 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, "Auf Arbeitsfläche zentrieren", "", has) {
         app.center_on_bed();
     }
+    ui.separator();
+    ui.add_enabled_ui(has, |ui| {
+        ui.menu_button("Boolesche Operationen", |ui| {
+            use vl_core::ops::BoolOp;
+            // Abziehen: Die übrigen Formen werden von der zuerst ausgewählten abgezogen.
+            for op in [BoolOp::Union, BoolOp::Difference, BoolOp::Intersection, BoolOp::Xor] {
+                if menu_item(ui, op.label(), "", multi) {
+                    app.boolean_op(op);
+                }
+            }
+            ui.separator();
+            if menu_item(ui, "Verschweißen", "", has) {
+                app.weld_selection();
+            }
+        });
+    });
+    if menu_item(ui, "Versatz…", "", has) {
+        app.shape_dialogs.offset_open = true;
+    }
+    if menu_item(ui, "Reihen-Kopien…", "", has) {
+        app.shape_dialogs.array_open = true;
+    }
 }
 
 fn view_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
