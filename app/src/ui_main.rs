@@ -86,6 +86,7 @@ pub fn shortcuts(app: &mut VectorLumeApp, ctx: &egui::Context) {
         (Key::E, Tool::Ellipse),
         (Key::L, Tool::Line),
         (Key::T, Tool::Text),
+        (Key::Q, Tool::Barcode),
         (Key::N, Tool::Node),
     ] {
         if pressed(sc(Modifiers::NONE, k)) {
@@ -206,6 +207,7 @@ pub fn top_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
                     || app.tool == Tool::Line
                     || app.tool == Tool::Ellipse
                     || app.tool == Tool::Text
+                    || app.tool == Tool::Barcode
                 {
                     properties(app, ui);
                 } else {

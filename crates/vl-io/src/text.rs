@@ -63,6 +63,9 @@ pub fn text_to_path(db: &Database, spec: &TextSpec) -> Result<VectorPath, String
 /// Erzeugt einen Text aus Textdaten mit dem bereits eingesetzten Inhalt `text` (Platzhalter ersetzt):
 /// normal mit der linken oberen Ecke bei (0, 0) oder entlang des Pfades in Dokumentkoordinaten.
 pub fn render_text(db: &Database, data: &TextData, text: &str) -> Result<VectorPath, String> {
+    if let Some(b) = &data.barcode {
+        return crate::barcode::render_barcode(db, data, b, text);
+    }
     let spec = TextSpec { text: text.to_string(), ..data.spec.clone() };
     match &data.on_path {
         Some(on) => with_face(db, &spec, |face| layout_on_path(face, &spec, on)),

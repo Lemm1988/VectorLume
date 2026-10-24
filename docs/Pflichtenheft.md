@@ -98,6 +98,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-21 | Bild nachzeichnen | Schwellwert, Invertieren, Fleckenfilter, Vereinfachen, Glätten mit Eckenerkennung, Live-Vorschau (eigener Algorithmus) | ✅ |
 | LF-22 | Fangen | Raster 1 mm; Objektfang an Knoten, Mitten und Kanten mit Ausrichtungslinien (Alt = aus) | ✅ |
 | LF-23 | Laschen/Stege | Anzahl und Breite je Kontur, optional nur Außenkonturen | ✅ |
+| LF-24 | QR- und Strichcodes | Werkzeug *QR-/Barcode* (Q): QR-Code (Fehlerkorrektur L/M/Q/H, WLAN-Vorlage), Data Matrix, Code 128 (Zeichensatz B/C automatisch), Code 39, EAN-13, EAN-8, UPC-A (Prüfziffer ergänzt bzw. geprüft); Modulgröße, Strichhöhe, Klartext unter 1D-Codes; Module werden zu Umrissen zusammengefasst (lückenlose Füllung); **zusätzlich:** Strichbreiten-Ausgleich für den Laserpunkt und Invertieren mit Ruhezone für Material, das hell graviert (eloxiertes Aluminium, Schiefer); Inhalt mit denselben Platzhaltern wie variabler Text (Seriennummern, Datenliste), bleibt bearbeitbar; Größe und Fehler werden im Dialog sofort angezeigt | ✅ |
 
 ### 4.3 Ebenen und Laser-Einstellungen
 | LF | Funktion | Umsetzung | Stand |
@@ -215,14 +216,14 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (114):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (122):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
   Objektfang, Materialtest und -bibliothek, Z je Durchgang, Nachzeichnen, Platzhalter, Text auf Pfad, Drehachse,
   G-Code-Dialekte und Streaming für Marlin/Smoothieware (Simulator), Netzwerkverbindung, CSV-Datenlisten,
   LightBurn-Import (Ebenen, Formen, Gruppen, gemeinsame Punktlisten, Werkzeugebenen), Leistung je Objekt, EPS (mit
-  Ghostscript, sonst übersprungen), Homographie und Entzerrung des Kamerabildes, Scan-Versatz (Interpolation, Verschiebung je Fahrtrichtung), Übersetzung (Vorlagen, verschachtelte
+  Ghostscript, sonst übersprungen), Homographie und Entzerrung des Kamerabildes, Scan-Versatz (Interpolation, Verschiebung je Fahrtrichtung), Strichcodes (Umrisse, Prüfziffern, Zeichensatzwahl, QR-Code wird mit einem unabhängigen Decoder (`rqrr`, nur Test) wieder gelesen, auch invertiert), Übersetzung (Vorlagen, verschachtelte
   Meldungen, Vollständigkeit der englischen Tabelle). Zusätzlich
   prüft ein abschaltbarer Test echte LightBurn-Projekte aus einem Ordner (`VL_LBRN_DIR`).
 - **End-to-End:** Ein Job mit Schnitt, Kreuzschraffur und Graustufenbild sowie die Rahmenfahrt werden zeilenweise durch
@@ -268,6 +269,7 @@ Der Info-Dialog verlinkt die Datei. Inno Setup darf auch für kommerzielle Softw
 | serialport 4.10 | USB/seriell | MPL-2.0 |
 | rfd 0.17 | Dateidialoge | MIT |
 | fontdb 0.24, ttf-parser 0.25 | Schriften | MIT, MIT/Apache-2.0 |
+| qrcode 0.14, datamatrix 0.3, barcoders 2 | QR-, Data-Matrix- und Strichcodes | MIT/Apache-2.0 |
 | serde, serde_json, base64, dirs, log | Infrastruktur | MIT/Apache-2.0 |
 | roxmltree | XML lesen (LightBurn-Projekte) | MIT/Apache-2.0 |
 | sys-locale 0.3 | Systemsprache beim ersten Start | MIT/Apache-2.0 |
@@ -281,4 +283,4 @@ Der Info-Dialog verlinkt die Datei. Inno Setup darf auch für kommerzielle Softw
 | 1 ✅ | Nutzbare Version für GRBL/SF-A9 (dieses Dokument) |
 | 2 ✅ | Knotenbearbeitung, Boolesche Operationen, Offset/Offset-Füllen, Arrays, Laschen, Materialbibliothek, Testmuster-Generator, Autosicherung, Objektfang, PDF-Import |
 | 3 🟡 | Bild nachzeichnen ✅, Text auf Pfad/variabler Text ✅, Rotary ✅, Kamera ✅, Marlin/Smoothieware ✅ (experimentell), danach Ruida und Galvo (Hardware-Tester nötig) |
-| 4 🟡 | Eigene Verbesserungen (u. a. Leistung je Objekt, LightBurn-Import, Scan-Versatz ✅), Installer (Benutzerinstallation mit Verknüpfungen und Dateitypen `.vlume`/„Öffnen mit“ für `.lbrn2` ✅, Setup-Paket ✅, Code-Signatur ⏳), mehrsprachige Oberfläche (Deutsch/Englisch ✅), Veröffentlichung |
+| 4 🟡 | Eigene Verbesserungen (u. a. Leistung je Objekt, LightBurn-Import, Scan-Versatz, Strichcodes ✅), Installer (Benutzerinstallation mit Verknüpfungen und Dateitypen `.vlume`/„Öffnen mit“ für `.lbrn2` ✅, Setup-Paket ✅, Code-Signatur ⏳), mehrsprachige Oberfläche (Deutsch/Englisch ✅), Veröffentlichung |

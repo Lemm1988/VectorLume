@@ -411,7 +411,7 @@ impl VectorLumeApp {
             Tool::Star => {
                 (tr("Stern"), VectorPath::star(a, a.distance(b), a.distance(b) * o.star_inner, o.star_points))
             }
-            Tool::Select | Tool::Text | Tool::Node => return,
+            Tool::Select | Tool::Text | Tool::Barcode | Tool::Node => return,
         };
         let size = path.bounds(&Affine::IDENTITY);
         if size.width() < 0.2 && size.height() < 0.2 {
@@ -821,7 +821,7 @@ impl VectorLumeApp {
                         Drag::Band { start, additive: shift }
                     }
                 }
-                Tool::Text => Drag::None,
+                Tool::Text | Tool::Barcode => Drag::None,
                 t => Drag::Create { tool: t, start: self.snap_cursor(start, snap_tol) },
             };
         } else if resp.drag_started_by(PointerButton::Middle) {
@@ -991,6 +991,10 @@ impl VectorLumeApp {
                     let at = self.snap_cursor(p, snap_tol);
                     self.open_text_new(at);
                 }
+                Tool::Barcode => {
+                    let at = self.snap_cursor(p, snap_tol);
+                    self.open_barcode_new(at);
+                }
                 _ => {}
             }
         }
@@ -1022,7 +1026,13 @@ impl VectorLumeApp {
                 ui.close();
             }
             if let Some(id) = self.selected_text() {
-                if ui.button(trs(&format!("{} Text bearbeiten…", i::TEXT_T))).clicked() {
+                let barcode = self.doc.get(id).and_then(|o| o.text.as_ref()).is_some_and(|t| t.barcode.is_some());
+                let label = if barcode {
+                    trs(&format!("{} Code bearbeiten…", i::QR_CODE))
+                } else {
+                    trs(&format!("{} Text bearbeiten…", i::TEXT_T))
+                };
+                if ui.button(label).clicked() {
                     self.open_text_edit(id);
                     ui.close();
                 }

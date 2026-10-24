@@ -16,3 +16,9 @@ lopdf.workspace = true
 image.workspace = true
 fontdb.workspace = true
 ttf-parser.workspace = true
+qrcode.workspace = true
+barcoders.workspace = true
+datamatrix.workspace = true
+
+[dev-dependencies]
+rqrr = "0.11"

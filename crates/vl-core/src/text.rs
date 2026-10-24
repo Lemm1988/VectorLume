@@ -112,6 +112,125 @@ impl Default for TextOnPath {
     }
 }
 
+/// Strichcode-Arten: 2D-Codes aus quadratischen Modulen, 1D-Codes aus senkrechten Strichen.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BarcodeKind {
+    #[default]
+    Qr,
+    DataMatrix,
+    Code128,
+    Code39,
+    Ean13,
+    Ean8,
+    UpcA,
+}
+
+impl BarcodeKind {
+    pub const ALL: [BarcodeKind; 7] = [
+        BarcodeKind::Qr,
+        BarcodeKind::DataMatrix,
+        BarcodeKind::Code128,
+        BarcodeKind::Code39,
+        BarcodeKind::Ean13,
+        BarcodeKind::Ean8,
+        BarcodeKind::UpcA,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            BarcodeKind::Qr => "QR-Code",
+            BarcodeKind::DataMatrix => "Data Matrix",
+            BarcodeKind::Code128 => "Code 128",
+            BarcodeKind::Code39 => "Code 39",
+            BarcodeKind::Ean13 => "EAN-13",
+            BarcodeKind::Ean8 => "EAN-8",
+            BarcodeKind::UpcA => "UPC-A",
+        }
+    }
+
+    /// Erlaubter Inhalt (für die Hilfe im Dialog).
+    pub fn hint(self) -> &'static str {
+        match self {
+            BarcodeKind::Qr => "Beliebiger Text, Internetadresse oder WLAN-Zugang",
+            BarcodeKind::DataMatrix => "Beliebiger Text, sehr kompakt (z. B. für Teilekennzeichnung)",
+            BarcodeKind::Code128 => "Buchstaben, Ziffern und Satzzeichen (ASCII)",
+            BarcodeKind::Code39 => "Großbuchstaben, Ziffern und - . $ / + % Leerzeichen",
+            BarcodeKind::Ean13 => "12 Ziffern (Prüfziffer wird ergänzt) oder 13 Ziffern",
+            BarcodeKind::Ean8 => "7 Ziffern (Prüfziffer wird ergänzt) oder 8 Ziffern",
+            BarcodeKind::UpcA => "11 Ziffern (Prüfziffer wird ergänzt) oder 12 Ziffern",
+        }
+    }
+
+    pub fn is_2d(self) -> bool {
+        matches!(self, BarcodeKind::Qr | BarcodeKind::DataMatrix)
+    }
+
+    /// Vorgeschriebene Ruhezone in Modulen (freier Rand, beim Invertieren mitgraviert).
+    pub fn quiet_zone(self) -> u32 {
+        match self {
+            BarcodeKind::Qr => 4,
+            BarcodeKind::DataMatrix => 1,
+            _ => 10,
+        }
+    }
+}
+
+/// Fehlerkorrektur eines QR-Codes: Anteil der Fläche, der beschädigt sein darf.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum QrLevel {
+    L,
+    #[default]
+    M,
+    Q,
+    H,
+}
+
+impl QrLevel {
+    pub const ALL: [QrLevel; 4] = [QrLevel::L, QrLevel::M, QrLevel::Q, QrLevel::H];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            QrLevel::L => "L (7 %)",
+            QrLevel::M => "M (15 %)",
+            QrLevel::Q => "Q (25 %)",
+            QrLevel::H => "H (30 %)",
+        }
+    }
+}
+
+/// Einstellungen eines Strichcodes. Der Inhalt steht in `TextData::spec.text` (mit Platzhaltern),
+/// die Schrift dort wird für den Klartext unter 1D-Codes verwendet.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BarcodeSpec {
+    pub kind: BarcodeKind,
+    /// Breite eines Moduls (QR-Punkt bzw. schmalster Strich) in mm.
+    pub module_mm: f64,
+    /// Strichhöhe bei 1D-Codes in mm.
+    pub height_mm: f64,
+    pub level: QrLevel,
+    /// Klartext unter 1D-Codes.
+    pub show_text: bool,
+    /// Helle statt dunkle Module gravieren (für Material, das beim Lasern hell wird, z. B. eloxiertes Aluminium).
+    pub invert: bool,
+    /// Gravierte Flächen um diesen Betrag schmaler machen, weil der Laserpunkt über die Kontur hinaus brennt (mm).
+    pub shrink_mm: f64,
+}
+
+impl Default for BarcodeSpec {
+    fn default() -> Self {
+        Self {
+            kind: BarcodeKind::Qr,
+            module_mm: 0.5,
+            height_mm: 15.0,
+            level: QrLevel::M,
+            show_text: true,
+            invert: false,
+            shrink_mm: 0.0,
+        }
+    }
+}
+
 /// Alles, was nötig ist, um einen Text erneut zu erzeugen (Bearbeiten, variabler Text).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -122,6 +241,9 @@ pub struct TextData {
     pub on_path: Option<TextOnPath>,
     /// Zuletzt ausgegebener Text (nach Ersetzen der Platzhalter).
     pub rendered: String,
+    /// Strichcode statt Schrift: der Text ist dann der Inhalt des Codes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub barcode: Option<BarcodeSpec>,
 }
 
 /// Datum und Uhrzeit für die Platzhalter (vom Aufrufer, damit der Kern keine Zeitzonen kennen muss).
@@ -185,6 +307,9 @@ impl TextData {
     /// Kurzer Objektname aus der ersten Zeile.
     pub fn display_name(&self) -> String {
         let first = self.spec.text.lines().next().unwrap_or("Text").chars().take(24).collect::<String>();
+        if let Some(b) = &self.barcode {
+            return format!("{} „{first}“", b.kind.label());
+        }
         if self.on_path.is_some() { format!("Text auf Pfad „{first}“") } else { format!("Text „{first}“") }
     }
 }
@@ -206,6 +331,19 @@ mod tests {
         assert!(d.expand(now).starts_with("Nr. -04"));
         d.spec.text = "fest".into();
         assert!(!d.is_variable());
+    }
+
+    #[test]
+    fn barcode_data_roundtrip() {
+        let d = TextData {
+            barcode: Some(BarcodeSpec { kind: BarcodeKind::Ean13, invert: true, ..Default::default() }),
+            ..Default::default()
+        };
+        let back: TextData = serde_json::from_str(&serde_json::to_string(&d).unwrap()).unwrap();
+        assert_eq!(back, d);
+        // ältere Projekte ohne Code bleiben unverändert
+        assert!(!serde_json::to_string(&TextData::default()).unwrap().contains("barcode"));
+        assert_eq!(d.display_name(), "EAN-13 „VectorLume“");
     }
 
     #[test]

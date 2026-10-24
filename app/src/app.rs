@@ -22,12 +22,22 @@ pub enum Tool {
     Polygon,
     Star,
     Text,
+    Barcode,
     Node,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 8] =
-        [Tool::Select, Tool::Node, Tool::Rect, Tool::Ellipse, Tool::Line, Tool::Polygon, Tool::Star, Tool::Text];
+    pub const ALL: [Tool; 9] = [
+        Tool::Select,
+        Tool::Node,
+        Tool::Rect,
+        Tool::Ellipse,
+        Tool::Line,
+        Tool::Polygon,
+        Tool::Star,
+        Tool::Text,
+        Tool::Barcode,
+    ];
 
     pub fn icon(self) -> &'static str {
         use egui_phosphor::regular as i;
@@ -39,6 +49,7 @@ impl Tool {
             Tool::Polygon => i::POLYGON,
             Tool::Star => i::STAR,
             Tool::Text => i::TEXT_T,
+            Tool::Barcode => i::QR_CODE,
             Tool::Node => i::BEZIER_CURVE,
         }
     }
@@ -52,6 +63,7 @@ impl Tool {
             Tool::Polygon => tr("Vieleck"),
             Tool::Star => tr("Stern"),
             Tool::Text => tr("Text (T)"),
+            Tool::Barcode => tr("QR-/Barcode (Q)"),
             Tool::Node => tr("Knoten bearbeiten (N)"),
         }
     }

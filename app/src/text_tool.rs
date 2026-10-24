@@ -1,4 +1,5 @@
 //! Text: Einfügen und Bearbeiten, Text auf Pfad und variable Texte (Zähler, Datum, Uhrzeit, Datenliste).
+//! QR- und Strichcodes laufen über denselben Dialog, ihr Inhalt kann dieselben Platzhalter enthalten.
 
 use crate::app::{ToastKind, VectorLumeApp};
 use crate::i18n::{tr, trs};
@@ -7,7 +8,7 @@ use egui::{Align2, Button, DragValue, RichText, vec2};
 use egui_phosphor::regular as icon;
 use vl_core::DataList;
 use vl_core::text::{Now, PLACEHOLDERS, ROW_PLACEHOLDER, TextData, TextOnPath, TextVars};
-use vl_core::{Affine, ObjectId, Point, Shape, TextSpec};
+use vl_core::{Affine, BarcodeKind, BarcodeSpec, ObjectId, Point, QrLevel, Shape, TextSpec};
 
 /// Zustand des Textdialogs.
 pub struct TextDialog {
@@ -21,6 +22,26 @@ pub struct TextDialog {
     pub edit: Option<ObjectId>,
     pub vars: TextVars,
     pub on_path: Option<TextOnPath>,
+    /// Strichcode statt Text.
+    pub barcode: Option<BarcodeSpec>,
+    /// Zuletzt verwendete Code-Einstellungen für den nächsten neuen Code.
+    pub last_barcode: BarcodeSpec,
+    /// Inhalt der jeweils anderen Art (Text bzw. Code), damit beide beim Wechsel erhalten bleiben.
+    pub other_text: String,
+}
+
+impl TextDialog {
+    /// Zwischen Text und Strichcode wechseln.
+    fn set_barcode_mode(&mut self, on: bool) {
+        if self.barcode.is_some() == on {
+            return;
+        }
+        std::mem::swap(&mut self.spec.text, &mut self.other_text);
+        match self.barcode.take() {
+            Some(b) => self.last_barcode = b,
+            None => self.barcode = Some(self.last_barcode.clone()),
+        }
+    }
 }
 
 impl Default for TextDialog {
@@ -34,6 +55,9 @@ impl Default for TextDialog {
             edit: None,
             vars: TextVars::default(),
             on_path: None,
+            barcode: None,
+            last_barcode: BarcodeSpec::default(),
+            other_text: "https://example.com".into(),
         }
     }
 }
@@ -49,6 +73,18 @@ impl VectorLumeApp {
     /// Neuer Text an `at`; Schrift und Stil vom letzten Text werden beibehalten.
     pub fn open_text_new(&mut self, at: Point) {
         let d = &mut self.text_dialog;
+        d.set_barcode_mode(false);
+        d.open = true;
+        d.at = at;
+        d.error = None;
+        d.edit = None;
+        d.on_path = None;
+    }
+
+    /// Neuer QR- oder Strichcode an `at` mit den zuletzt verwendeten Einstellungen.
+    pub fn open_barcode_new(&mut self, at: Point) {
+        let d = &mut self.text_dialog;
+        d.set_barcode_mode(true);
         d.open = true;
         d.at = at;
         d.error = None;
@@ -66,6 +102,7 @@ impl VectorLumeApp {
         d.spec = data.spec;
         d.vars = data.vars;
         d.on_path = data.on_path;
+        d.barcode = data.barcode;
         true
     }
 
@@ -84,6 +121,7 @@ impl VectorLumeApp {
         };
         let d = &mut self.text_dialog;
         d.open = true;
+        d.set_barcode_mode(false);
         d.error = None;
         d.edit = None;
         d.spec.align = vl_core::TextAlign::Center;
@@ -96,8 +134,9 @@ impl VectorLumeApp {
         let mut data = TextData {
             spec: d.spec.clone(),
             vars: d.vars.clone(),
-            on_path: d.on_path.clone(),
+            on_path: if d.barcode.is_some() { None } else { d.on_path.clone() },
             rendered: String::new(),
+            barcode: d.barcode.clone(),
         };
         let text = data.expand(now());
         let db = vl_io::system_fonts();
@@ -109,6 +148,9 @@ impl VectorLumeApp {
             }
         };
         data.rendered = text;
+        if let Some(b) = &data.barcode {
+            self.text_dialog.last_barcode = b.clone();
+        }
         let name = data.display_name();
         self.checkpoint();
         match self.text_dialog.edit.filter(|id| self.doc.get(*id).is_some()) {
@@ -213,11 +255,19 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     let mut insert = false;
     let mut load_csv = false;
     let editing = app.text_dialog.edit.is_some();
-    let title = match (editing, app.text_dialog.on_path.is_some()) {
-        (true, _) => trs(&format!("{} Text bearbeiten", icon::TEXT_T)),
-        (false, true) => trs(&format!("{} Text auf Pfad", icon::PATH)),
-        (false, false) => trs(&format!("{} Text einfügen", icon::TEXT_T)),
+    let is_code = app.text_dialog.barcode.is_some();
+    let title = match (editing, is_code, app.text_dialog.on_path.is_some()) {
+        (true, true, _) => trs(&format!("{} Code bearbeiten", icon::QR_CODE)),
+        (false, true, _) => trs(&format!("{} QR-/Barcode einfügen", icon::QR_CODE)),
+        (true, false, _) => trs(&format!("{} Text bearbeiten", icon::TEXT_T)),
+        (false, false, true) => trs(&format!("{} Text auf Pfad", icon::PATH)),
+        (false, false, false) => trs(&format!("{} Text einfügen", icon::TEXT_T)),
     };
+    // Codes werden nur auf Füll-Ebenen als Fläche graviert
+    let fill_layer = matches!(
+        app.doc.layers.get(app.current_layer).map(|l| l.settings.mode),
+        Some(vl_core::LayerMode::Fill | vl_core::LayerMode::Image)
+    );
     egui::Window::new(title)
         .id(egui::Id::new("text_dialog"))
         .open(&mut open)
@@ -228,11 +278,27 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             let pal = theme::of(ui);
             let d = &mut app.text_dialog;
+            if let Some(b) = &mut d.barcode {
+                ui.horizontal(|ui| {
+                    ui.label(tr("Art"));
+                    egui::ComboBox::from_id_salt("barcode_kind").width(160.0).selected_text(tr(b.kind.label())).show_ui(
+                        ui,
+                        |ui| {
+                            for k in BarcodeKind::ALL {
+                                ui.selectable_value(&mut b.kind, k, tr(k.label()));
+                            }
+                        },
+                    );
+                });
+                ui.label(RichText::new(tr(b.kind.hint())).small().color(pal.text_weak));
+                ui.add_space(2.0);
+            }
+            let one_line = d.barcode.as_ref().is_some_and(|b| !b.kind.is_2d());
             ui.add(
                 egui::TextEdit::multiline(&mut d.spec.text)
-                    .desired_rows(3)
+                    .desired_rows(if one_line { 1 } else { 3 })
                     .desired_width(f32::INFINITY)
-                    .hint_text(tr("Text")),
+                    .hint_text(if is_code { tr("Inhalt") } else { tr("Text") }),
             );
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(tr("Platzhalter:")).small().color(pal.text_weak));
@@ -250,32 +316,22 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 {
                     load_csv = true;
                 }
+                if d.barcode.as_ref().is_some_and(|b| b.kind == BarcodeKind::Qr)
+                    && ui
+                        .small_button(trs(&format!("{} WLAN", icon::WIFI_HIGH)))
+                        .on_hover_text(tr("Vorlage für einen WLAN-Zugang: Netzwerkname und Passwort ersetzen"))
+                        .clicked()
+                {
+                    d.spec.text = "WIFI:T:WPA;S:Netzwerkname;P:Passwort;;".into();
+                }
             });
             ui.add_space(6.0);
+            if let Some(b) = &mut d.barcode {
+                barcode_options(ui, b, &mut d.spec.family, &mut d.filter, families.as_deref());
+            } else {
             egui::Grid::new("text_grid").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
                 ui.label(tr("Schrift"));
-                match &families {
-                    Some(list) => {
-                        egui::ComboBox::from_id_salt("font")
-                            .width(220.0)
-                            .selected_text(&d.spec.family)
-                            .height(320.0)
-                            .show_ui(ui, |ui| {
-                                ui.add(egui::TextEdit::singleline(&mut d.filter).hint_text(tr("Suchen…")));
-                                let filter = d.filter.to_lowercase();
-                                for f in list.iter().filter(|f| filter.is_empty() || f.to_lowercase().contains(&filter))
-                                {
-                                    ui.selectable_value(&mut d.spec.family, f.clone(), f);
-                                }
-                            });
-                    }
-                    None => {
-                        ui.horizontal(|ui| {
-                            ui.spinner();
-                            ui.label(tr("Schriften werden geladen…"));
-                        });
-                    }
-                }
+                font_combo(ui, &mut d.spec.family, &mut d.filter, families.as_deref());
                 ui.end_row();
                 ui.label(tr("Stil"));
                 ui.horizontal(|ui| {
@@ -314,7 +370,8 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     ui.end_row();
                 }
             });
-            let data = TextData { spec: d.spec.clone(), vars: d.vars.clone(), on_path: None, rendered: String::new() };
+            }
+            let data = TextData { spec: d.spec.clone(), vars: d.vars.clone(), ..Default::default() };
             if data.uses_counter() {
                 ui.add_space(4.0);
                 ui.label(RichText::new(tr("Fortlaufende Nummer {n}")).strong());
@@ -388,11 +445,40 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         .color(pal.text_weak),
                 );
             }
+            // Codes: Größe bzw. Fehler sofort anzeigen
+            let mut code_ok = true;
+            if let Some(b) = &d.barcode {
+                match vl_io::barcode_info(b, &data.expand(now())) {
+                    Ok(info) => {
+                        let (w, h) = info.size_mm;
+                        let text = if b.kind.is_2d() {
+                            trs(&format!("{} × {} Module · {w:.1} × {h:.1} mm", info.modules.0, info.modules.1))
+                        } else {
+                            trs(&format!("{} Module · {w:.1} × {h:.1} mm", info.modules.0))
+                        };
+                        ui.label(RichText::new(text).small().color(pal.text_weak));
+                    }
+                    Err(e) => {
+                        code_ok = false;
+                        ui.label(RichText::new(trs(&e)).color(pal.danger));
+                    }
+                }
+                if !fill_layer {
+                    ui.label(
+                        RichText::new(tr(
+                            "Tipp: Codes auf einer Ebene im Modus „Füllen“ gravieren, sonst werden nur die Umrisse abgefahren.",
+                        ))
+                        .small()
+                        .color(pal.warning),
+                    );
+                }
+            }
             if let Some(e) = &d.error {
                 ui.label(RichText::new(trs(e)).color(pal.danger));
             }
             ui.add_space(6.0);
-            let ready = families.is_some() && !d.spec.text.trim().is_empty();
+            let needs_font = d.barcode.as_ref().is_none_or(|b| !b.kind.is_2d() && b.show_text);
+            let ready = (families.is_some() || !needs_font) && code_ok && !d.spec.text.trim().is_empty();
             let label = if editing {
                 trs(&format!("{} Übernehmen", icon::CHECK))
             } else {
@@ -410,6 +496,81 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     } else if !open {
         app.text_dialog.open = false;
     }
+}
+
+/// Auswahl der Schriftfamilie mit Suchfeld.
+fn font_combo(ui: &mut egui::Ui, family: &mut String, filter: &mut String, families: Option<&[String]>) {
+    match families {
+        Some(list) => {
+            egui::ComboBox::from_id_salt("font").width(220.0).selected_text(family.as_str()).height(320.0).show_ui(
+                ui,
+                |ui| {
+                    ui.add(egui::TextEdit::singleline(filter).hint_text(tr("Suchen…")));
+                    let f = filter.to_lowercase();
+                    for name in list.iter().filter(|n| f.is_empty() || n.to_lowercase().contains(&f)) {
+                        ui.selectable_value(family, name.clone(), name);
+                    }
+                },
+            );
+        }
+        None => {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(tr("Schriften werden geladen…"));
+            });
+        }
+    }
+}
+
+/// Einstellungen eines QR- oder Strichcodes.
+fn barcode_options(
+    ui: &mut egui::Ui,
+    b: &mut BarcodeSpec,
+    family: &mut String,
+    filter: &mut String,
+    families: Option<&[String]>,
+) {
+    egui::Grid::new("barcode_grid").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
+        ui.label(tr("Modulgröße")).on_hover_text(tr("Breite eines Punktes bzw. des schmalsten Strichs"));
+        ui.add(DragValue::new(&mut b.module_mm).speed(0.01).range(0.05..=10.0).fixed_decimals(2).suffix(" mm"));
+        ui.end_row();
+        if b.kind == BarcodeKind::Qr {
+            ui.label(tr("Fehlerkorrektur")).on_hover_text(tr(
+                "Höhere Stufen bleiben auch mit Kratzern oder Brandflecken lesbar, der Code wird aber größer.",
+            ));
+            egui::ComboBox::from_id_salt("qr_level").selected_text(b.level.label()).show_ui(ui, |ui| {
+                for l in QrLevel::ALL {
+                    ui.selectable_value(&mut b.level, l, l.label());
+                }
+            });
+            ui.end_row();
+        }
+        if !b.kind.is_2d() {
+            ui.label(tr("Strichhöhe"));
+            ui.add(DragValue::new(&mut b.height_mm).speed(0.1).range(1.0..=300.0).suffix(" mm"));
+            ui.end_row();
+            ui.label(tr("Klartext"));
+            ui.checkbox(&mut b.show_text, tr("unter den Strichen"));
+            ui.end_row();
+            if b.show_text {
+                ui.label(tr("Schrift"));
+                font_combo(ui, family, filter, families);
+                ui.end_row();
+            }
+        }
+        let help = tr(
+            "Gravierte Flächen um diesen Betrag schmaler machen, weil der Laserpunkt über die Kontur hinaus brennt. Richtwert: Breite des Laserpunkts (etwa 0,05–0,1 mm).",
+        );
+        ui.label(tr("Strichbreiten-Ausgleich")).on_hover_text(help);
+        ui.add(DragValue::new(&mut b.shrink_mm).speed(0.005).range(0.0..=1.0).fixed_decimals(3).suffix(" mm"))
+            .on_hover_text(help);
+        ui.end_row();
+        ui.label("");
+        ui.checkbox(&mut b.invert, tr("Invertieren (helle Flächen gravieren)")).on_hover_text(tr(
+            "Für Material, das beim Lasern hell wird, z. B. eloxiertes Aluminium, Schiefer oder dunkel lackierte Flächen. Die Ruhezone um den Code wird mitgraviert.",
+        ));
+        ui.end_row();
+    });
 }
 
 /// CSV-Datei als Datenliste für den Text im Dialog laden.

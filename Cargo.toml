@@ -34,6 +34,9 @@ rfd = "0.17"
 dirs = "7"
 fontdb = "0.24"
 ttf-parser = "0.25"
+qrcode = { version = "0.14", default-features = false }
+barcoders = { version = "2", default-features = false, features = ["std"] }
+datamatrix = "0.3"
 log = "0.4"
 env_logger = "0.11"
 
