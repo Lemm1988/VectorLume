@@ -1,0 +1,219 @@
+# Pflichtenheft – VectorLume
+
+| | |
+|---|---|
+| Bezug | [Lastenheft](Lastenheft.md) vom 24.10.2026 |
+| Stand | 24.10.2026, Version 0.1.0 (Phase 1 abgeschlossen) |
+| Status | privat |
+
+Legende: ✅ umgesetzt und getestet · 🟡 teilweise · ⏳ geplant (spätere Phase)
+
+## 1. Zielbestimmung
+
+### 1.1 Musskriterien (Phase 1, erste nutzbare Version)
+Alle Anforderungen mit Priorität **M** aus dem Lastenheft: Projektverwaltung, Import, Zeichnen und Bearbeiten,
+Farbebenen mit Linie/Füllen/Bild, GRBL-Steuerung mit Streaming, Rahmen, Job-Ursprung, Vorschau mit Laufzeit,
+Wegoptimierung, Bereichsprüfung, Simulator.
+
+### 1.2 Wunschkriterien (Phasen 2–3)
+Alle Anforderungen mit Priorität **S**: Knotenbearbeitung, Boolesche Operationen, Offset, Arrays, Bild nachzeichnen,
+Materialbibliothek, weitere Steuerungen (Ruida, Marlin, Smoothieware, Galvo), Kamera, Rotary.
+
+### 1.3 Abgrenzung
+- Kein Nachbau von Code, Grafiken, Texten oder Markenzeichen fremder Programme (siehe Lastenheft Kap. 3).
+- Keine Cloud-Funktionen, keine Telemetrie.
+- Keine Steuerung der Laser-Hardware ohne die Sicherheitsmechanismen aus Kapitel 7.
+
+## 2. Produkteinsatz und Umgebung
+
+| Bereich | Festlegung |
+|---|---|
+| Betriebssystem | Windows 10/11 (64 bit); Linux/macOS technisch möglich (plattformunabhängige Bibliotheken) |
+| Grafik | wgpu, unter Windows standardmäßig DirectX 12 (Umgebungsvariable `WGPU_BACKEND` überschreibt) |
+| Steuerungen | GRBL 1.1 (z. B. Sculpfun SF-A9), USB-seriell, 115 200 Baud |
+| Entwicklung | Rust (Edition 2024, Toolchain ≥ 1.85), Cargo-Workspace, Git/GitHub (privat) |
+
+## 3. Architektur
+
+```
+                         ┌───────────────────────────────┐
+                         │  app (vectorlume.exe)          │  Oberfläche: egui/eframe
+                         │  Arbeitsfläche, Panels, Dialoge│
+                         └──┬─────────┬─────────┬────────┘
+                            │         │         │
+             ┌──────────────▼──┐ ┌────▼─────┐ ┌─▼──────────────┐
+             │ vl-io           │ │ vl-cam   │ │ vl-device       │
+             │ SVG, DXF, Bilder│ │ Wege,    │ │ GRBL-Protokoll, │
+             │ Schrift, Export │ │ G-Code,  │ │ Streaming,      │
+             └───────┬─────────┘ │ Zeit     │ │ Simulator       │
+                     │           └──┬───┬───┘ └─────────────────┘
+                     │              │   │
+                     │      ┌───────▼┐  │
+                     │      │vl-raster│ │   Dithering, Bildaufbereitung
+                     │      └───┬────┘  │
+                   ┌─▼──────────▼───────▼─┐
+                   │ vl-core               │  Geometrie, Pfade, Ebenen, Dokument, Projektdatei
+                   └───────────────────────┘
+```
+
+| Crate | Aufgabe | Wichtige Typen/Funktionen |
+|---|---|---|
+| `vl-core` | Geometrie (Punkt, Rechteck, affine Transformation), Bézierpfade und Abflachen, Ebenen/Laser-Einstellungen, Dokument, Projektformat | `Document`, `Object`, `Shape`, `VectorPath`, `CutSettings`, `save_project` |
+| `vl-raster` | Bild auf Gravurraster abtasten (auch gedreht/skaliert), Helligkeit/Kontrast/Gamma, 8 Dithering-Verfahren + Graustufen | `engrave_image`, `dither_gray` |
+| `vl-cam` | Werkzeugwege (Linie, Schraffur mit Winkel/Kreuzschraffur/Overscan, Raster), Reihenfolge (nächster Nachbar, innen vor außen), Zeitschätzung, G-Code, Rahmen, Job-Ursprung | `build_job`, `frame_gcode`, `MachineProfile`, `JobSettings` |
+| `vl-device` | Treiber-Thread mit Zeichenzähl-Streaming, Statusabfrage, Echtzeitbefehle, Not-Stopp, GRBL-Simulator | `Device`, `Command`, `Event`, `SimTransport` |
+| `vl-io` | Import SVG (inkl. Text), DXF (inkl. Blöcke, Bulges, Splines), Bilder; Schrift → Pfad; SVG-Export | `import_file`, `text_to_path`, `export_svg` |
+| `app` | Oberfläche, Bedienlogik, Rückgängig, Einstellungen | `VectorLumeApp` |
+
+Die Oberfläche blockiert nie: Werkzeugwege werden in Hintergrund-Threads berechnet, die Maschinensteuerung läuft in einem
+eigenen Treiber-Thread und kommuniziert über Kanäle.
+
+## 4. Funktionen und Umsetzungsstand
+
+### 4.1 Projekt und Dateien
+| LF | Funktion | Umsetzung | Stand |
+|---|---|---|---|
+| LF-01 | Neu/Öffnen/Speichern/Speichern unter | Projektformat `.vlume` (JSON, Bilder als PNG eingebettet), sicheres Speichern über Temp-Datei, Nachfrage bei ungespeicherten Änderungen | ✅ |
+| LF-02 | Import SVG/DXF/Bilder | SVG über `usvg` (Einheiten, Transformationen, Text → Pfade, Farbe → Ebene), DXF (Linie, Kreis, Bogen, Ellipse, LW-/Polylinie mit Bulge, Spline, Blockreferenzen, Einheiten), PNG/JPG/BMP/GIF/WEBP/TIFF; Drag & Drop; Befehlszeile | ✅ |
+| LF-03 | PDF/AI/EPS/HPGL | – | ⏳ |
+| LF-04 | LightBurn-Projekte lesen | – | ⏳ |
+| LF-05 | Export | G-Code ✅, SVG ✅, DXF ⏳ | 🟡 |
+| LF-06 | Rückgängig, Zwischenablage | 200 Schritte, Ausschneiden/Kopieren/Einfügen/Duplizieren | ✅ |
+| LF-07 | Zuletzt geöffnet, Autosicherung | Liste der letzten 10 Dateien ✅, Autosicherung ⏳ | 🟡 |
+
+### 4.2 Gestalten und Bearbeiten
+| LF | Funktion | Umsetzung | Stand |
+|---|---|---|---|
+| LF-10 | Arbeitsfläche | Bett mit adaptivem Raster, Lineale in Maschinenkoordinaten, Zoom am Mauszeiger, Verschieben (Mitte/Leertaste) | ✅ |
+| LF-11 | Auswählen und Transformieren | Klick, Umschalt-Klick, Rahmenauswahl (links→rechts: vollständig, rechts→links: berührend), Verschieben, 8 Griffe zum Skalieren, Drehgriff (Umschalt = 15°) | ✅ |
+| LF-12 | Zahleneingabe | X/Y/B/H in Maschinenkoordinaten, Seitenverhältnis sperren, Drehen um Winkel | ✅ |
+| LF-13 | Grundformen | Rechteck mit Eckenradius, Ellipse/Kreis, Linie (Umschalt = 45°), Vieleck, Stern | ✅ |
+| LF-14 | Text | Installierte Schriften, fett/kursiv, Höhe, Zeichen-/Zeilenabstand, Ausrichtung, Kerning | 🟡 (Text auf Pfad, variabler Text ⏳) |
+| LF-15 | Spiegeln, Drehen, Ausrichten, Verteilen | inkl. „Auf Arbeitsfläche zentrieren“, Gruppen werden als Einheit behandelt | ✅ |
+| LF-16 | Gruppen, Ausblenden | Gruppieren/Lösen ✅, Ebenen ausblenden ✅, Sperren ⏳ | 🟡 |
+| LF-17–21 | Knoten, Boolesch, Offset, Arrays, Nachzeichnen | – | ⏳ |
+| LF-22 | Fangen | Raster 1 mm ✅, Objektfang ⏳ | 🟡 |
+| LF-23 | Laschen/Stege | – | ⏳ |
+
+### 4.3 Ebenen und Laser-Einstellungen
+| LF | Funktion | Umsetzung | Stand |
+|---|---|---|---|
+| LF-30 | 30 Farbebenen | eigene Palette, Klick weist Auswahl zu | ✅ |
+| LF-31 | Modi | Linie, Füllen, Bild | ✅ (Offset-Füllen ⏳) |
+| LF-32 | Basiswerte | Geschwindigkeit, Leistung max./min., Durchgänge, Ausgabe, Luft (M8/M9) | ✅ |
+| LF-33 | Füllen | Zeilenabstand (mit dpi-Anzeige), Winkel, bidirektional, Kreuzschraffur, Overscan; Gerade-Ungerade-Regel (Löcher bleiben frei) | ✅ |
+| LF-34 | Bildmodi | Schwellwert, Floyd-Steinberg, Jarvis, Stucki, Atkinson, Burkes, Sierra, Bayer 8×8, Graustufen; Negativ | ✅ |
+| LF-35 | Bildanpassung | Helligkeit, Kontrast, Gamma, live in der Ansicht | ✅ |
+| LF-36 | Reihenfolge | Ebenen verschieben; **zusätzlich „Gravieren vor Schneiden“** (Bild/Füllen vor Schnitten) | ✅ |
+| LF-37–39 | Materialbibliothek, Z/Kerf, Testmuster | – | ⏳ |
+
+### 4.4 Maschinensteuerung
+| LF | Funktion | Umsetzung | Stand |
+|---|---|---|---|
+| LF-40 | Verbindung | Anschlussliste mit USB-Kennung, Baudrate aus Profil, automatische Abfrage `$I` und `$$` | ✅ |
+| LF-41 | Status und Konsole | Zustand, Position (WPos/MPos+WCO) alle 200 ms, Fehler- und Alarmcodes mit deutschem Text, Konsole mit Schnellbefehlen | ✅ |
+| LF-42 | Referenzfahrt, Entsperren, Jog | `$H`, `$X`, `$J=` mit Schrittweite und Geschwindigkeit, Richtungen passend zur Nullpunkt-Ecke, Jog-Abbruch | ✅ |
+| LF-43 | Rahmen | Umriss der Ausgabe abfahren (Laser aus oder ≤ 5 % laut Profil), Anfahrt immer im Eilgang | ✅ |
+| LF-44 | Job-Steuerung | Start, Pause (`!`), Fortsetzen (`~`), Stopp (Feed-Hold + Soft-Reset), Fortschritt, Restzeit | ✅ |
+| LF-45 | Job-Ursprung | Absolut, Benutzer-Ursprung, aktuelle Position (G91 mit fehlerfreier Rundung), 9 Ankerpunkte | ✅ |
+| LF-46 | Maschinenprofil | Fläche, Nullpunkt-Ecke, S-Max, M3/M4, Eilgang, Beschleunigung, Luft-Befehle, Empfangspuffer, Rahmen; „Werte vom Gerät“ (`$30`, `$130/$131`, `$110`, `$120`) | ✅ |
+| LF-47 | Simulator | GRBL-Nachbildung mit 128-Byte-Puffer, Planer (15), Echtzeitbefehlen, Alarm nach Reset | ✅ |
+| LF-48–50 | weitere Steuerungen, Netzwerk, Rotary/Kamera | – | ⏳ |
+
+### 4.5 Vorschau und Optimierung
+| LF | Funktion | Umsetzung | Stand |
+|---|---|---|---|
+| LF-60 | Vorschau | Werkzeugweg, Rasterbilder, Leerfahrten, Laserweg, Laufzeit (Beschleunigungsmodell), Zeilenzahl | ✅ |
+| LF-61 | Optimierung | nächster Nachbar mit Bounding-Box-Vorfilter, Startpunkt auf geschlossenen Konturen frei wählbar, offene Pfade werden umgedreht, „innen vor außen“ als Abhängigkeitsgraph | ✅ |
+| LF-62 | Bereichsprüfung | Job inkl. Overscan gegen Arbeitsfläche, Bestätigung bei Überschreitung | ✅ |
+| LF-63 | Abspielbare Vorschau | Schieberegler mit Kopfmarkierung | ✅ |
+
+## 5. Daten
+
+### 5.1 Koordinatensysteme
+- **Dokument:** mm, X nach rechts, Y nach unten, (0,0) = hintere linke Ecke (Bildschirmansicht).
+- **Maschine:** abhängig von der Nullpunkt-Ecke im Profil (z. B. vorne links: `x = X`, `y = Bett − Y`). Die Abbildung ist
+  ihre eigene Umkehrung und wird nur an einer Stelle definiert (`MachineProfile::doc_to_machine`).
+- **Ausgabe:** absolut, relativ zum Benutzer-Ursprung oder relativ zur Kopfposition (G91). Relative Bewegungen werden aus
+  auf Mikrometer gerundeten Absolutwerten gebildet, dadurch summieren sich keine Rundungsfehler.
+
+### 5.2 Projektdatei `.vlume`
+JSON mit `format`, `version`, `generator` und dem Dokument (Objekte mit Transformation, Pfadsegmenten bzw. Bild als
+Base64-PNG, 30 Ebenen, Ebenenreihenfolge). Ältere Dateien werden beim Laden repariert (`Document::repair`), neuere
+Formatversionen werden mit Hinweis abgelehnt.
+
+### 5.3 Einstellungen
+`%APPDATA%\VectorLume\settings.json`: Maschinenprofil, Job-Optionen, Design, letzte Dateien, Jog-Schritt, Sicherheitshinweis bestätigt.
+
+## 6. Schnittstellen
+
+### 6.1 GRBL
+- **Streaming:** Zeichenzähl-Verfahren – es sind nie mehr Bytes unterwegs als der Empfangspuffer fasst (Standard 127).
+- **Echtzeitbefehle:** `?` (alle 200 ms), `!`, `~`, `0x18` (Reset), `0x85` (Jog-Abbruch).
+- **Start:** nach dem Öffnen Warten auf die Begrüßung oder 2,5 s (Arduino-Boards starten beim Öffnen neu).
+- **Fehler im Job:** sofortiger Stopp mit Meldung der Zeile; Alarm beendet den Job.
+- **Job fertig:** alle Zeilen bestätigt und Maschine wieder im Zustand „Idle“.
+
+### 6.2 G-Code (GRBL-Laser-Modus)
+`G21`, `G90`/`G91`, einmalig `M4 S0` (oder `M3`), danach Leistung über `S` je Bewegung, `G0` für Eilgänge,
+modale Befehle und unveränderte Achsen werden weggelassen (weniger Bytes → flüssigeres Rastern). Am Ende `M5`,
+Luft aus, optional Rückfahrt, im Relativmodus zurück auf `G90`. Kommentare nur ASCII, beim Senden entfernt.
+
+## 7. Sicherheitskonzept
+
+| Risiko | Maßnahme |
+|---|---|
+| Laser brennt bei Leerfahrten | Laser-Modus `$32` wird beim Verbinden gelesen; bei `$32=0` Warnung und Startsperre mit Angebot `$32=1` |
+| Laser bleibt nach Abbruch an | Stopp = Feed-Hold + Soft-Reset; ebenso bei Verbindungsfehler und beim Beenden des Programms |
+| Befehle während des Jobs | Konsole, Jog, Referenzfahrt sind gesperrt; nur Pause/Stopp |
+| Job außerhalb der Fläche | Prüfung inkl. Overscan, Bestätigung nötig |
+| Rahmenfahren mit Leistung | Standard 0 %, maximal 5 %, Anfahrt immer im Eilgang |
+| Bedienfehler | Einmaliger Sicherheitshinweis (Klasse 4, Schutzbrille, Aufsicht, Belüftung) vor dem ersten Job |
+| Beenden während Job | Schließen wird verhindert, Hinweis erscheint |
+
+## 8. Qualitätssicherung
+
+- **Automatische Tests (51):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+  Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
+  Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
+  SVG/DXF/Bild/Schrift-Import, Rückgängig.
+- **End-to-End:** Ein Job mit Schnitt, Kreuzschraffur und Graustufenbild sowie die Rahmenfahrt werden zeilenweise durch
+  den Simulator gestreamt – jede Zeile muss mit `ok` bestätigt werden.
+- **Oberfläche:** manuell bzw. per automatisierten Klicks geprüft (Zeichnen, Drehen, Text, Import, Vorschau, Job im
+  Simulator starten und stoppen).
+- **Statische Prüfung:** `cargo clippy --workspace --all-targets` ohne Warnungen, `cargo fmt`.
+- **Hardware-Test (durch den Auftraggeber):** zuerst Rahmen ohne Leistung, dann ein kleiner Testjob mit 5–10 % Leistung.
+
+Befehle:
+```
+cargo test --workspace
+cargo clippy --workspace --all-targets
+cargo build --release
+```
+
+## 9. Abhängigkeiten und Lizenzen
+
+Alle Abhängigkeiten sind freizügig lizenziert (MIT, Apache-2.0, BSD, Zlib, ISC, Unicode); Pakete mit GPL/LGPL-Option
+werden unter ihrer MIT/Apache-Alternative genutzt. `serialport` steht unter MPL-2.0 (Änderungen an dessen Dateien wären
+offenzulegen, die eigene Software nicht). Damit bleiben Veröffentlichung als Open Source und Verkauf möglich.
+
+| Paket | Zweck | Lizenz |
+|---|---|---|
+| eframe/egui 0.36 | Oberfläche | MIT/Apache-2.0 |
+| egui-phosphor 0.14 | Icons | MIT/Apache-2.0 |
+| usvg 0.48 | SVG | Apache-2.0/MIT |
+| dxf 0.6 | DXF | MIT |
+| image 0.25 | Bilder | MIT/Apache-2.0 |
+| serialport 4.10 | USB/seriell | MPL-2.0 |
+| rfd 0.17 | Dateidialoge | MIT |
+| fontdb 0.24, ttf-parser 0.25 | Schriften | MIT, MIT/Apache-2.0 |
+| serde, serde_json, base64, dirs, log | Infrastruktur | MIT/Apache-2.0 |
+
+## 10. Weiteres Vorgehen
+
+| Phase | Inhalt |
+|---|---|
+| 1 ✅ | Nutzbare Version für GRBL/SF-A9 (dieses Dokument) |
+| 2 | Knotenbearbeitung, Boolesche Operationen, Offset/Offset-Füllen, Arrays, Laschen, Materialbibliothek, Testmuster-Generator, Autosicherung, Objektfang, PDF-Import |
+| 3 | Bild nachzeichnen, Text auf Pfad/variabler Text, Rotary, Kamera, Marlin/Smoothieware, danach Ruida und Galvo (Hardware-Tester nötig) |
+| 4 | Eigene Verbesserungen, Installer, mehrsprachige Oberfläche, Veröffentlichung |

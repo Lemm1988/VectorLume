@@ -1,0 +1,15 @@
+[package]
+name = "vl-io"
+description = "VectorLume: Import von SVG, DXF, Bildern und Schriften"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+vl-core.workspace = true
+usvg.workspace = true
+dxf.workspace = true
+image.workspace = true
+fontdb.workspace = true
+ttf-parser.workspace = true

@@ -1,0 +1,41 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[workspace.dependencies]
+vl-core = { path = "crates/vl-core" }
+vl-raster = { path = "crates/vl-raster" }
+vl-io = { path = "crates/vl-io" }
+vl-cam = { path = "crates/vl-cam" }
+vl-device = { path = "crates/vl-device" }
+
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "gif", "webp", "tiff"] }
+base64 = "0.23"
+usvg = "0.48"
+dxf = "0.6"
+serialport = "4.10"
+eframe = "0.36"
+egui = "0.36"
+egui-phosphor = "0.14"
+rfd = "0.17"
+dirs = "7"
+fontdb = "0.24"
+ttf-parser = "0.25"
+log = "0.4"
+env_logger = "0.11"
+
+[profile.dev.package."*"]
+# Bildverarbeitung ist im Debug-Build sonst unbrauchbar langsam.
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 4

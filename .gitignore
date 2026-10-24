@@ -1,0 +1,8 @@
+/target
+*.pdb
+*.gcode
+*.nc
+!tests/fixtures/*.gcode
+.vs/
+.idea/
+.vscode/

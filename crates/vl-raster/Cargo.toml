@@ -1,0 +1,10 @@
+[package]
+name = "vl-raster"
+description = "VectorLume: Bildaufbereitung und Dithering fuer die Lasergravur"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+vl-core.workspace = true

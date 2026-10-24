@@ -1,0 +1,12 @@
+[package]
+name = "vl-cam"
+description = "VectorLume: Werkzeugwege, Optimierung, Zeitschaetzung und G-Code"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+vl-core.workspace = true
+vl-raster.workspace = true
+serde.workspace = true

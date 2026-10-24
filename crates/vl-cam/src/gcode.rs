@@ -1,0 +1,301 @@
+//! G-Code-Erzeugung für GRBL-Lasersteuerungen (GRBL 1.1 im Laser-Modus `$32=1`).
+
+use crate::toolpath::{BlockKind, Op, Toolpath};
+use vl_core::Point;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoordMode {
+    /// G90: absolute Koordinaten.
+    Absolute,
+    /// G91: relative Bewegungen ab der aktuellen Kopfposition (Start = 0/0).
+    Relative,
+}
+
+#[derive(Clone, Debug)]
+pub struct GcodeOptions {
+    pub s_max: f64,
+    pub dynamic_power: bool,
+    pub air_on: String,
+    pub air_off: String,
+    pub air_supported: bool,
+    pub coord_mode: CoordMode,
+    /// Nach dem Job im Eilgang hierhin fahren (Ausgabe-Koordinaten).
+    pub return_to: Option<Point>,
+    pub comments: Vec<String>,
+    pub layer_names: Vec<String>,
+}
+
+/// Koordinaten werden intern in Mikrometern gerundet. Dadurch sind relative Bewegungen exakt
+/// (kein Aufsummieren von Rundungsfehlern).
+fn to_um(v: f64) -> i64 {
+    (v * 1000.0).round() as i64
+}
+
+fn fmt_um(v: i64) -> String {
+    let sign = if v < 0 { "-" } else { "" };
+    let a = v.unsigned_abs();
+    let (int, frac) = (a / 1000, a % 1000);
+    if frac == 0 {
+        return format!("{sign}{int}");
+    }
+    let frac = format!("{frac:03}");
+    format!("{sign}{int}.{}", frac.trim_end_matches('0'))
+}
+
+fn fmt_num(v: f64) -> String {
+    fmt_um(to_um(v))
+}
+
+struct Emitter<'a> {
+    out: Vec<String>,
+    opts: &'a GcodeOptions,
+    /// Zuletzt ausgegebene Position; `None` = unbekannt (Absolutmodus vor der ersten Bewegung).
+    pos: Option<(i64, i64)>,
+    motion: Option<u8>,
+    feed: Option<i64>,
+    s: Option<i64>,
+}
+
+impl Emitter<'_> {
+    fn axes(&mut self, p: Point) -> Option<String> {
+        let target = (to_um(p.x), to_um(p.y));
+        if self.pos == Some(target) {
+            return None;
+        }
+        let mut words = String::new();
+        let (dx, dy) = match self.pos {
+            Some(q) => (target.0 - q.0, target.1 - q.1),
+            None => (1, 1),
+        };
+        let (vx, vy) = match self.opts.coord_mode {
+            CoordMode::Absolute => (target.0, target.1),
+            CoordMode::Relative => (dx, dy),
+        };
+        if dx != 0 {
+            words.push_str(&format!("X{}", fmt_um(vx)));
+        }
+        if dy != 0 {
+            if !words.is_empty() {
+                words.push(' ');
+            }
+            words.push_str(&format!("Y{}", fmt_um(vy)));
+        }
+        self.pos = Some(target);
+        Some(words)
+    }
+
+    fn rapid(&mut self, p: Point) {
+        if let Some(axes) = self.axes(p) {
+            self.motion = Some(0);
+            self.out.push(format!("G0 {axes}"));
+        }
+    }
+
+    fn feed_move(&mut self, p: Point, feed: f64, power: f32) {
+        let Some(axes) = self.axes(p) else { return };
+        let mut line = String::new();
+        if self.motion != Some(1) {
+            line.push_str("G1 ");
+            self.motion = Some(1);
+        }
+        line.push_str(&axes);
+        let f = feed.round() as i64;
+        if self.feed != Some(f) {
+            line.push_str(&format!(" F{f}"));
+            self.feed = Some(f);
+        }
+        let s = (power as f64 * self.opts.s_max).round() as i64;
+        if self.s != Some(s) {
+            line.push_str(&format!(" S{s}"));
+            self.s = Some(s);
+        }
+        self.out.push(line);
+    }
+}
+
+fn ascii_comment(text: &str) -> String {
+    // GRBL-Steuerungen vertragen nicht immer Umlaute, deshalb nur ASCII in Kommentaren.
+    let cleaned: String = text
+        .chars()
+        .map(|c| match c {
+            'ä' => "ae".into(),
+            'ö' => "oe".into(),
+            'ü' => "ue".into(),
+            'Ä' => "Ae".into(),
+            'Ö' => "Oe".into(),
+            'Ü' => "Ue".into(),
+            'ß' => "ss".into(),
+            c if c.is_ascii() && !c.is_ascii_control() => c.to_string(),
+            _ => "?".into(),
+        })
+        .collect();
+    format!("; {cleaned}")
+}
+
+/// Erzeugt G-Code. `map` rechnet Dokument- in Ausgabekoordinaten um.
+pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) -> Vec<String> {
+    let start = match opts.coord_mode {
+        CoordMode::Absolute => None,
+        CoordMode::Relative => Some((0, 0)),
+    };
+    let mut e = Emitter { out: Vec::new(), opts, pos: start, motion: None, feed: None, s: None };
+    for c in &opts.comments {
+        e.out.push(ascii_comment(c));
+    }
+    e.out.push("G21".into());
+    e.out.push(match opts.coord_mode {
+        CoordMode::Absolute => "G90".into(),
+        CoordMode::Relative => "G91".into(),
+    });
+    e.out.push(if opts.dynamic_power { "M4 S0".into() } else { "M3 S0".into() });
+    e.s = Some(0);
+
+    let mut air = false;
+    for block in &tp.blocks {
+        if block.ops.is_empty() {
+            continue;
+        }
+        let kind = match block.kind {
+            BlockKind::Line => "Linie",
+            BlockKind::Fill => "Fuellen",
+            BlockKind::Raster => "Bild",
+        };
+        let name = opts.layer_names.get(block.layer).cloned().unwrap_or_else(|| format!("L{:02}", block.layer + 1));
+        e.out.push(ascii_comment(&format!("Ebene {name} - {kind} - Durchgang {}", block.pass + 1)));
+        let want_air = block.air && opts.air_supported;
+        if want_air != air {
+            e.out.push(if want_air { opts.air_on.clone() } else { opts.air_off.clone() });
+            air = want_air;
+        }
+        for op in &block.ops {
+            match *op {
+                Op::Rapid(p) => e.rapid(map(p)),
+                Op::Move { to, power } => e.feed_move(map(to), block.feed, power),
+            }
+        }
+    }
+    e.out.push("M5".into());
+    if air {
+        e.out.push(opts.air_off.clone());
+    }
+    if let Some(p) = opts.return_to {
+        e.rapid(p);
+    }
+    if opts.coord_mode == CoordMode::Relative {
+        e.out.push("G90".into());
+    }
+    e.out.push(ascii_comment("Ende"));
+    e.out
+}
+
+/// Bereitet Zeilen für das Senden an die Steuerung vor: Kommentare und Leerzeilen entfernen.
+pub fn strip_for_streaming(lines: &[String]) -> Vec<String> {
+    lines
+        .iter()
+        .filter_map(|l| {
+            let code = match l.find(';') {
+                Some(i) => &l[..i],
+                None => l.as_str(),
+            };
+            let code = code.trim();
+            (!code.is_empty()).then(|| code.to_string())
+        })
+        .collect()
+}
+
+pub fn fmt_mm(v: f64) -> String {
+    fmt_num(v)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::toolpath::Block;
+
+    fn opts(mode: CoordMode) -> GcodeOptions {
+        GcodeOptions {
+            s_max: 1000.0,
+            dynamic_power: true,
+            air_on: "M8".into(),
+            air_off: "M9".into(),
+            air_supported: true,
+            coord_mode: mode,
+            return_to: Some(Point::ZERO),
+            comments: vec!["Test äöü".into()],
+            layer_names: vec![],
+        }
+    }
+
+    fn square() -> Toolpath {
+        let pts = [Point::new(10.0, 10.0), Point::new(20.0, 10.0), Point::new(20.0, 20.0), Point::new(10.0, 20.0)];
+        let mut ops = vec![Op::Rapid(pts[0])];
+        for p in pts[1..].iter().chain(std::iter::once(&pts[0])) {
+            ops.push(Op::Move { to: *p, power: 0.5 });
+        }
+        Toolpath {
+            blocks: vec![Block {
+                layer: 0,
+                kind: BlockKind::Line,
+                pass: 0,
+                feed: 1200.0,
+                air: true,
+                ops,
+                raster: None,
+            }],
+            rasters: vec![],
+        }
+    }
+
+    #[test]
+    fn number_format() {
+        assert_eq!(fmt_num(1.0), "1");
+        assert_eq!(fmt_num(-0.0004), "0");
+        assert_eq!(fmt_num(-1.25), "-1.25");
+        assert_eq!(fmt_num(12.3456), "12.346");
+    }
+
+    #[test]
+    fn absolute_square() {
+        let g = emit(&square(), &|p| p, &opts(CoordMode::Absolute));
+        let code = strip_for_streaming(&g);
+        assert_eq!(
+            code,
+            vec![
+                "G21",
+                "G90",
+                "M4 S0",
+                "M8",
+                "G0 X10 Y10",
+                "G1 X20 F1200 S500",
+                "Y20",
+                "X10",
+                "Y10",
+                "M5",
+                "M9",
+                "G0 X0 Y0",
+            ]
+        );
+        assert!(g[0].is_ascii());
+    }
+
+    #[test]
+    fn relative_moves_sum_to_absolute() {
+        let g = emit(&square(), &|p| p, &opts(CoordMode::Relative));
+        let code = strip_for_streaming(&g);
+        assert_eq!(code[1], "G91");
+        assert_eq!(code.last().unwrap(), "G90");
+        // Alle relativen Bewegungen addiert ergeben die Rückkehr zum Start.
+        let (mut x, mut y) = (0i64, 0i64);
+        for line in &code {
+            for word in line.split_whitespace() {
+                if let Some(v) = word.strip_prefix('X') {
+                    x += to_um(v.parse::<f64>().unwrap());
+                }
+                if let Some(v) = word.strip_prefix('Y') {
+                    y += to_um(v.parse::<f64>().unwrap());
+                }
+            }
+        }
+        assert_eq!((x, y), (0, 0));
+    }
+}

@@ -1,0 +1,15 @@
+[package]
+name = "vl-device"
+description = "VectorLume: GRBL-Treiber, Streaming und Simulator"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serialport.workspace = true
+log.workspace = true
+
+[dev-dependencies]
+vl-core.workspace = true
+vl-cam.workspace = true
