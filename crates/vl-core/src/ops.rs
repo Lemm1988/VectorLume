@@ -226,10 +226,64 @@ pub fn split_for_tabs(poly: &Polyline, count: usize, width: f64) -> Vec<Polyline
     pieces
 }
 
+/// Verteilt `count` Punkte gleichmäßig entlang einer Polylinie (geschlossen: rundherum, offen: von Anfang bis
+/// Ende) und liefert je Punkt die Richtung der Linie dort (Bogenmaß).
+pub fn points_along(poly: &Polyline, count: usize) -> Vec<(Point, f64)> {
+    let mut pts = poly.points.clone();
+    if poly.closed && pts.len() > 2 {
+        pts.push(pts[0]);
+    }
+    let edges: Vec<(Point, Point, f64)> =
+        pts.windows(2).map(|w| (w[0], w[1], w[0].distance(w[1]))).filter(|e| e.2 > 1e-12).collect();
+    let total: f64 = edges.iter().map(|e| e.2).sum();
+    if count == 0 || edges.is_empty() {
+        return Vec::new();
+    }
+    let step = if poly.closed {
+        total / count as f64
+    } else if count > 1 {
+        total / (count - 1) as f64
+    } else {
+        0.0
+    };
+    let mut out = Vec::with_capacity(count);
+    let (mut edge, mut walked) = (0, 0.0);
+    for i in 0..count {
+        let s = (step * i as f64).min(total);
+        while edge + 1 < edges.len() && walked + edges[edge].2 < s - 1e-9 {
+            walked += edges[edge].2;
+            edge += 1;
+        }
+        let (a, b, len) = edges[edge];
+        let t = ((s - walked) / len).clamp(0.0, 1.0);
+        let d = b - a;
+        out.push((a.lerp(b, t), d.y.atan2(d.x)));
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::path::point_in_polylines;
+
+    #[test]
+    fn points_along_open_and_closed() {
+        let line = Polyline::new(vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(10.0, 10.0)], false);
+        let pts = points_along(&line, 3);
+        assert_eq!(pts.len(), 3);
+        assert!(pts[0].0.distance(Point::new(0.0, 0.0)) < 1e-9 && pts[0].1.abs() < 1e-9);
+        assert!(pts[1].0.distance(Point::new(10.0, 0.0)) < 1e-9);
+        assert!(pts[2].0.distance(Point::new(10.0, 10.0)) < 1e-9);
+        assert!((pts[2].1 - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
+        let square = Polyline::new(
+            vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(10.0, 10.0), Point::new(0.0, 10.0)],
+            true,
+        );
+        let pts = points_along(&square, 8);
+        assert_eq!(pts.len(), 8);
+        assert!(pts[7].0.distance(Point::new(0.0, 5.0)) < 1e-9, "{:?}", pts[7]);
+    }
 
     fn square(x: f64, y: f64, s: f64) -> Polyline {
         Polyline::new(

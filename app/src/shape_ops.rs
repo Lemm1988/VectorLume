@@ -14,6 +14,8 @@ const TOLERANCE: f64 = 0.01;
 pub enum ArrayMode {
     Grid,
     Circle,
+    /// Kopien entlang eines Pfades
+    Path,
 }
 
 pub struct ShapeDialogs {
@@ -32,6 +34,12 @@ pub struct ShapeDialogs {
     pub circle_radius: f64,
     pub circle_angle: f64,
     pub circle_rotate: bool,
+    pub path_count: u32,
+    pub path_rotate: bool,
+    /// Vorlage nach dem Verteilen entfernen.
+    pub path_remove_template: bool,
+    /// Pfad = zuerst statt zuletzt gewählte Einheit.
+    pub path_swap: bool,
 }
 
 impl Default for ShapeDialogs {
@@ -52,6 +60,10 @@ impl Default for ShapeDialogs {
             circle_radius: 30.0,
             circle_angle: 360.0,
             circle_rotate: true,
+            path_count: 10,
+            path_rotate: true,
+            path_remove_template: true,
+            path_swap: false,
         }
     }
 }
@@ -197,7 +209,68 @@ impl VectorLumeApp {
         self.mark_changed();
     }
 
+    /// Für „Entlang Pfad“: (Pfad-Einheit, Vorlage-Einheiten). Der Pfad ist standardmäßig die zuletzt gewählte
+    /// Einheit.
+    fn path_and_templates(&self) -> Option<(Vec<ObjectId>, Vec<Vec<ObjectId>>)> {
+        let mut units = self.ordered_units();
+        if units.len() < 2 {
+            return None;
+        }
+        // ordered_units stellt die zuerst gewählte Einheit nach vorn; die zuletzt gewählte suchen
+        let last = self.selection.last()?;
+        let last_idx = units.iter().position(|u| u.contains(last))?;
+        let path_idx = if self.shape_dialogs.path_swap { 0 } else { last_idx };
+        let path = units.remove(path_idx);
+        Some((path, units))
+    }
+
+    fn unit_name(&self, unit: &[ObjectId]) -> String {
+        let name = unit.first().and_then(|id| self.doc.get(*id)).map(|o| o.name.clone()).unwrap_or_default();
+        if unit.len() > 1 { format!("{name} (+{})", unit.len() - 1) } else { name }
+    }
+
+    fn apply_along_path(&mut self) {
+        let Some((path_unit, templates)) = self.path_and_templates() else {
+            self.toast(ToastKind::Info, "Bitte die Vorlage und danach den Pfad auswählen (Umschalt+Klick).");
+            return;
+        };
+        let Some(line) = self.unit_polylines(&path_unit).into_iter().max_by(|a, b| a.length().total_cmp(&b.length()))
+        else {
+            self.toast(ToastKind::Error, "Der Pfad enthält keine Linien.");
+            return;
+        };
+        let d = &self.shape_dialogs;
+        let spots = vl_core::ops::points_along(&line, d.path_count.max(1) as usize);
+        let (rotate, remove) = (d.path_rotate, d.path_remove_template);
+        let template: Vec<ObjectId> = templates.concat();
+        let center = self.doc.bounds_of(&template).center();
+        let originals: Vec<vl_core::Object> =
+            self.doc.objects.iter().filter(|o| template.contains(&o.id)).cloned().collect();
+        self.checkpoint();
+        let mut created = Vec::new();
+        for (p, angle) in &spots {
+            let ids = self.doc.duplicate(&originals, Point::ZERO);
+            let mut t = Affine::translate(-center.x, -center.y);
+            if rotate {
+                t = t.then(&Affine::rotate(*angle));
+            }
+            t = t.then(&Affine::translate(p.x, p.y));
+            self.doc.transform_objects(&ids, &t);
+            created.extend(ids);
+        }
+        if remove {
+            self.doc.remove(&template);
+        }
+        self.selection = created;
+        self.mark_changed();
+        self.toast(ToastKind::Success, format!("{} Exemplare entlang des Pfades angelegt.", spots.len()));
+    }
+
     fn apply_array(&mut self) {
+        if self.shape_dialogs.array_mode == ArrayMode::Path {
+            self.apply_along_path();
+            return;
+        }
         if self.selection.is_empty() {
             self.toast(ToastKind::Info, "Bitte zuerst Objekte auswählen.");
             return;
@@ -236,6 +309,7 @@ impl VectorLumeApp {
                     copies.push(t);
                 }
             }
+            ArrayMode::Path => {}
         }
         self.checkpoint();
         let mut all = self.selection.clone();
@@ -318,7 +392,16 @@ fn array_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
     }
     let mut open = true;
     let mut apply = false;
-    let has = !app.selection.is_empty();
+    let (path_label, template_label, has) = match app.shape_dialogs.array_mode {
+        ArrayMode::Path => match app.path_and_templates() {
+            Some((p, t)) => {
+                let names: Vec<String> = t.iter().map(|u| app.unit_name(u)).collect();
+                (app.unit_name(&p), names.join(", "), true)
+            }
+            None => ("–".to_string(), "Vorlage und Pfad auswählen".to_string(), false),
+        },
+        _ => (String::new(), String::new(), !app.selection.is_empty()),
+    };
     egui::Window::new(format!("{} Reihen-Kopien", icon::GRID_NINE))
         .open(&mut open)
         .collapsible(false)
@@ -330,6 +413,7 @@ fn array_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut d.array_mode, ArrayMode::Grid, format!("{} Raster", icon::GRID_FOUR));
                 ui.selectable_value(&mut d.array_mode, ArrayMode::Circle, format!("{} Kreis", icon::CIRCLE_DASHED));
+                ui.selectable_value(&mut d.array_mode, ArrayMode::Path, format!("{} Entlang Pfad", icon::PATH));
             });
             ui.add_space(6.0);
             egui::Grid::new("array").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| match d.array_mode {
@@ -362,11 +446,35 @@ fn array_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     ui.checkbox(&mut d.circle_rotate, "Kopien mitdrehen");
                     ui.end_row();
                 }
+                ArrayMode::Path => {
+                    ui.label("Pfad");
+                    ui.label(RichText::new(&path_label).strong());
+                    ui.end_row();
+                    ui.label("Vorlage");
+                    ui.label(&template_label);
+                    ui.end_row();
+                    ui.label("");
+                    ui.checkbox(&mut d.path_swap, "Pfad und Vorlage tauschen");
+                    ui.end_row();
+                    ui.label("Anzahl");
+                    ui.add(DragValue::new(&mut d.path_count).range(1..=1000));
+                    ui.end_row();
+                    ui.label("");
+                    ui.checkbox(&mut d.path_rotate, "An Pfadrichtung ausrichten");
+                    ui.end_row();
+                    ui.label("");
+                    ui.checkbox(&mut d.path_remove_template, "Vorlage entfernen");
+                    ui.end_row();
+                }
             });
             ui.label(
                 RichText::new(match d.array_mode {
                     ArrayMode::Grid => "Abstand = Lücke zwischen den Kopien.",
                     ArrayMode::Circle => "Das Original liegt oben, der Kreismittelpunkt um den Radius darunter.",
+                    ArrayMode::Path => {
+                        "Vorlage auswählen, dann mit Umschalt+Klick den Pfad. Die Kopien werden gleichmäßig \
+                         verteilt (offene Pfade von Anfang bis Ende)."
+                    }
                 })
                 .small()
                 .color(pal.text_weak),
