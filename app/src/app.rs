@@ -213,6 +213,7 @@ pub struct VectorLumeApp {
     pub test: crate::materials::TestUi,
     pub autosave: crate::autosave::Autosave,
     pub shape_dialogs: crate::shape_ops::ShapeDialogs,
+    pub trace: crate::trace_ui::TraceUi,
     last_edit: Option<(&'static str, Instant)>,
     last_title: String,
     close_confirmed: bool,
@@ -291,6 +292,7 @@ impl VectorLumeApp {
             test: crate::materials::TestUi::default(),
             autosave: crate::autosave::Autosave::default(),
             shape_dialogs: crate::shape_ops::ShapeDialogs::default(),
+            trace: Default::default(),
             last_edit: None,
             last_title: String::new(),
             close_confirmed: false,
@@ -1254,6 +1256,7 @@ impl eframe::App for VectorLumeApp {
         crate::dialogs::show(self, &ctx);
         crate::materials::show(self, &ctx);
         crate::shape_ops::show(self, &ctx);
+        crate::trace_ui::show(self, &ctx);
         self.update_preview();
         self.update_title(&ctx);
         self.autosave.tick(&self.doc, self.revision, self.dirty, self.file_path.as_deref());

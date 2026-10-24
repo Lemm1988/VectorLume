@@ -583,6 +583,19 @@ impl VectorLumeApp {
                 self.textures.preview(&ctx, &job, generation).iter().map(|t| t.id()).collect();
             self.draw_job(&clip, &tf, pal, dark, &job, self.preview.progress, &textures, true);
         }
+        if self.trace.open
+            && let Some(paths) = self.trace.result.clone()
+        {
+            let stroke = Stroke::new(1.4, pal.accent);
+            for path in paths.iter() {
+                for poly in path.flatten(&vt, 0.4) {
+                    let pts: Vec<Pos2> = poly.points.iter().map(|p| p2(*p)).collect();
+                    if pts.len() >= 2 {
+                        clip.add(if poly.closed { Shape::closed_line(pts, stroke) } else { Shape::line(pts, stroke) });
+                    }
+                }
+            }
+        }
         if self.test.open
             && self.test.show_on_canvas
             && let Some(job) = self.test.job.clone()
@@ -993,6 +1006,12 @@ impl VectorLumeApp {
             }
             if ui.add_enabled(has, egui::Button::new(format!("{} Gruppierung lösen", i::SELECTION_SLASH))).clicked() {
                 self.ungroup();
+                ui.close();
+            }
+            if self.selection.iter().any(|id| self.doc.get(*id).is_some_and(|o| o.is_image()))
+                && ui.button(format!("{} Bild nachzeichnen…", i::SCAN)).clicked()
+            {
+                self.open_trace();
                 ui.close();
             }
             ui.separator();

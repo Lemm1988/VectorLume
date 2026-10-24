@@ -361,6 +361,11 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, "Reihen-Kopien…", "", has) {
         app.shape_dialogs.array_open = true;
     }
+    ui.separator();
+    let image = app.selection.iter().any(|id| app.doc.get(*id).is_some_and(|o| o.is_image()));
+    if menu_item(ui, "Bild nachzeichnen…", "", image) {
+        app.open_trace();
+    }
 }
 
 fn view_menu(app: &mut VectorLumeApp, ui: &mut Ui) {

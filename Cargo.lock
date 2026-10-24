@@ -4356,6 +4356,7 @@ dependencies = [
 name = "vl-raster"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "vl-core",
 ]
 
