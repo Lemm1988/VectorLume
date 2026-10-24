@@ -88,6 +88,7 @@ mod tests {
                 air: false,
                 ops: vec![Op::Move { to: Point::new(100.0, 0.0), power: 1.0 }],
                 raster: None,
+                z: None,
             }],
             rasters: vec![],
         };

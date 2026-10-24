@@ -180,6 +180,12 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     );
                 });
                 ui.end_row();
+                ui.label("Z-Achse");
+                ui.checkbox(&mut p.z_axis, "vorhanden (Fokus per G-Code)").on_hover_text(
+                    "Nur aktivieren, wenn die Steuerung eine Z-Achse bzw. einen motorischen Tisch hat. \
+                     Dann werden Z-Versatz und Absenkung je Durchgang ausgegeben.",
+                );
+                ui.end_row();
                 ui.label("Baudrate");
                 egui::ComboBox::from_id_salt("baud").selected_text(p.baud.to_string()).show_ui(ui, |ui| {
                     for b in [9600, 38400, 57600, 115_200, 230_400, 250_000, 921_600] {

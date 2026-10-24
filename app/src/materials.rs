@@ -125,6 +125,7 @@ fn axis_ui(ui: &mut Ui, id: &str, axis: &mut TestAxis) {
                         TestParam::Power => (10.0, 50.0),
                         TestParam::Passes => (1.0, 5.0),
                         TestParam::Interval => (0.05, 0.25),
+                        TestParam::Focus => (-2.0, 2.0),
                     };
                     axis.min = min;
                     axis.max = max;
@@ -137,6 +138,7 @@ fn axis_ui(ui: &mut Ui, id: &str, axis: &mut TestAxis) {
             TestParam::Power => (0.5, 1),
             TestParam::Passes => (0.05, 0),
             TestParam::Interval => (0.005, 2),
+            TestParam::Focus => (0.05, 1),
         };
         let unit = format!(" {}", axis.param.unit());
         ui.add(DragValue::new(&mut axis.min).speed(speed).range(lo..=hi).fixed_decimals(decimals).suffix(&unit));
@@ -156,6 +158,7 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
     let mut js = app.settings.job.clone();
     let mut action: Option<&str> = None;
     let mut cell_click: Option<(u32, u32)> = None;
+    let z_axis = app.settings.profile.z_axis;
     egui::Window::new(format!("{} Materialtest", icon::GRID_FOUR))
         .open(&mut open)
         .collapsible(false)
@@ -192,6 +195,17 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         ui.label("Zeilen");
                         axis_ui(ui, "test_rows", &mut t.rows);
                         ui.end_row();
+                        if !z_axis && (t.columns.param == TestParam::Focus || t.rows.param == TestParam::Focus) {
+                            ui.label("");
+                            ui.label(
+                                RichText::new(format!(
+                                    "{} Der Fokustest braucht eine Z-Achse (Laser → Maschineneinstellungen).",
+                                    icon::WARNING
+                                ))
+                                .color(pal.warning),
+                            );
+                            ui.end_row();
+                        }
 
                         let fixed = |p: TestParam| t.columns.param == p || t.rows.param == p;
                         let (fs, fp, fpa, fi) = (
@@ -498,6 +512,7 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
         return;
     }
     let mut open = true;
+    let z_axis = app.settings.profile.z_axis;
     let mut apply: Option<usize> = None;
     let mut delete: Option<usize> = None;
     let mut save_draft = false;
@@ -624,7 +639,7 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     ui.label("Notiz");
                     ui.add(egui::TextEdit::singleline(&mut e.notes).desired_width(320.0));
                 });
-                crate::ui_side::cut_settings_ui(ui, &mut e.settings, false);
+                crate::ui_side::cut_settings_ui(ui, &mut e.settings, false, z_axis);
                 if *e != before {
                     changed = true;
                 }

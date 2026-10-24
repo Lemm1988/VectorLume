@@ -138,6 +138,9 @@ pub fn finish_job(
     if !profile.air_assist_supported && toolpath.blocks.iter().any(|b| b.air) {
         warnings.push("Luftunterstützung ist eingestellt, aber im Maschinenprofil deaktiviert.".into());
     }
+    if !profile.z_axis && toolpath.blocks.iter().any(|b| b.z.is_some()) {
+        warnings.push("Z-Versatz ist eingestellt, aber im Maschinenprofil ist keine Z-Achse aktiviert.".into());
+    }
 
     let est = estimate(&toolpath, start, profile.rapid_rate, profile.acceleration);
     let return_to = profile.return_to_origin.then_some(match settings.start_from {
@@ -157,6 +160,7 @@ pub fn finish_job(
         air_on: profile.air_on.clone(),
         air_off: profile.air_off.clone(),
         air_supported: profile.air_assist_supported,
+        z_axis: profile.z_axis,
         coord_mode: mapping.mode,
         return_to,
         comments,
@@ -256,6 +260,7 @@ pub fn generate(doc: &Document, objects: &[&Object], settings: &JobSettings, sta
                     air: cs.air_assist,
                     ops: ops.clone(),
                     raster: Some(*idx),
+                    z: cs.z_for_pass(pass),
                 });
             }
             if !vector_ops.is_empty() {
@@ -267,6 +272,7 @@ pub fn generate(doc: &Document, objects: &[&Object], settings: &JobSettings, sta
                     air: cs.air_assist,
                     ops: vector_ops.clone(),
                     raster: None,
+                    z: cs.z_for_pass(pass),
                 });
             }
         }
@@ -329,6 +335,7 @@ pub fn frame_gcode(job: &Job, profile: &MachineProfile) -> Vec<String> {
             air: false,
             ops,
             raster: None,
+            z: None,
         }],
         rasters: vec![],
     };
@@ -342,6 +349,7 @@ pub fn frame_gcode(job: &Job, profile: &MachineProfile) -> Vec<String> {
         air_on: String::new(),
         air_off: String::new(),
         air_supported: false,
+        z_axis: false,
         coord_mode: job.mapping.mode,
         return_to,
         comments: vec!["VectorLume Rahmen".into()],

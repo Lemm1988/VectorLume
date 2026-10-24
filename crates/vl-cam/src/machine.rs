@@ -51,6 +51,8 @@ pub struct MachineProfile {
     /// Beschleunigung in mm/s² (`$120`/`$121`), nur für die Zeitschätzung.
     pub acceleration: f64,
     pub air_assist_supported: bool,
+    /// Steuerbare Z-Achse (Fokus bzw. Tischhöhe per G-Code).
+    pub z_axis: bool,
     pub air_on: String,
     pub air_off: String,
     pub baud: u32,
@@ -81,6 +83,7 @@ impl MachineProfile {
             rapid_rate: 6000.0,
             acceleration: 1000.0,
             air_assist_supported: true,
+            z_axis: false,
             air_on: "M8".into(),
             air_off: "M9".into(),
             baud: 115_200,

@@ -37,6 +37,8 @@ pub struct Block {
     pub ops: Vec<Op>,
     /// Index in `Toolpath::rasters` (nur bei Rasterblöcken).
     pub raster: Option<usize>,
+    /// Z-Höhe für diesen Block (nur mit Z-Achse ausgegeben).
+    pub z: Option<f64>,
 }
 
 #[derive(Clone, Debug)]

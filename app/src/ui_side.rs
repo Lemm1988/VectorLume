@@ -188,6 +188,7 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     ui.add_space(6.0);
     let l = app.current_layer;
     let has_images = app.doc.objects_on_layer(l).any(|o| o.is_image());
+    let z_axis = app.settings.profile.z_axis;
     let mut layer = app.doc.layers[l].clone();
     card(ui, |ui| {
         ui.horizontal(|ui| {
@@ -205,7 +206,7 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             });
         });
         ui.add_space(4.0);
-        cut_settings_ui(ui, &mut layer.settings, has_images);
+        cut_settings_ui(ui, &mut layer.settings, has_images, z_axis);
     });
     if layer != app.doc.layers[l] {
         app.checkpoint_coalesced("layer");
@@ -216,7 +217,7 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     image_adjust_ui(app, ui);
 }
 
-pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool) {
+pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool, z_axis: bool) {
     egui::Grid::new("cut_settings").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
         ui.label("Modus");
         let before = s.mode;
@@ -255,6 +256,19 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
         ui.add(DragValue::new(&mut s.passes).range(1..=100));
         ui.end_row();
 
+        if z_axis {
+            ui.label("Z-Versatz");
+            ui.add(DragValue::new(&mut s.z_offset).speed(0.05).range(-50.0..=50.0).max_decimals(2).suffix(" mm"))
+                .on_hover_text("Fokus gegenüber der eingestellten Fokushöhe: positiv = Kopf höher (weicherer Strahl)");
+            ui.end_row();
+            if s.passes > 1 {
+                ui.label("Z je Durchgang");
+                ui.add(DragValue::new(&mut s.z_step).speed(0.05).range(-20.0..=20.0).max_decimals(2).suffix(" mm"))
+                    .on_hover_text("Ab dem zweiten Durchgang wird der Fokus um diesen Wert tiefer gelegt");
+                ui.end_row();
+            }
+        }
+
         if s.mode != LayerMode::Line || has_images {
             ui.label(if s.mode == LayerMode::OffsetFill { "Linienabstand" } else { "Zeilenabstand" });
             ui.horizontal(|ui| {
@@ -279,7 +293,7 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
             ui.label("Schnittbreite");
             ui.add(DragValue::new(&mut s.kerf).speed(0.005).range(0.0..=2.0).max_decimals(3).suffix(" mm"))
                 .on_hover_text(
-                    "Kerf-Ausgleich: Außenkonturen wandern um die halbe Schnittbreite nach außen, Löcher nach innen.                      0 = aus.",
+                    "Kerf-Ausgleich: Außenkonturen wandern um die halbe Schnittbreite nach außen, Löcher nach innen. 0 = aus.",
                 );
             ui.end_row();
             ui.label("Laschen");

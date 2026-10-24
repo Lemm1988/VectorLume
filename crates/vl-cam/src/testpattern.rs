@@ -20,10 +20,13 @@ pub enum TestParam {
     Power,
     Passes,
     Interval,
+    /// Fokustest (nur mit Z-Achse sinnvoll).
+    Focus,
 }
 
 impl TestParam {
-    pub const ALL: [TestParam; 4] = [TestParam::Speed, TestParam::Power, TestParam::Passes, TestParam::Interval];
+    pub const ALL: [TestParam; 5] =
+        [TestParam::Speed, TestParam::Power, TestParam::Passes, TestParam::Interval, TestParam::Focus];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -31,6 +34,7 @@ impl TestParam {
             TestParam::Power => "Leistung",
             TestParam::Passes => "Durchgänge",
             TestParam::Interval => "Zeilenabstand",
+            TestParam::Focus => "Z-Versatz",
         }
     }
 
@@ -39,7 +43,7 @@ impl TestParam {
             TestParam::Speed => "mm/min",
             TestParam::Power => "%",
             TestParam::Passes => "x",
-            TestParam::Interval => "mm",
+            TestParam::Interval | TestParam::Focus => "mm",
         }
     }
 
@@ -50,6 +54,7 @@ impl TestParam {
             TestParam::Power => (0.0, 100.0),
             TestParam::Passes => (1.0, 50.0),
             TestParam::Interval => (0.02, 2.0),
+            TestParam::Focus => (-20.0, 20.0),
         }
     }
 
@@ -64,6 +69,7 @@ impl TestParam {
                 }
             }
             TestParam::Interval => format!("{v:.2}"),
+            TestParam::Focus => format!("{v:+.1}"),
         }
     }
 
@@ -73,6 +79,7 @@ impl TestParam {
             TestParam::Power => cs.power_max = v,
             TestParam::Passes => cs.passes = v.round().max(1.0) as u32,
             TestParam::Interval => cs.interval = v,
+            TestParam::Focus => cs.z_offset = v,
         }
     }
 }
@@ -292,6 +299,7 @@ impl TestPattern {
                 air: self.base.air_assist,
                 ops: line_ops(&ordered, power),
                 raster: None,
+                z: self.base.z_for_pass(0),
             });
             names.push("Beschriftung".to_string());
         }
@@ -342,6 +350,7 @@ impl TestPattern {
                         air: cs.air_assist,
                         ops: ops.clone(),
                         raster: None,
+                        z: cs.z_for_pass(pass),
                     });
                 }
             }

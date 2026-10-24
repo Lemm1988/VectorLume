@@ -140,6 +140,10 @@ pub struct CutSettings {
     pub tab_width: f64,
     /// Laschen nur an Außenkonturen (nicht an Löchern).
     pub tabs_outer_only: bool,
+    /// Fokusversatz in mm gegenüber der Fokushöhe (Z0); positiv = Kopf höher. Nur mit Z-Achse.
+    pub z_offset: f64,
+    /// Absenkung je weiterem Durchgang in mm (für dicke Materialien). Nur mit Z-Achse.
+    pub z_step: f64,
 }
 
 impl Default for CutSettings {
@@ -175,7 +179,14 @@ impl CutSettings {
             tab_count: 0,
             tab_width: 0.5,
             tabs_outer_only: true,
+            z_offset: 0.0,
+            z_step: 0.0,
         }
+    }
+
+    /// Z-Höhe für einen Durchgang (0-basiert) oder `None`, wenn keine Z-Bewegung eingestellt ist.
+    pub fn z_for_pass(&self, pass: u32) -> Option<f64> {
+        (self.z_offset != 0.0 || self.z_step != 0.0).then(|| self.z_offset - pass as f64 * self.z_step)
     }
 
     pub fn summary(&self) -> String {

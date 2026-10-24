@@ -18,6 +18,8 @@ pub struct GcodeOptions {
     pub air_on: String,
     pub air_off: String,
     pub air_supported: bool,
+    /// Z-Bewegungen der Blöcke ausgeben.
+    pub z_axis: bool,
     pub coord_mode: CoordMode,
     /// Nach dem Job im Eilgang hierhin fahren (Ausgabe-Koordinaten).
     pub return_to: Option<Point>,
@@ -54,6 +56,8 @@ struct Emitter<'a> {
     motion: Option<u8>,
     feed: Option<i64>,
     s: Option<i64>,
+    /// Z-Höhe in µm relativ zur Fokushöhe beim Jobstart.
+    z: i64,
 }
 
 impl Emitter<'_> {
@@ -89,6 +93,21 @@ impl Emitter<'_> {
             self.motion = Some(0);
             self.out.push(format!("G0 {axes}"));
         }
+    }
+
+    /// Fährt im Eilgang (Laser aus) auf die Höhe `z`.
+    fn z_move(&mut self, z: f64) {
+        let target = to_um(z);
+        if target == self.z {
+            return;
+        }
+        let v = match self.opts.coord_mode {
+            CoordMode::Absolute => target,
+            CoordMode::Relative => target - self.z,
+        };
+        self.out.push(format!("G0 Z{}", fmt_um(v)));
+        self.motion = Some(0);
+        self.z = target;
     }
 
     fn feed_move(&mut self, p: Point, feed: f64, power: f32) {
@@ -138,7 +157,7 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
         CoordMode::Absolute => None,
         CoordMode::Relative => Some((0, 0)),
     };
-    let mut e = Emitter { out: Vec::new(), opts, pos: start, motion: None, feed: None, s: None };
+    let mut e = Emitter { out: Vec::new(), opts, pos: start, motion: None, feed: None, s: None, z: 0 };
     for c in &opts.comments {
         e.out.push(ascii_comment(c));
     }
@@ -167,6 +186,9 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
             e.out.push(if want_air { opts.air_on.clone() } else { opts.air_off.clone() });
             air = want_air;
         }
+        if opts.z_axis {
+            e.z_move(block.z.unwrap_or(0.0));
+        }
         for op in &block.ops {
             match *op {
                 Op::Rapid(p) => e.rapid(map(p)),
@@ -175,6 +197,9 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
         }
     }
     e.out.push("M5".into());
+    if opts.z_axis {
+        e.z_move(0.0);
+    }
     if air {
         e.out.push(opts.air_off.clone());
     }
@@ -219,6 +244,7 @@ mod tests {
             air_on: "M8".into(),
             air_off: "M9".into(),
             air_supported: true,
+            z_axis: false,
             coord_mode: mode,
             return_to: Some(Point::ZERO),
             comments: vec!["Test äöü".into()],
@@ -241,9 +267,33 @@ mod tests {
                 air: true,
                 ops,
                 raster: None,
+                z: None,
             }],
             rasters: vec![],
         }
+    }
+
+    #[test]
+    fn z_per_pass_returns_to_focus() {
+        let mut tp = square();
+        let mut second = tp.blocks[0].clone();
+        tp.blocks[0].z = Some(1.0);
+        second.pass = 1;
+        second.z = Some(0.5);
+        tp.blocks.push(second);
+        for mode in [CoordMode::Absolute, CoordMode::Relative] {
+            let mut o = opts(mode);
+            o.z_axis = true;
+            let code = strip_for_streaming(&emit(&tp, &|p| p, &o));
+            let z: Vec<&String> = code.iter().filter(|l| l.starts_with("G0 Z")).collect();
+            match mode {
+                CoordMode::Absolute => assert_eq!(z, ["G0 Z1", "G0 Z0.5", "G0 Z0"]),
+                CoordMode::Relative => assert_eq!(z, ["G0 Z1", "G0 Z-0.5", "G0 Z-0.5"]),
+            }
+        }
+        // ohne Z-Achse keine Z-Wörter
+        let code = emit(&tp, &|p| p, &opts(CoordMode::Absolute));
+        assert!(!code.iter().any(|l| l.contains('Z')));
     }
 
     #[test]
