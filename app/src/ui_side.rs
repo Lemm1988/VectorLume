@@ -102,84 +102,91 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
         let layer = app.doc.layers[l].clone();
         let selected = app.current_layer == l;
         let fill = if selected { pal.widget } else { pal.panel_alt };
-        let resp = Frame::NONE
-            .fill(fill)
-            .corner_radius(CornerRadius::same(8))
-            .stroke(Stroke::new(1.0, if selected { pal.accent.gamma_multiply(0.7) } else { pal.border }))
-            .inner_margin(Margin::symmetric(8, 6))
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
-                    ui.painter().rect_filled(r, CornerRadius::same(4), theme::layer_color(layer.color));
-                    ui.label(RichText::new(&layer.name).strong());
-                    ui.label(RichText::new(layer.settings.mode.label()).color(pal.text_weak).size(12.0));
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.spacing_mut().item_spacing.x = 2.0;
-                        if ui.small_button(icon::CARET_DOWN).on_hover_text("Später ausgeben").clicked() {
-                            app.checkpoint();
-                            app.doc.move_layer(l, 1);
-                            app.mark_changed();
-                        }
-                        if ui
-                            .add_enabled(pos > 0, Button::new(icon::CARET_UP).small())
-                            .on_hover_text("Früher ausgeben")
-                            .clicked()
-                        {
-                            app.checkpoint();
-                            app.doc.move_layer(l, -1);
-                            app.mark_changed();
-                        }
-                        let lock = if layer.locked { icon::LOCK_SIMPLE } else { icon::LOCK_SIMPLE_OPEN };
-                        if ui
-                            .small_button(lock)
-                            .on_hover_text("Sperren: Objekte bleiben sichtbar, lassen sich aber nicht auswählen")
-                            .clicked()
-                        {
-                            app.checkpoint();
-                            app.doc.layers[l].locked = !layer.locked;
-                            if !layer.locked {
-                                let doc = &app.doc;
-                                app.selection.retain(|id| doc.get(*id).is_some_and(|o| o.layer != l));
-                            }
-                            app.mark_changed();
-                        }
-                        let vis = if layer.visible { icon::EYE } else { icon::EYE_SLASH };
-                        if ui.small_button(vis).on_hover_text("Anzeigen/Ausblenden").clicked() {
-                            app.checkpoint();
-                            app.doc.layers[l].visible = !layer.visible;
-                            app.mark_changed();
-                        }
-                        let out_color = if layer.settings.output { pal.success } else { pal.text_weak };
-                        if ui
-                            .small_button(RichText::new(icon::POWER).color(out_color))
-                            .on_hover_text(if layer.settings.output {
-                                "Wird gelasert (klicken zum Abschalten)"
-                            } else {
-                                "Wird nicht gelasert"
-                            })
-                            .clicked()
-                        {
-                            app.checkpoint();
-                            app.doc.layers[l].settings.output = !layer.settings.output;
-                            app.mark_changed();
-                        }
-                    });
-                });
-                ui.label(
-                    RichText::new(format!(
-                        "{:.0} mm/min · {:.0} % · {}× {}",
-                        layer.settings.speed,
-                        layer.settings.power_max,
-                        layer.settings.passes,
-                        if layer.settings.air_assist { "· Luft" } else { "" }
-                    ))
-                    .size(12.0)
-                    .color(pal.text_weak),
-                );
+        // Die Zeile reagiert auf Klicks, wird aber vor den Schaltflächen angemeldet, damit diese oben liegen.
+        let resp = ui
+            .scope_builder(egui::UiBuilder::new().sense(Sense::click()), |ui| {
+                ui.style_mut().interaction.selectable_labels = false;
+                Frame::NONE
+                    .fill(fill)
+                    .corner_radius(CornerRadius::same(8))
+                    .stroke(Stroke::new(1.0, if selected { pal.accent.gamma_multiply(0.7) } else { pal.border }))
+                    .inner_margin(Margin::symmetric(8, 6))
+                    .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.horizontal(|ui| {
+                            let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
+                            ui.painter().rect_filled(r, CornerRadius::same(4), theme::layer_color(layer.color));
+                            ui.label(RichText::new(&layer.name).strong());
+                            ui.label(RichText::new(layer.settings.mode.label()).color(pal.text_weak).size(12.0));
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                ui.spacing_mut().item_spacing.x = 2.0;
+                                if ui.small_button(icon::CARET_DOWN).on_hover_text("Später ausgeben").clicked() {
+                                    app.checkpoint();
+                                    app.doc.move_layer(l, 1);
+                                    app.mark_changed();
+                                }
+                                if ui
+                                    .add_enabled(pos > 0, Button::new(icon::CARET_UP).small())
+                                    .on_hover_text("Früher ausgeben")
+                                    .clicked()
+                                {
+                                    app.checkpoint();
+                                    app.doc.move_layer(l, -1);
+                                    app.mark_changed();
+                                }
+                                let lock = if layer.locked { icon::LOCK_SIMPLE } else { icon::LOCK_SIMPLE_OPEN };
+                                if ui
+                                    .small_button(lock)
+                                    .on_hover_text(
+                                        "Sperren: Objekte bleiben sichtbar, lassen sich aber nicht auswählen",
+                                    )
+                                    .clicked()
+                                {
+                                    app.checkpoint();
+                                    app.doc.layers[l].locked = !layer.locked;
+                                    if !layer.locked {
+                                        let doc = &app.doc;
+                                        app.selection.retain(|id| doc.get(*id).is_some_and(|o| o.layer != l));
+                                    }
+                                    app.mark_changed();
+                                }
+                                let vis = if layer.visible { icon::EYE } else { icon::EYE_SLASH };
+                                if ui.small_button(vis).on_hover_text("Anzeigen/Ausblenden").clicked() {
+                                    app.checkpoint();
+                                    app.doc.layers[l].visible = !layer.visible;
+                                    app.mark_changed();
+                                }
+                                let out_color = if layer.settings.output { pal.success } else { pal.text_weak };
+                                if ui
+                                    .small_button(RichText::new(icon::POWER).color(out_color))
+                                    .on_hover_text(if layer.settings.output {
+                                        "Wird gelasert (klicken zum Abschalten)"
+                                    } else {
+                                        "Wird nicht gelasert"
+                                    })
+                                    .clicked()
+                                {
+                                    app.checkpoint();
+                                    app.doc.layers[l].settings.output = !layer.settings.output;
+                                    app.mark_changed();
+                                }
+                            });
+                        });
+                        ui.label(
+                            RichText::new(format!(
+                                "{:.0} mm/min · {:.0} % · {}× {}",
+                                layer.settings.speed,
+                                layer.settings.power_max,
+                                layer.settings.passes,
+                                if layer.settings.air_assist { "· Luft" } else { "" }
+                            ))
+                            .size(12.0)
+                            .color(pal.text_weak),
+                        );
+                    })
             })
             .response;
-        if resp.interact(Sense::click()).clicked() {
+        if resp.clicked() {
             app.current_layer = l;
         }
         ui.add_space(3.0);

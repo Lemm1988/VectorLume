@@ -1,4 +1,4 @@
-//! Fenster und Abfragen: Text, Maschineneinstellungen, Info, Sicherheitsabfragen, Benachrichtigungen.
+//! Fenster und Abfragen: Maschineneinstellungen, Info, Sicherheitsabfragen, Benachrichtigungen.
 
 use crate::app::{Modal, ToastKind, VectorLumeApp};
 use crate::theme;
@@ -8,116 +8,11 @@ use std::time::Instant;
 use vl_cam::{MachineProfile, OriginCorner};
 
 pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
-    text_dialog(app, ctx);
+    crate::text_tool::show(app, ctx);
     device_settings(app, ctx);
     about(app, ctx);
     modal(app, ctx);
     toasts(app, ctx);
-}
-
-fn text_dialog(app: &mut VectorLumeApp, ctx: &egui::Context) {
-    if !app.text_dialog.open {
-        return;
-    }
-    let families = app.font_families.lock().unwrap().clone();
-    let mut open = true;
-    let mut insert = false;
-    egui::Window::new(format!("{} Text einfügen", icon::TEXT_T))
-        .open(&mut open)
-        .collapsible(false)
-        .resizable(false)
-        .default_width(380.0)
-        .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
-        .show(ctx, |ui| {
-            let d = &mut app.text_dialog;
-            ui.add(
-                egui::TextEdit::multiline(&mut d.spec.text)
-                    .desired_rows(3)
-                    .desired_width(f32::INFINITY)
-                    .hint_text("Text"),
-            );
-            ui.add_space(6.0);
-            egui::Grid::new("text_grid").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
-                ui.label("Schrift");
-                match &families {
-                    Some(list) => {
-                        egui::ComboBox::from_id_salt("font")
-                            .width(220.0)
-                            .selected_text(&d.spec.family)
-                            .height(320.0)
-                            .show_ui(ui, |ui| {
-                                ui.add(egui::TextEdit::singleline(&mut d.filter).hint_text("Suchen…"));
-                                let filter = d.filter.to_lowercase();
-                                for f in list.iter().filter(|f| filter.is_empty() || f.to_lowercase().contains(&filter))
-                                {
-                                    ui.selectable_value(&mut d.spec.family, f.clone(), f);
-                                }
-                            });
-                    }
-                    None => {
-                        ui.horizontal(|ui| {
-                            ui.spinner();
-                            ui.label("Schriften werden geladen…");
-                        });
-                    }
-                }
-                ui.end_row();
-                ui.label("Stil");
-                ui.horizontal(|ui| {
-                    ui.toggle_value(&mut d.spec.bold, RichText::new("F").strong());
-                    ui.toggle_value(&mut d.spec.italic, RichText::new("K").italics());
-                });
-                ui.end_row();
-                ui.label("Höhe");
-                ui.add(DragValue::new(&mut d.spec.height_mm).speed(0.1).range(0.5..=500.0).suffix(" mm"));
-                ui.end_row();
-                ui.label("Zeichenabstand");
-                ui.add(DragValue::new(&mut d.spec.letter_spacing).speed(0.05).range(-20.0..=100.0).suffix(" mm"));
-                ui.end_row();
-                ui.label("Zeilenabstand");
-                ui.add(DragValue::new(&mut d.spec.line_spacing).speed(0.01).range(0.5..=4.0).fixed_decimals(2));
-                ui.end_row();
-                ui.label("Ausrichtung");
-                ui.horizontal(|ui| {
-                    use vl_io::TextAlign::*;
-                    ui.selectable_value(&mut d.spec.align, Left, icon::TEXT_ALIGN_LEFT);
-                    ui.selectable_value(&mut d.spec.align, Center, icon::TEXT_ALIGN_CENTER);
-                    ui.selectable_value(&mut d.spec.align, Right, icon::TEXT_ALIGN_RIGHT);
-                });
-                ui.end_row();
-            });
-            if let Some(e) = &d.error {
-                ui.label(RichText::new(e).color(theme::of(ui).danger));
-            }
-            ui.add_space(6.0);
-            let ready = families.is_some() && !d.spec.text.trim().is_empty();
-            if ui
-                .add_enabled(ready, Button::new(format!("{} Einfügen", icon::PLUS)).min_size(vec2(120.0, 30.0)))
-                .clicked()
-            {
-                insert = true;
-            }
-        });
-    if insert {
-        let db = vl_io::system_fonts();
-        match vl_io::text_to_path(&db, &app.text_dialog.spec) {
-            Ok(path) => {
-                let at = app.text_dialog.at;
-                let path = path.transformed(&vl_core::Affine::translate(at.x, at.y));
-                let name =
-                    app.text_dialog.spec.text.lines().next().unwrap_or("Text").chars().take(24).collect::<String>();
-                app.checkpoint();
-                let id = app.doc.add_path(format!("Text „{name}“"), app.current_layer, path);
-                app.selection = vec![id];
-                app.mark_changed();
-                app.tool = crate::app::Tool::Select;
-                app.text_dialog.open = false;
-            }
-            Err(e) => app.text_dialog.error = Some(e),
-        }
-    } else if !open {
-        app.text_dialog.open = false;
-    }
 }
 
 fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {

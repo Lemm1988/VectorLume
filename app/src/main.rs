@@ -13,6 +13,7 @@ mod node_tool;
 mod settings;
 mod shape_ops;
 mod snapping;
+mod text_tool;
 mod theme;
 mod trace_ui;
 mod ui_main;

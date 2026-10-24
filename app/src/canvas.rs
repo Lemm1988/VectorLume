@@ -1,6 +1,6 @@
 //! Arbeitsfläche: Darstellung von Bett, Objekten und Vorschau sowie Maus-Interaktion.
 
-use crate::app::{TextDialog, Tool, VectorLumeApp};
+use crate::app::{Tool, VectorLumeApp};
 use crate::snapping::{Guide, SnapHint, SnapTargets};
 use crate::theme;
 use egui::epaint::Vertex;
@@ -951,6 +951,15 @@ impl VectorLumeApp {
             && let Some(pos) = resp.interact_pointer_pos()
         {
             let p = tf.to_doc(pos);
+            // Doppelklick auf einen Text öffnet ihn zum Bearbeiten
+            if self.tool == Tool::Select
+                && resp.double_clicked()
+                && let Some(id) = self.hit_test(p, tol)
+                && self.open_text_edit(id)
+            {
+                self.selection = vec![id];
+                return;
+            }
             match self.tool {
                 Tool::Select => match self.hit_test(p, tol) {
                     Some(id) => {
@@ -976,10 +985,7 @@ impl VectorLumeApp {
                 },
                 Tool::Text => {
                     let at = self.snap_cursor(p, snap_tol);
-                    let TextDialog { open, at: dialog_at, error, .. } = &mut self.text_dialog;
-                    *open = true;
-                    *dialog_at = at;
-                    *error = None;
+                    self.open_text_new(at);
                 }
                 _ => {}
             }
@@ -1007,6 +1013,16 @@ impl VectorLumeApp {
             if ui.add_enabled(has, egui::Button::new(format!("{} Gruppierung lösen", i::SELECTION_SLASH))).clicked() {
                 self.ungroup();
                 ui.close();
+            }
+            if let Some(id) = self.selected_text() {
+                if ui.button(format!("{} Text bearbeiten…", i::TEXT_T)).clicked() {
+                    self.open_text_edit(id);
+                    ui.close();
+                }
+                if ui.button(format!("{} In Kurven umwandeln", i::BEZIER_CURVE)).clicked() {
+                    crate::text_tool::text_to_curves(self);
+                    ui.close();
+                }
             }
             if self.selection.iter().any(|id| self.doc.get(*id).is_some_and(|o| o.is_image()))
                 && ui.button(format!("{} Bild nachzeichnen…", i::SCAN)).clicked()

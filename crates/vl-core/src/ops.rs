@@ -262,10 +262,61 @@ pub fn points_along(poly: &Polyline, count: usize) -> Vec<(Point, f64)> {
     out
 }
 
+/// Länge einer Polylinie (geschlossen: inklusive Schlusskante).
+pub fn polyline_length(poly: &Polyline) -> f64 {
+    let n = poly.points.len();
+    let open: f64 = poly.points.windows(2).map(|w| w[0].distance(w[1])).sum();
+    if poly.closed && n > 2 { open + poly.points[n - 1].distance(poly.points[0]) } else { open }
+}
+
+/// Punkt und Richtung (Bogenmaß) bei Bogenlänge `s`. Geschlossene Linien laufen weiter herum, offene werden über
+/// die Enden hinaus geradlinig verlängert.
+pub fn position_at(poly: &Polyline, s: f64) -> Option<(Point, f64)> {
+    let mut pts = poly.points.clone();
+    if poly.closed && pts.len() > 2 {
+        pts.push(pts[0]);
+    }
+    let edges: Vec<(Point, Point, f64)> =
+        pts.windows(2).map(|w| (w[0], w[1], w[0].distance(w[1]))).filter(|e| e.2 > 1e-12).collect();
+    let total: f64 = edges.iter().map(|e| e.2).sum();
+    if edges.is_empty() {
+        return None;
+    }
+    let s = if poly.closed { s.rem_euclid(total) } else { s };
+    let dir = |a: Point, b: Point| (b.y - a.y).atan2(b.x - a.x);
+    if s <= 0.0 {
+        let (a, b, len) = edges[0];
+        return Some((a + (b - a) * (s / len), dir(a, b)));
+    }
+    let mut walked = 0.0;
+    for &(a, b, len) in &edges {
+        if s <= walked + len {
+            return Some((a.lerp(b, (s - walked) / len), dir(a, b)));
+        }
+        walked += len;
+    }
+    let (a, b, len) = *edges.last().unwrap();
+    Some((b + (b - a) * ((s - total) / len), dir(a, b)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::path::point_in_polylines;
+
+    #[test]
+    fn position_at_wraps_and_extends() {
+        let square = Polyline::new(
+            vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(10.0, 10.0), Point::new(0.0, 10.0)],
+            true,
+        );
+        assert_eq!(polyline_length(&square), 40.0);
+        let (p, a) = position_at(&square, 45.0).unwrap();
+        assert!(p.distance(Point::new(5.0, 0.0)) < 1e-9 && a.abs() < 1e-9);
+        let line = Polyline::new(vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)], false);
+        let (p, _) = position_at(&line, 12.0).unwrap();
+        assert!(p.distance(Point::new(12.0, 0.0)) < 1e-9);
+    }
 
     #[test]
     fn points_along_open_and_closed() {

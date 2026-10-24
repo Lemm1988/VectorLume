@@ -366,6 +366,13 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, "Bild nachzeichnen…", "", image) {
         app.open_trace();
     }
+    let path = app.selection.iter().any(|id| app.doc.get(*id).is_some_and(|o| !o.is_image() && o.text.is_none()));
+    if menu_item(ui, "Text auf Pfad…", "", path) {
+        app.open_text_on_path();
+    }
+    if menu_item(ui, "Text in Kurven umwandeln", "", app.selected_text().is_some()) {
+        crate::text_tool::text_to_curves(app);
+    }
 }
 
 fn view_menu(app: &mut VectorLumeApp, ui: &mut Ui) {

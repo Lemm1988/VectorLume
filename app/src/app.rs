@@ -109,6 +109,8 @@ pub struct MachineInfo {
     pub job_progress: (usize, usize),
     pub job_started: Option<Instant>,
     pub job_estimate: f64,
+    /// Der laufende Job wurde aus dem Dokument erzeugt.
+    pub document_job: bool,
 }
 
 impl MachineInfo {
@@ -164,14 +166,6 @@ pub enum Modal {
     Recover { path: PathBuf, meta: crate::autosave::Meta },
 }
 
-pub struct TextDialog {
-    pub open: bool,
-    pub spec: vl_io::TextSpec,
-    pub at: Point,
-    pub filter: String,
-    pub error: Option<String>,
-}
-
 pub struct VectorLumeApp {
     pub ctx: egui::Context,
     pub doc: Document,
@@ -202,7 +196,7 @@ pub struct VectorLumeApp {
     pub snap_hint: Option<crate::snapping::SnapHint>,
     pub snap_all: Option<(u64, Arc<crate::snapping::SnapTargets>)>,
     pub modal: Option<Modal>,
-    pub text_dialog: TextDialog,
+    pub text_dialog: crate::text_tool::TextDialog,
     pub font_families: Arc<Mutex<Option<Vec<String>>>>,
     pub show_device_settings: bool,
     pub show_about: bool,
@@ -214,6 +208,8 @@ pub struct VectorLumeApp {
     pub autosave: crate::autosave::Autosave,
     pub shape_dialogs: crate::shape_ops::ShapeDialogs,
     pub trace: crate::trace_ui::TraceUi,
+    /// Zuletzt für den Start erzeugter Dokument-Job (Zeigeradresse zum Wiedererkennen in `send_job`).
+    pub document_job: Option<usize>,
     last_edit: Option<(&'static str, Instant)>,
     last_title: String,
     close_confirmed: bool,
@@ -275,13 +271,7 @@ impl VectorLumeApp {
             snap_hint: None,
             snap_all: None,
             modal: None,
-            text_dialog: TextDialog {
-                open: false,
-                spec: vl_io::TextSpec::default(),
-                at: Point::new(20.0, 20.0),
-                filter: String::new(),
-                error: None,
-            },
+            text_dialog: Default::default(),
             font_families,
             show_device_settings: false,
             show_about: false,
@@ -293,6 +283,7 @@ impl VectorLumeApp {
             autosave: crate::autosave::Autosave::default(),
             shape_dialogs: crate::shape_ops::ShapeDialogs::default(),
             trace: Default::default(),
+            document_job: None,
             last_edit: None,
             last_title: String::new(),
             close_confirmed: false,
@@ -842,7 +833,11 @@ impl VectorLumeApp {
                 ..Default::default()
             };
             if let Ok(p) = vl_io::text_to_path(&db, &spec) {
-                doc.add_path("Text „VectorLume“", 1, p.transformed(&Affine::translate(45.0, 126.0)));
+                let id = doc.add("Text „VectorLume“", 1, Affine::translate(45.0, 126.0), vl_core::Shape::Path(p));
+                if let Some(o) = doc.get_mut(id) {
+                    let rendered = spec.text.clone();
+                    o.text = Some(Box::new(vl_core::TextData { spec, rendered, ..Default::default() }));
+                }
             }
         }
         // Verlaufsbild erzeugen (kreisförmiger Verlauf)
@@ -874,6 +869,8 @@ impl VectorLumeApp {
     // ---------------------------------------------------------------- Jobs
 
     pub fn request_job(&mut self, purpose: JobPurpose) {
+        // Variable Texte (Zähler, Datum, Uhrzeit) vor jeder Ausgabe aktualisieren
+        self.refresh_variable_texts();
         let doc = self.doc.clone();
         let sel = self.selection.clone();
         let profile = self.settings.profile.clone();
@@ -917,6 +914,7 @@ impl VectorLumeApp {
                 JobPurpose::Start => match result {
                     Ok(job) => {
                         let job = Arc::new(job);
+                        self.document_job = Some(Arc::as_ptr(&job) as usize);
                         self.preview.job = Some(job.clone());
                         self.preview.built_revision = self.revision;
                         self.preview.texture_generation += 1;
@@ -1016,6 +1014,8 @@ impl VectorLumeApp {
     }
 
     pub fn send_job(&mut self, job: &Job) {
+        // Nur Jobs aus dem Dokument (nicht Materialtest/Rahmen) schalten Zähler weiter
+        self.machine.document_job = self.document_job.take() == Some(job as *const Job as usize);
         let lines = strip_for_streaming(&job.gcode);
         self.machine.job_estimate = job.estimate.seconds;
         let name = self.file_path.as_ref().map(|p| file_name(p)).unwrap_or_else(|| "Job".into());
@@ -1162,6 +1162,9 @@ impl VectorLumeApp {
                 Event::JobProgress { acked, total } => self.machine.job_progress = (acked, total),
                 Event::JobFinished { ok, message, seconds } => {
                     self.machine.job_running = false;
+                    if std::mem::take(&mut self.machine.document_job) && ok {
+                        self.advance_text_counters();
+                    }
                     let text = format!("{message} ({})", vl_cam::format_duration(seconds));
                     self.toast(if ok { ToastKind::Success } else { ToastKind::Error }, text);
                 }

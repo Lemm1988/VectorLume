@@ -2,7 +2,10 @@
 
 use std::sync::{Arc, OnceLock};
 use usvg::fontdb::{self, Database, Family, Query, Style, Weight};
-use vl_core::{Affine, PathBuilder, Point, VectorPath};
+use vl_core::ops::{polyline_length, position_at};
+pub use vl_core::text::{TextAlign, TextSpec};
+use vl_core::text::{TextData, TextOnPath};
+use vl_core::{Affine, PathBuilder, Point, Polyline, VectorPath};
 
 static SYSTEM_FONTS: OnceLock<Arc<Database>> = OnceLock::new();
 
@@ -23,44 +26,6 @@ pub fn font_families(db: &Database) -> Vec<String> {
     names.sort_by_key(|n| n.to_lowercase());
     names.dedup();
     names
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum TextAlign {
-    #[default]
-    Left,
-    Center,
-    Right,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct TextSpec {
-    pub text: String,
-    pub family: String,
-    pub bold: bool,
-    pub italic: bool,
-    /// Höhe der Großbuchstaben in mm.
-    pub height_mm: f64,
-    /// Zusätzlicher Zeichenabstand in mm.
-    pub letter_spacing: f64,
-    /// Zeilenabstand als Faktor der Schrifthöhe.
-    pub line_spacing: f64,
-    pub align: TextAlign,
-}
-
-impl Default for TextSpec {
-    fn default() -> Self {
-        Self {
-            text: "VectorLume".into(),
-            family: "Arial".into(),
-            bold: false,
-            italic: false,
-            height_mm: 10.0,
-            letter_spacing: 0.0,
-            line_spacing: 1.0,
-            align: TextAlign::Left,
-        }
-    }
 }
 
 struct Outline<'a> {
@@ -92,6 +57,24 @@ impl ttf_parser::OutlineBuilder for Outline<'_> {
 
 /// Erzeugt den Text als Pfad. Die linke obere Ecke der ersten Zeile liegt bei (0, 0).
 pub fn text_to_path(db: &Database, spec: &TextSpec) -> Result<VectorPath, String> {
+    with_face(db, spec, |face| layout(face, spec))
+}
+
+/// Erzeugt einen Text aus Textdaten mit dem bereits eingesetzten Inhalt `text` (Platzhalter ersetzt):
+/// normal mit der linken oberen Ecke bei (0, 0) oder entlang des Pfades in Dokumentkoordinaten.
+pub fn render_text(db: &Database, data: &TextData, text: &str) -> Result<VectorPath, String> {
+    let spec = TextSpec { text: text.to_string(), ..data.spec.clone() };
+    match &data.on_path {
+        Some(on) => with_face(db, &spec, |face| layout_on_path(face, &spec, on)),
+        None => with_face(db, &spec, |face| layout(face, &spec)),
+    }
+}
+
+fn with_face(
+    db: &Database,
+    spec: &TextSpec,
+    f: impl FnOnce(&ttf_parser::Face) -> Result<VectorPath, String>,
+) -> Result<VectorPath, String> {
     let query = Query {
         families: &[Family::Name(&spec.family), Family::SansSerif],
         weight: if spec.bold { Weight::BOLD } else { Weight::NORMAL },
@@ -101,14 +84,14 @@ pub fn text_to_path(db: &Database, spec: &TextSpec) -> Result<VectorPath, String
     let id = db.query(&query).ok_or_else(|| format!("Schrift „{}“ nicht gefunden.", spec.family))?;
     let result = db.with_face_data(id, |data, index| -> Result<VectorPath, String> {
         let face = ttf_parser::Face::parse(data, index).map_err(|e| format!("Schrift unlesbar: {e}"))?;
-        layout(&face, spec)
+        f(&face)
     });
     result.ok_or_else(|| "Schriftdaten konnten nicht geladen werden.".to_string())?
 }
 
 fn layout(face: &ttf_parser::Face, spec: &TextSpec) -> Result<VectorPath, String> {
-    let cap = face.capital_height().filter(|&h| h > 0).map(|h| h as f64).unwrap_or(face.ascender() as f64 * 0.7);
-    let scale = spec.height_mm.max(0.1) / cap;
+    let scale = cap_scale(face, spec);
+    let cap = spec.height_mm.max(0.1) / scale;
     let line_height =
         (face.ascender() as f64 - face.descender() as f64 + face.line_gap() as f64) * scale * spec.line_spacing;
     let ascent = cap * scale;
@@ -140,6 +123,66 @@ fn layout(face: &ttf_parser::Face, spec: &TextSpec) -> Result<VectorPath, String
     }
     let path = pb.finish();
     if path.is_empty() && !spec.text.trim().is_empty() {
+        return Err("Die Schrift enthält keine Umrisse für diesen Text.".into());
+    }
+    Ok(path)
+}
+
+fn cap_scale(face: &ttf_parser::Face, spec: &TextSpec) -> f64 {
+    let cap = face.capital_height().filter(|&h| h > 0).map(|h| h as f64).unwrap_or(face.ascender() as f64 * 0.7);
+    spec.height_mm.max(0.1) / cap
+}
+
+/// Text entlang einer Linie: jede Glyphe sitzt mit ihrer Mitte auf dem Pfad und folgt dessen Richtung.
+/// Geschlossene Pfade beginnen oben (bzw. unten bei umgekehrter Richtung); „Mitte“ zentriert dort.
+fn layout_on_path(face: &ttf_parser::Face, spec: &TextSpec, on: &TextOnPath) -> Result<VectorPath, String> {
+    let scale = cap_scale(face, spec);
+    let text = spec.text.lines().collect::<Vec<_>>().join(" ");
+    let mut pts = on.points.clone();
+    if on.reverse {
+        pts.reverse();
+    }
+    if pts.len() < 2 {
+        return Err("Der Pfad für den Text ist zu kurz.".into());
+    }
+    if on.closed {
+        // Oben (bzw. unten) beginnen, damit der Text aufrecht über (unter) der Form steht
+        let key = |p: &Point| if on.reverse { -p.y } else { p.y };
+        let top = (0..pts.len()).min_by(|&a, &b| key(&pts[a]).total_cmp(&key(&pts[b]))).unwrap_or(0);
+        pts.rotate_left(top);
+    }
+    let poly = Polyline::new(pts, on.closed);
+    let total = polyline_length(&poly);
+    let width = line_width(face, &text, scale, spec.letter_spacing);
+    let start = on.offset
+        + match (spec.align, on.closed) {
+            (TextAlign::Left, _) => 0.0,
+            (TextAlign::Center, true) => -width / 2.0,
+            (TextAlign::Right, true) => -width,
+            (TextAlign::Center, false) => (total - width) / 2.0,
+            (TextAlign::Right, false) => total - width,
+        };
+    let mut pb = PathBuilder::new();
+    let mut x = 0.0;
+    let mut prev: Option<ttf_parser::GlyphId> = None;
+    for ch in text.chars() {
+        let Some(gid) = face.glyph_index(ch).or_else(|| face.glyph_index('?')) else { continue };
+        if let Some(p) = prev {
+            x += kerning(face, p, gid) * scale;
+        }
+        let adv = face.glyph_hor_advance(gid).unwrap_or(0) as f64 * scale;
+        if let Some((p, angle)) = position_at(&poly, start + x + adv / 2.0) {
+            let t = Affine::scale(scale, -scale)
+                .then(&Affine::translate(-adv / 2.0, -on.distance))
+                .then(&Affine::rotate(angle))
+                .then(&Affine::translate(p.x, p.y));
+            face.outline_glyph(gid, &mut Outline { pb: &mut pb, t });
+        }
+        x += adv + spec.letter_spacing;
+        prev = Some(gid);
+    }
+    let path = pb.finish();
+    if path.is_empty() && !text.trim().is_empty() {
         return Err("Die Schrift enthält keine Umrisse für diesen Text.".into());
     }
     Ok(path)
@@ -198,5 +241,33 @@ mod tests {
         // Großbuchstaben ohne Unterlänge: Höhe entspricht ungefähr der gewünschten Höhe.
         assert!((b.height() - 10.0).abs() < 1.5, "{b:?}");
         assert!(b.min.y > -1.0, "{b:?}");
+    }
+
+    #[test]
+    fn text_follows_line_and_circle() {
+        let db = system_fonts();
+        let Some(family) = any_family(&db) else { return };
+        // Waagrechte Linie: Text liegt darüber (y < 0), zentriert um x = 50
+        let mut data = TextData {
+            spec: TextSpec { family, height_mm: 5.0, align: TextAlign::Center, ..Default::default() },
+            on_path: Some(TextOnPath {
+                points: vec![Point::new(0.0, 0.0), Point::new(100.0, 0.0)],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let p = render_text(&db, &data, "HHHH").unwrap();
+        let b = p.bounds(&Affine::IDENTITY);
+        assert!(b.max.y <= 0.01 && b.min.y > -6.0, "{b:?}");
+        assert!((b.center().x - 50.0).abs() < 1.0, "{b:?}");
+        // Kreis (Uhrzeigersinn): Text oben außen, mittig über dem höchsten Punkt
+        let circle = VectorPath::ellipse(Point::new(0.0, 0.0), 30.0, 30.0).flatten(&Affine::IDENTITY, 0.01);
+        data.on_path = Some(TextOnPath { points: circle[0].points.clone(), closed: true, ..Default::default() });
+        let b = render_text(&db, &data, "HHHH").unwrap().bounds(&Affine::IDENTITY);
+        assert!(b.max.y < -29.0 && b.center().x.abs() < 1.0, "{b:?}");
+        // umgekehrt: unten innen
+        data.on_path.as_mut().unwrap().reverse = true;
+        let b = render_text(&db, &data, "HHHH").unwrap().bounds(&Affine::IDENTITY);
+        assert!(b.min.y > 20.0 && b.max.y < 30.5 && b.center().x.abs() < 1.0, "{b:?}");
     }
 }

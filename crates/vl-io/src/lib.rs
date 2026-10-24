@@ -11,7 +11,7 @@ use std::path::Path;
 use std::sync::Arc;
 use vl_core::{Document, ImageObject, LAYER_COUNT, LayerMode, ObjectId, PALETTE, Point, VectorPath};
 
-pub use text::{TextAlign, TextSpec, font_families, system_fonts, text_to_path};
+pub use text::{TextAlign, TextSpec, font_families, render_text, system_fonts, text_to_path};
 
 pub const VECTOR_EXTENSIONS: &[&str] = &["svg", "svgz", "dxf", "pdf", "ai", "plt", "hpgl", "hgl"];
 pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff"];

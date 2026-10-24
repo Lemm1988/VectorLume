@@ -38,6 +38,8 @@ impl VectorLumeApp {
         let Some(inv) = obj.transform.inverse() else { return false };
         let DocShape::Path(path) = &mut obj.shape else { return false };
         f(path, &inv);
+        // Knoten eines Textes bearbeiten macht ihn zu Kurven (sonst ginge die Änderung beim Neuerzeugen verloren)
+        obj.text = None;
         self.geom.invalidate(id);
         true
     }
