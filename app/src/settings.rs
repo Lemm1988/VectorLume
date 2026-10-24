@@ -48,8 +48,17 @@ impl Default for AppSettings {
     }
 }
 
+/// Ordner für Einstellungen, Autosicherung und Materialbibliothek. `VECTORLUME_CONFIG_DIR` setzt einen
+/// eigenen Ordner (z. B. für Tests, ohne die echten Einstellungen zu verändern).
+pub fn config_dir() -> Option<PathBuf> {
+    match std::env::var_os("VECTORLUME_CONFIG_DIR") {
+        Some(d) if !d.is_empty() => Some(PathBuf::from(d)),
+        _ => dirs::config_dir().map(|d| d.join("VectorLume")),
+    }
+}
+
 fn path() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("VectorLume").join("settings.json"))
+    config_dir().map(|d| d.join("settings.json"))
 }
 
 impl AppSettings {

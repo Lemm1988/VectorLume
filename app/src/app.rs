@@ -1047,7 +1047,7 @@ impl VectorLumeApp {
         self.settings.save();
         let p = &self.settings.profile;
         self.machine.settings.clear();
-        self.device.send(Command::Connect { port, baud: p.baud, rx_buffer: p.rx_buffer });
+        self.device.send(Command::Connect { port, baud: p.baud, rx_buffer: p.rx_buffer, firmware: p.firmware });
     }
 
     pub fn disconnect(&mut self) {
@@ -1056,6 +1056,26 @@ impl VectorLumeApp {
 
     pub fn send_line(&mut self, line: impl Into<String>) {
         self.device.send(Command::Line(line.into()));
+    }
+
+    pub fn firmware(&self) -> vl_core::Firmware {
+        self.settings.profile.firmware
+    }
+
+    pub fn home(&mut self) {
+        self.send_line(self.firmware().home_command());
+    }
+
+    pub fn unlock(&mut self) {
+        self.send_line(self.firmware().unlock_command());
+    }
+
+    /// Verfahren ohne Laser; `axes` z. B. `"X10 Y-5"`.
+    pub fn send_jog(&mut self, relative: bool, axes: &str) {
+        let lines = self.firmware().jog_lines(relative, axes, self.settings.profile.jog_speed);
+        for l in lines {
+            self.send_line(l);
+        }
     }
 
     pub fn jog(&mut self, screen_dir: Point) {
@@ -1067,24 +1087,20 @@ impl VectorLumeApp {
             d.y *= k;
             y_axis = profile.rotary.axis.letter();
         }
-        let f = profile.jog_speed.round();
-        let mut cmd = String::from("$J=G91 G21");
+        let mut axes = Vec::new();
         if d.x != 0.0 {
-            cmd.push_str(&format!(" X{}", vl_cam::gcode::fmt_mm(d.x)));
+            axes.push(format!("X{}", vl_cam::gcode::fmt_mm(d.x)));
         }
         if d.y != 0.0 {
-            cmd.push_str(&format!(" {y_axis}{}", vl_cam::gcode::fmt_mm(d.y)));
+            axes.push(format!("{y_axis}{}", vl_cam::gcode::fmt_mm(d.y)));
         }
-        cmd.push_str(&format!(" F{f}"));
-        self.send_line(cmd);
+        self.send_jog(true, &axes.join(" "));
     }
 
     /// Dreht die Drehachse um `travel` (Achsweg) – zum Einrichten.
     pub fn jog_rotary(&mut self, travel: f64) {
-        let profile = &self.settings.profile;
-        let axis = profile.rotary.axis.letter();
-        let f = profile.jog_speed.round();
-        self.send_line(format!("$J=G91 G21 {axis}{} F{f}", vl_cam::gcode::fmt_mm(travel)));
+        let axis = self.settings.profile.rotary.axis.letter();
+        self.send_jog(true, &format!("{axis}{}", vl_cam::gcode::fmt_mm(travel)));
     }
 
     pub fn set_user_origin_here(&mut self) {

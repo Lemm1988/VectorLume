@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
-use vl_core::{Point, Rect};
+use vl_core::{Firmware, Point, Rect};
 
 /// Lage des Maschinen-Nullpunkts, von oben auf die Maschine gesehen (hinten = oben).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,6 +40,7 @@ impl OriginCorner {
 #[serde(default)]
 pub struct MachineProfile {
     pub name: String,
+    pub firmware: Firmware,
     pub bed_width: f64,
     pub bed_height: f64,
     pub origin: OriginCorner,
@@ -77,6 +78,7 @@ impl MachineProfile {
     pub fn sculpfun_sf_a9() -> Self {
         Self {
             name: "Sculpfun SF-A9 40W".into(),
+            firmware: Firmware::Grbl,
             bed_width: 400.0,
             bed_height: 400.0,
             origin: OriginCorner::FrontLeft,

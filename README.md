@@ -1,7 +1,7 @@
 # VectorLume
 
 Moderne Software zum Gestalten und Lasern für GRBL-Diodenlaser (zuerst für den **Sculpfun SF-A9 40 W**),
-geschrieben in Rust.
+geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
 
 > Privates Projekt – noch keine Lizenz vergeben, alle Rechte vorbehalten.
 
@@ -45,7 +45,8 @@ cargo build --release            # target/release/vectorlume.exe
 ```
 
 Hilfreiche Startschalter: `VECTORLUME_DEMO=1` (Beispielprojekt), `VECTORLUME_PREVIEW=1` (Vorschau an),
-`VECTORLUME_SIMULATOR=1` (mit Simulator verbinden). Dateien können als Argument übergeben werden.
+`VECTORLUME_SIMULATOR=1` (mit Simulator verbinden), `VECTORLUME_CONFIG_DIR=<Ordner>` (eigener Ordner für
+Einstellungen, Autosicherung und Materialbibliothek). Dateien können als Argument übergeben werden.
 
 ## Aufbau
 
@@ -54,7 +55,7 @@ Hilfreiche Startschalter: `VECTORLUME_DEMO=1` (Beispielprojekt), `VECTORLUME_PRE
 | `crates/vl-core` | Geometrie, Pfade, Ebenen, Dokument, Projektdatei |
 | `crates/vl-raster` | Bildaufbereitung, Dithering, Nachzeichnen |
 | `crates/vl-cam` | Werkzeugwege, Optimierung, Zeitschätzung, G-Code |
-| `crates/vl-device` | GRBL-Treiber, Streaming, Simulator |
+| `crates/vl-device` | Treiber für GRBL, Marlin und Smoothieware, Streaming, Simulator |
 | `crates/vl-io` | Import (SVG, DXF, PDF/AI, HPGL, Bilder, Schrift), SVG-/DXF-Export |
 | `app` | Oberfläche (egui) |
 | `docs` | [Lastenheft](docs/Lastenheft.md), [Pflichtenheft](docs/Pflichtenheft.md) mit Umsetzungsstand und Roadmap |

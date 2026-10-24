@@ -419,11 +419,12 @@ fn laser_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
         app.connect();
     }
     ui.separator();
-    if menu_item(ui, "Referenzfahrt ($H)", "", connected) {
-        app.send_line("$H");
+    let fw = app.firmware();
+    if menu_item(ui, &format!("Referenzfahrt ({})", fw.home_command()), "", connected) {
+        app.home();
     }
-    if menu_item(ui, "Entsperren ($X)", "", connected) {
-        app.send_line("$X");
+    if menu_item(ui, &format!("Entsperren ({})", fw.unlock_command()), "", connected) {
+        app.unlock();
     }
     if menu_item(ui, "Rahmen fahren", "", connected) {
         app.frame_job();

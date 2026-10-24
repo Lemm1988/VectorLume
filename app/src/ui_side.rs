@@ -483,7 +483,7 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 )
                 .clicked()
             {
-                app.send_line("$H");
+                app.home();
             }
             if ui
                 .add_enabled(
@@ -492,7 +492,7 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 )
                 .clicked()
             {
-                app.send_line("$X");
+                app.unlock();
             }
         });
         ui.horizontal(|ui| {
@@ -745,8 +745,7 @@ fn jog_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                         let tip = if dx == 0.0 && dy == 0.0 { "Zum Nullpunkt (X0 Y0)" } else { "Verfahren" };
                         if ui.add(b).on_hover_text(tip).clicked() {
                             if dx == 0.0 && dy == 0.0 {
-                                let f = app.settings.profile.jog_speed.round();
-                                app.send_line(format!("$J=G90 G21 X0 Y0 F{f}"));
+                                app.send_jog(false, "X0 Y0");
                             } else {
                                 app.jog(Point::new(dx, dy));
                             }
@@ -755,7 +754,8 @@ fn jog_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 });
             }
             ui.add_space(6.0);
-            if ui.button(format!("{} Bewegung abbrechen", icon::HAND_PALM)).clicked() {
+            // Nur GRBL kann eine Verfahrbewegung gezielt abbrechen (Echtzeitbefehl 0x85).
+            if app.firmware().is_grbl() && ui.button(format!("{} Bewegung abbrechen", icon::HAND_PALM)).clicked() {
                 app.device.send(Command::Realtime(vl_device::RT_JOG_CANCEL));
             }
         });
@@ -770,9 +770,12 @@ fn jog_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
 fn console_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     let pal = theme::of(ui);
     ui.horizontal(|ui| {
-        for (cmd, tip) in
-            [("$$", "Einstellungen"), ("$I", "Firmware"), ("$G", "G-Code-Zustand"), ("$#", "Koordinatensysteme")]
-        {
+        let quick: &[(&str, &str)] = if app.firmware().is_grbl() {
+            &[("$$", "Einstellungen"), ("$I", "Firmware"), ("$G", "G-Code-Zustand"), ("$#", "Koordinatensysteme")]
+        } else {
+            &[("M115", "Firmware"), ("M114", "Position"), ("M503", "Einstellungen (Marlin)")]
+        };
+        for &(cmd, tip) in quick {
             if ui.add_enabled(app.machine.connected, Button::new(cmd)).on_hover_text(tip).clicked() {
                 app.send_line(cmd);
             }

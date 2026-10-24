@@ -1,7 +1,7 @@
 //! G-Code-Erzeugung für GRBL-Lasersteuerungen (GRBL 1.1 im Laser-Modus `$32=1`).
 
 use crate::toolpath::{BlockKind, Op, Toolpath};
-use vl_core::Point;
+use vl_core::{Firmware, Point};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CoordMode {
@@ -13,6 +13,8 @@ pub enum CoordMode {
 
 #[derive(Clone, Debug)]
 pub struct GcodeOptions {
+    /// Dialekt: Laser-Einschaltbefehl und Format von S.
+    pub firmware: Firmware,
     pub s_max: f64,
     pub dynamic_power: bool,
     pub air_on: String,
@@ -36,13 +38,19 @@ fn to_um(v: f64) -> i64 {
 }
 
 fn fmt_um(v: i64) -> String {
+    fmt_fixed(v, 3)
+}
+
+/// Ganzzahl mit `decimals` gedachten Nachkommastellen, ohne überflüssige Nullen.
+fn fmt_fixed(v: i64, decimals: u32) -> String {
     let sign = if v < 0 { "-" } else { "" };
     let a = v.unsigned_abs();
-    let (int, frac) = (a / 1000, a % 1000);
+    let unit = 10u64.pow(decimals);
+    let (int, frac) = (a / unit, a % unit);
     if frac == 0 {
         return format!("{sign}{int}");
     }
-    let frac = format!("{frac:03}");
+    let frac = format!("{frac:0w$}", w = decimals as usize);
     format!("{sign}{int}.{}", frac.trim_end_matches('0'))
 }
 
@@ -126,12 +134,24 @@ impl Emitter<'_> {
             line.push_str(&format!(" F{f}"));
             self.feed = Some(f);
         }
-        let s = (power as f64 * self.opts.s_max).round() as i64;
+        let (s, text) = self.s_value(power as f64);
         if self.s != Some(s) {
-            line.push_str(&format!(" S{s}"));
+            line.push_str(&format!(" S{text}"));
             self.s = Some(s);
         }
         self.out.push(line);
+    }
+
+    /// S als Vergleichswert und Text. Smoothieware erwartet einen Anteil 0…1, die anderen ganze Zahlen.
+    fn s_value(&self, power: f64) -> (i64, String) {
+        let v = power * self.opts.s_max;
+        if self.opts.firmware == Firmware::Smoothieware {
+            let k = (v * 10_000.0).round() as i64;
+            (k, fmt_fixed(k, 4))
+        } else {
+            let k = v.round() as i64;
+            (k, k.to_string())
+        }
     }
 }
 
@@ -169,8 +189,15 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
         CoordMode::Absolute => "G90".into(),
         CoordMode::Relative => "G91".into(),
     });
-    e.out.push(if opts.dynamic_power { "M4 S0".into() } else { "M3 S0".into() });
-    e.s = Some(0);
+    let laser_on = if opts.dynamic_power { "M4" } else { "M3" };
+    match opts.firmware {
+        Firmware::Grbl => e.out.push(format!("{laser_on} S0")),
+        // Inline-Modus: Leistung gilt nur für G1-Bewegungen, G0 bleibt dunkel.
+        Firmware::Marlin => e.out.push(format!("{laser_on} I S0")),
+        // Das Lasermodul feuert nur bei G1 mit S; kein Einschaltbefehl.
+        Firmware::Smoothieware => {}
+    }
+    e.s = (opts.firmware != Firmware::Smoothieware).then_some(0);
 
     let mut air = false;
     for block in &tp.blocks {
@@ -199,7 +226,9 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
             }
         }
     }
-    e.out.push("M5".into());
+    if opts.firmware != Firmware::Smoothieware {
+        e.out.push("M5".into());
+    }
     if opts.z_axis {
         e.z_move(0.0);
     }
@@ -242,6 +271,7 @@ mod tests {
 
     fn opts(mode: CoordMode) -> GcodeOptions {
         GcodeOptions {
+            firmware: Firmware::Grbl,
             s_max: 1000.0,
             dynamic_power: true,
             air_on: "M8".into(),
@@ -298,6 +328,20 @@ mod tests {
         // ohne Z-Achse keine Z-Wörter
         let code = emit(&tp, &|p| p, &opts(CoordMode::Absolute));
         assert!(!code.iter().any(|l| l.contains('Z')));
+    }
+
+    #[test]
+    fn firmware_dialects() {
+        let tp = square();
+        let marlin = GcodeOptions { firmware: Firmware::Marlin, s_max: 255.0, ..opts(CoordMode::Absolute) };
+        let code = strip_for_streaming(&emit(&tp, &|p| p, &marlin));
+        assert!(code.contains(&"M4 I S0".to_string()), "{code:?}");
+        assert!(code.iter().any(|l| l.ends_with("S128")), "{code:?}");
+        assert!(code.contains(&"M5".to_string()));
+        let smoothie = GcodeOptions { firmware: Firmware::Smoothieware, s_max: 1.0, ..opts(CoordMode::Absolute) };
+        let code = strip_for_streaming(&emit(&tp, &|p| p, &smoothie));
+        assert!(!code.iter().any(|l| l.starts_with("M3") || l.starts_with("M4") || l == "M5"), "{code:?}");
+        assert!(code.iter().any(|l| l.starts_with("G1") && l.ends_with("S0.5")), "{code:?}");
     }
 
     #[test]

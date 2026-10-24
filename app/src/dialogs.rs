@@ -6,6 +6,7 @@ use egui::{Align2, Button, Color32, CornerRadius, DragValue, Frame, Margin, Rich
 use egui_phosphor::regular as icon;
 use std::time::Instant;
 use vl_cam::{MachineProfile, OriginCorner};
+use vl_core::Firmware;
 
 pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     crate::text_tool::show(app, ctx);
@@ -29,10 +30,23 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
         .collapsible(false)
         .resizable(false)
         .default_width(420.0)
+        .pivot(Align2::CENTER_CENTER)
+        .default_pos(ctx.content_rect().center())
         .show(ctx, |ui| {
             egui::Grid::new("profile").num_columns(2).spacing(vec2(12.0, 6.0)).show(ui, |ui| {
                 ui.label("Name");
                 ui.text_edit_singleline(&mut p.name);
+                ui.end_row();
+                ui.label("Steuerung");
+                let before = p.firmware;
+                egui::ComboBox::from_id_salt("firmware").selected_text(p.firmware.label()).show_ui(ui, |ui| {
+                    for f in Firmware::ALL {
+                        ui.selectable_value(&mut p.firmware, f, f.label());
+                    }
+                });
+                if p.firmware != before && p.s_max == before.default_s_max() {
+                    p.s_max = p.firmware.default_s_max();
+                }
                 ui.end_row();
                 ui.label("Arbeitsfläche");
                 ui.horizontal(|ui| {
@@ -48,8 +62,14 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     }
                 });
                 ui.end_row();
-                ui.label("S-Max ($30)");
-                ui.add(DragValue::new(&mut p.s_max).speed(10.0).range(1.0..=100000.0));
+                let (s_label, s_tip) = match p.firmware {
+                    Firmware::Grbl => ("S-Max ($30)", "Höchstwert für S, wie in $30 eingestellt"),
+                    Firmware::Marlin => ("S-Max", "Höchstwert für S, meist 255 (PWM) oder 100 (Prozent)"),
+                    Firmware::Smoothieware => ("S-Max", "Smoothieware erwartet 0…1 – S-Max 1 = volle Leistung"),
+                };
+                ui.label(s_label);
+                let s_speed = if p.s_max <= 10.0 { 0.01 } else { 10.0 };
+                ui.add(DragValue::new(&mut p.s_max).speed(s_speed).range(0.01..=100000.0)).on_hover_text(s_tip);
                 ui.end_row();
                 ui.label("Leistungsmodus");
                 ui.horizontal(|ui| {
@@ -89,9 +109,11 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     }
                 });
                 ui.end_row();
-                ui.label("Empfangspuffer");
-                ui.add(DragValue::new(&mut p.rx_buffer).range(32..=4096).suffix(" Byte"));
-                ui.end_row();
+                if p.firmware == Firmware::Grbl {
+                    ui.label("Empfangspuffer");
+                    ui.add(DragValue::new(&mut p.rx_buffer).range(32..=4096).suffix(" Byte"));
+                    ui.end_row();
+                }
                 ui.label("Nach dem Job");
                 ui.checkbox(&mut p.return_to_origin, "Zum Ursprung zurückfahren");
                 ui.end_row();
@@ -103,6 +125,20 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 });
                 ui.end_row();
             });
+            if p.firmware != Firmware::Grbl {
+                ui.add_space(4.0);
+                let note = match p.firmware {
+                    Firmware::Marlin => {
+                        "Marlin: Laser im Inline-Modus (M3/M4 I), Zeile für Zeile mit Warten auf „ok“. \
+                         Für sofortiges Stoppen EMERGENCY_PARSER in der Firmware aktivieren."
+                    }
+                    _ => "Smoothieware: Leistung als S 0…1, Zeile für Zeile mit Warten auf „ok“.",
+                };
+                ui.label(RichText::new(note).small().color(theme::of(ui).text_weak));
+            }
+            if app.machine.connected && p.firmware != app.settings.profile.firmware {
+                ui.label(RichText::new("Wirkt beim nächsten Verbinden.").small().color(theme::of(ui).warning));
+            }
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 if ui
@@ -115,7 +151,8 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     apply_device = true;
                 }
                 if ui.button("Sculpfun SF-A9 Standard").clicked() {
-                    p = MachineProfile::sculpfun_sf_a9();
+                    // Drehachse ist Zubehör und bleibt erhalten.
+                    p = MachineProfile { rotary: p.rotary.clone(), ..MachineProfile::sculpfun_sf_a9() };
                 }
             });
         });

@@ -1,11 +1,14 @@
-//! Eingebauter GRBL-Simulator: verhält sich wie eine GRBL-1.1-Steuerung im Laser-Modus,
-//! inklusive Empfangs- und Planerpuffer, damit Streaming und Oberfläche ohne Laser getestet werden können.
+//! Eingebauter Simulator: verhält sich wie eine GRBL-1.1-Steuerung im Laser-Modus, inklusive Empfangs- und
+//! Planerpuffer, damit Streaming und Oberfläche ohne Laser getestet werden können. Für Marlin und
+//! Smoothieware bildet er deren Abweichungen nach (keine Echtzeitbefehle bzw. nur `?`, `M114`, `M400`,
+//! `M410`, `M112`/`M999`).
 
 use crate::protocol::MachineState;
 use crate::transport::Transport;
 use std::collections::VecDeque;
 use std::io;
 use std::time::Instant;
+use vl_core::Firmware;
 
 const PLANNER_SIZE: usize = 15;
 const RX_BUFFER: usize = 128;
@@ -18,6 +21,7 @@ struct SimMove {
 }
 
 pub struct SimTransport {
+    fw: Firmware,
     out: VecDeque<u8>,
     line: Vec<u8>,
     rx_lines: VecDeque<String>,
@@ -41,7 +45,12 @@ pub struct SimTransport {
 impl SimTransport {
     /// `speedup` = Faktor gegenüber Echtzeit (1.0 = realistisch, Tests nutzen große Werte).
     pub fn new(speedup: f64) -> Self {
+        Self::with_firmware(speedup, Firmware::Grbl)
+    }
+
+    pub fn with_firmware(speedup: f64, fw: Firmware) -> Self {
         let mut s = Self {
+            fw,
             out: VecDeque::new(),
             line: Vec::new(),
             rx_lines: VecDeque::new(),
@@ -106,8 +115,21 @@ impl SimTransport {
         self.laser_on = false;
         self.jogging = false;
         self.spindle = 0.0;
-        self.send("");
-        self.send("Grbl 1.1h ['$' for help]");
+        match self.fw {
+            Firmware::Grbl => {
+                self.send("");
+                self.send("Grbl 1.1h ['$' for help]");
+            }
+            Firmware::Marlin => {
+                self.send("start");
+                self.send("echo:Marlin 2.1.2 (VectorLume Simulator)");
+                return;
+            }
+            Firmware::Smoothieware => {
+                self.send("Smoothie");
+                return;
+            }
+        }
         if was_moving {
             self.state = MachineState::Alarm;
             self.send("ALARM:3");
@@ -172,11 +194,72 @@ impl SimTransport {
 
     fn process_lines(&mut self) {
         while self.planner.len() < PLANNER_SIZE {
-            let Some(line) = self.rx_lines.pop_front() else { break };
+            let Some(line) = self.rx_lines.front() else { break };
+            // M400 wartet, bis alle Bewegungen ausgeführt sind.
+            if !self.fw.is_grbl() && line.trim().eq_ignore_ascii_case("M400") && !self.planner.is_empty() {
+                break;
+            }
+            let line = self.rx_lines.pop_front().unwrap();
             self.rx_bytes -= line.len() + 1;
-            let reply = self.execute(&line);
+            let reply = match self.fw {
+                Firmware::Grbl => self.execute(&line),
+                _ => self.execute_other(&line),
+            };
             self.send(&reply);
         }
+    }
+
+    /// Marlin/Smoothieware: eigene Befehle, unbekannte Befehle werden mit `ok` quittiert.
+    fn execute_other(&mut self, line: &str) -> String {
+        let l = line.trim().to_ascii_uppercase();
+        let halted = self.state == MachineState::Alarm;
+        if self.fw == Firmware::Smoothieware && halted && l != "M999" && l != "$X" {
+            return "!!".into();
+        }
+        match l.as_str() {
+            "M114" => {
+                let [x, y] = self.pos;
+                self.send(&format!("X:{x:.2} Y:{y:.2} Z:0.00 E:0.00 Count X:0 Y:0 Z:0"));
+                return "ok".into();
+            }
+            "M115" => {
+                let name = match self.fw {
+                    Firmware::Marlin => "FIRMWARE_NAME:Marlin 2.1.2 (VectorLume Simulator) MACHINE_TYPE:Laser",
+                    _ => "FIRMWARE_NAME:Smoothieware, FIRMWARE_VERSION:edge (VectorLume Simulator)",
+                };
+                self.send(name);
+                return "ok".into();
+            }
+            "M400" => return "ok".into(),
+            "M410" => {
+                self.planner.clear();
+                self.laser_on = false;
+                return "ok".into();
+            }
+            "M112" => {
+                self.planner.clear();
+                self.laser_on = false;
+                self.state = MachineState::Alarm;
+                return "ok".into();
+            }
+            "M999" | "$X" => {
+                self.state = MachineState::Idle;
+                return "ok".into();
+            }
+            "$H" | "G28" | "G28 X Y" | "G28XY" => {
+                self.planner.clear();
+                self.pos = [0.0, 0.0];
+                return "ok".into();
+            }
+            _ => {}
+        }
+        // Marlins Inline-Schalter `I` hat keinen Wert; der Rest ist G-Code wie bei GRBL.
+        let cleaned: String = l.replace(" I ", " ").replace(" I", " ");
+        let reply = self.execute(&cleaned);
+        if reply.starts_with("error") && self.fw == Firmware::Marlin {
+            self.send(&format!("echo:Unknown command: \"{}\"", line.trim()));
+        }
+        "ok".into()
     }
 
     fn planned_end(&self) -> [f64; 2] {
@@ -336,6 +419,15 @@ impl SimTransport {
     }
 
     fn realtime(&mut self, b: u8) {
+        if self.fw == Firmware::Smoothieware && b == 0x18 {
+            // Smoothieware: Strg-X hält an (Halt-Zustand bis M999/$X).
+            self.planner.clear();
+            self.elapsed_in_move = 0.0;
+            self.laser_on = false;
+            self.state = MachineState::Alarm;
+            self.send("ALARM: Abort during cycle");
+            return;
+        }
         match b {
             b'?' => self.status(),
             b'!' => self.hold = !self.planner.is_empty() || self.hold,
@@ -370,12 +462,23 @@ fn parse_words(l: &str) -> Option<Vec<(char, f64)>> {
     Some(words)
 }
 
+impl SimTransport {
+    /// Bytes, die die Firmware sofort statt als Teil einer Zeile auswertet.
+    fn is_realtime(&self, b: u8) -> bool {
+        match self.fw {
+            Firmware::Grbl => matches!(b, b'?' | b'!' | b'~' | 0x18 | 0x80..=0xFF),
+            Firmware::Smoothieware => matches!(b, b'?' | 0x18),
+            Firmware::Marlin => false,
+        }
+    }
+}
+
 impl Transport for SimTransport {
     fn write_all(&mut self, data: &[u8]) -> io::Result<()> {
         self.tick();
         for &b in data {
             match b {
-                b'?' | b'!' | b'~' | 0x18 | 0x80..=0xFF => self.realtime(b),
+                _ if self.is_realtime(b) => self.realtime(b),
                 b'\n' => {
                     let text = String::from_utf8_lossy(&self.line).trim_end_matches('\r').to_string();
                     self.line.clear();

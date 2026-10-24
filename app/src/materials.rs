@@ -10,7 +10,7 @@ use vl_cam::{Anchor, Job, JobSettings, MachineProfile, StartFrom, TestAxis, Test
 use vl_core::{Affine, LayerMode, MaterialEntry, MaterialLibrary, Point, Polyline};
 
 fn library_path() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("VectorLume").join("materials.json"))
+    crate::settings::config_dir().map(|d| d.join("materials.json"))
 }
 
 #[derive(Default)]

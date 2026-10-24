@@ -1,6 +1,7 @@
 //! Kernbibliothek von VectorLume: Geometrie, Pfade, Ebenen, Dokument und Projektdateien.
 
 pub mod document;
+pub mod firmware;
 pub mod geom;
 pub mod layer;
 pub mod material;
@@ -11,6 +12,7 @@ pub mod project;
 pub mod text;
 
 pub use document::{Document, GroupId, ImageAdjust, ImageObject, Object, ObjectId, RasterImage, Shape};
+pub use firmware::Firmware;
 pub use geom::{Affine, Point, Rect};
 pub use layer::{CutSettings, DitherMode, LAYER_COUNT, Layer, LayerMode, PALETTE};
 pub use material::{MaterialEntry, MaterialLibrary};

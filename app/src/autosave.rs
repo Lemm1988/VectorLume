@@ -37,7 +37,7 @@ impl Meta {
 }
 
 fn dir() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("VectorLume").join("autosave"))
+    crate::settings::config_dir().map(|d| d.join("autosave"))
 }
 
 fn files() -> Option<(PathBuf, PathBuf)> {

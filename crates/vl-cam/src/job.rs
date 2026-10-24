@@ -205,6 +205,7 @@ pub fn finish_job(
         ));
     }
     let opts = GcodeOptions {
+        firmware: profile.firmware,
         s_max: profile.s_max,
         dynamic_power: profile.dynamic_power,
         air_on: profile.air_on.clone(),
@@ -395,6 +396,7 @@ pub fn frame_gcode(job: &Job, profile: &MachineProfile) -> Vec<String> {
         CoordMode::Absolute => None,
     };
     let opts = GcodeOptions {
+        firmware: profile.firmware,
         s_max: profile.s_max,
         dynamic_power: true,
         air_on: String::new(),

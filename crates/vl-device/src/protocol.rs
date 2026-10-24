@@ -1,4 +1,4 @@
-//! Auswertung der Antworten einer GRBL-1.1-Steuerung.
+//! Auswertung der Antworten einer GRBL-1.1-Steuerung (dazu Marlin- und Smoothieware-Besonderheiten).
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum MachineState {
@@ -95,6 +95,9 @@ fn parse_triplet(s: &str) -> Option<[f64; 3]> {
 
 pub fn parse_status(line: &str) -> Option<Status> {
     let inner = line.trim().strip_prefix('<')?.strip_suffix('>')?;
+    if !inner.contains('|') {
+        return parse_status_09(inner);
+    }
     let mut parts = inner.split('|');
     let mut st = Status { state: MachineState::parse(parts.next()?), ..Default::default() };
     for part in parts {
@@ -121,6 +124,41 @@ pub fn parse_status(line: &str) -> Option<Status> {
     Some(st)
 }
 
+/// Älteres Format (GRBL 0.9, ältere Smoothieware): `<Idle,MPos:0.000,0.000,0.000,WPos:0.000,0.000,0.000>`.
+fn parse_status_09(inner: &str) -> Option<Status> {
+    let (state, rest) = inner.split_once(',').unwrap_or((inner, ""));
+    let mut st = Status { state: MachineState::parse(state), ..Default::default() };
+    for (key, field) in [("MPos:", &mut st.mpos), ("WPos:", &mut st.wpos)] {
+        if let Some(i) = rest.find(key) {
+            let nums: Vec<&str> = rest[i + key.len()..].split(',').take(3).collect();
+            *field = parse_triplet(&nums.join(","));
+        }
+    }
+    Some(st)
+}
+
+/// Positionsmeldung von Marlin auf `M114`: `X:10.00 Y:20.00 Z:0.00 E:0.00 Count X:800 Y:1600 Z:0`.
+fn parse_position(l: &str) -> Option<[f64; 3]> {
+    if !l.starts_with("X:") {
+        return None;
+    }
+    let mut p = [None, None, Some(0.0)];
+    for tok in l.split_whitespace() {
+        if tok == "Count" {
+            break;
+        }
+        let (k, v) = tok.split_once(':')?;
+        let idx = match k {
+            "X" => 0,
+            "Y" => 1,
+            "Z" => 2,
+            _ => continue,
+        };
+        p[idx] = Some(v.parse().ok()?);
+    }
+    Some([p[0]?, p[1]?, p[2]?])
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Response {
     Ok,
@@ -133,13 +171,24 @@ pub enum Response {
     Setting(u32, String),
     /// Meldung in eckigen Klammern, z. B. `[MSG:...]`, `[VER:...]`.
     Feedback(String),
+    /// Position auf `M114` (Marlin).
+    Position([f64; 3]),
+    /// Steuerung im Halt (Smoothieware `!!`).
+    Halt(String),
     Other(String),
 }
 
 pub fn parse_response(line: &str) -> Response {
     let l = line.trim();
-    if l == "ok" {
+    // Smoothieware hängt z. B. bei M114 die Position an (`ok C: X:…`), Marlin mit ADVANCED_OK Pufferstände.
+    if l == "ok" || l.starts_with("ok ") {
         return Response::Ok;
+    }
+    if l == "!!" {
+        return Response::Halt("Steuerung angehalten (!!) – mit „Entsperren“ (M999) freigeben".into());
+    }
+    if let Some(p) = parse_position(l) {
+        return Response::Position(p);
     }
     if let Some(code) = l.strip_prefix("error:") {
         return Response::Error(code.trim().parse().unwrap_or(0));
@@ -256,5 +305,20 @@ mod tests {
         assert_eq!(parse_response("$30=1000"), Response::Setting(30, "1000".into()));
         assert!(matches!(parse_response("Grbl 1.1h ['$' for help]"), Response::Welcome(_)));
         assert_eq!(parse_response("[MSG:Caution: Unlocked]"), Response::Feedback("MSG:Caution: Unlocked".into()));
+    }
+
+    #[test]
+    fn marlin_and_smoothie_responses() {
+        assert_eq!(
+            parse_response("X:10.00 Y:-2.50 Z:0.00 E:0.00 Count X:800 Y:-200 Z:0"),
+            Response::Position([10.0, -2.5, 0.0])
+        );
+        assert_eq!(parse_response("ok C: X:1.0000 Y:2.0000 Z:0.0000"), Response::Ok);
+        assert!(matches!(parse_response("!!"), Response::Halt(_)));
+        assert!(matches!(parse_response("echo:busy: processing"), Response::Other(_)));
+        let st = parse_status("<Run,MPos:1.000,2.000,0.000,WPos:0.500,1.500,0.000>").unwrap();
+        assert_eq!(st.state, MachineState::Run);
+        assert_eq!(st.mpos, Some([1.0, 2.0, 0.0]));
+        assert_eq!(st.wpos, Some([0.5, 1.5, 0.0]));
     }
 }
