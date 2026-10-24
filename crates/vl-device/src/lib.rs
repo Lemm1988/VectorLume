@@ -7,7 +7,7 @@ pub mod transport;
 
 pub use driver::{Command, Device, Direction, Event, RT_JOG_CANCEL, RT_RESET, RT_STATUS};
 pub use protocol::{MachineState, Status, alarm_text, error_text};
-pub use transport::{PortInfo, SIMULATOR_PORT, available_ports};
+pub use transport::{NETWORK_PORT, PortInfo, SIMULATOR_PORT, TCP_PREFIX, available_ports, with_default_port};
 
 #[cfg(test)]
 mod tests {
@@ -68,6 +68,58 @@ mod tests {
             Event::JobFinished { ok, message, .. } => Some((*ok, message.clone())),
             _ => None,
         })
+    }
+
+    /// Netzwerkverbindung: ein lokaler TCP-Server reicht die Bytes an den Simulator weiter.
+    #[test]
+    fn streams_over_tcp() {
+        use crate::transport::Transport;
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            let (mut sock, _) = listener.accept().unwrap();
+            sock.set_read_timeout(Some(Duration::from_millis(2))).unwrap();
+            let mut sim = sim::SimTransport::new(1000.0);
+            let mut buf = [0u8; 512];
+            loop {
+                match sock.read(&mut buf) {
+                    Ok(0) => return,
+                    Ok(n) => sim.write_all(&buf[..n]).unwrap(),
+                    Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {}
+                    Err(_) => return,
+                }
+                let n = sim.read(&mut buf).unwrap();
+                if n > 0 && sock.write_all(&buf[..n]).is_err() {
+                    return;
+                }
+            }
+        });
+        let dev = Device::spawn(|| {});
+        let port = format!("{TCP_PREFIX}{addr}");
+        dev.send(Command::Connect { port, baud: 0, rx_buffer: 127, firmware: Firmware::Grbl });
+        let mut dev = Probe { dev, pending: Default::default() };
+        dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Setting(32, _)));
+        let lines: Vec<String> = (0..50).map(|i| format!("G1 X{} Y{} F6000 S100", i % 7, i % 5)).collect();
+        dev.send(Command::StartJob { name: "Netz".into(), lines });
+        let evs = dev.wait_for(Duration::from_secs(10), |e| matches!(e, Event::JobFinished { .. }));
+        assert_eq!(finished(&evs).map(|f| f.0), Some(true));
+        dev.send(Command::Disconnect);
+        dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Disconnected { .. }));
+    }
+
+    #[test]
+    fn tcp_connect_failure_is_reported() {
+        let dev = Device::spawn(|| {});
+        // Port 1 auf localhost ist praktisch nie offen
+        dev.send(Command::Connect {
+            port: format!("{TCP_PREFIX}127.0.0.1:1"),
+            baud: 0,
+            rx_buffer: 127,
+            firmware: Firmware::Grbl,
+        });
+        let mut dev = Probe { dev, pending: Default::default() };
+        dev.wait_for(Duration::from_secs(10), |e| matches!(e, Event::Disconnected { reason: Some(_) }));
     }
 
     #[test]

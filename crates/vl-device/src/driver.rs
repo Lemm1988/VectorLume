@@ -3,7 +3,7 @@
 
 use crate::protocol::{MachineState, Response, Status, alarm_text, error_text, parse_response};
 use crate::sim::SimTransport;
-use crate::transport::{SIMULATOR_PORT, SerialTransport, Transport};
+use crate::transport::{SIMULATOR_PORT, SerialTransport, TCP_PREFIX, TcpTransport, Transport};
 use std::collections::VecDeque;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::thread::JoinHandle;
@@ -15,6 +15,8 @@ const STATUS_INTERVAL: Duration = Duration::from_millis(200);
 const POSITION_POLL_INTERVAL: Duration = Duration::from_millis(500);
 /// Wartezeit nach dem Öffnen, falls sich die Steuerung nicht meldet (Arduino-Boards starten beim Öffnen neu).
 const STARTUP_TIMEOUT: Duration = Duration::from_millis(2500);
+/// Netzwerk-Steuerungen starten beim Verbinden nicht neu.
+const STARTUP_TIMEOUT_NETWORK: Duration = Duration::from_millis(300);
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 /// Senden und Warten: bleibt außerhalb eines Jobs so lange jede Antwort aus, gilt die Zeile als beantwortet
 /// (z. B. nach einem Stopp verschluckte `ok`), damit die Verbindung nicht hängen bleibt.
@@ -98,6 +100,7 @@ struct Connection {
     last_poll: Instant,
     ready: bool,
     opened: Instant,
+    startup_wait: Duration,
     last_state: MachineState,
     /// Pause ohne Echtzeitbefehl (Marlin/Smoothieware): keine weiteren Job-Zeilen senden.
     paused: bool,
@@ -207,8 +210,11 @@ impl Driver {
                 if self.conn.is_some() {
                     self.drop_connection(None);
                 }
+                let network = port.starts_with(TCP_PREFIX);
                 let transport: Result<Box<dyn Transport>, String> = if port == SIMULATOR_PORT {
                     Ok(Box::new(SimTransport::with_firmware(1.0, firmware)))
+                } else if let Some(addr) = port.strip_prefix(TCP_PREFIX) {
+                    TcpTransport::connect(addr).map(|t| Box::new(t) as Box<dyn Transport>).map_err(|e| e.to_string())
                 } else {
                     SerialTransport::open(&port, baud)
                         .map(|t| Box::new(t) as Box<dyn Transport>)
@@ -228,6 +234,7 @@ impl Driver {
                             last_poll: Instant::now(),
                             ready: false,
                             opened: Instant::now(),
+                            startup_wait: if network { STARTUP_TIMEOUT_NETWORK } else { STARTUP_TIMEOUT },
                             last_state: MachineState::Unknown,
                             paused: false,
                             last_pos: None,
@@ -432,7 +439,7 @@ impl Driver {
         }
 
         let Some(c) = &mut self.conn else { return Ok(()) };
-        if !c.ready && c.opened.elapsed() >= STARTUP_TIMEOUT {
+        if !c.ready && c.opened.elapsed() >= c.startup_wait {
             c.ready = true;
         }
         let grbl = c.firmware.is_grbl();

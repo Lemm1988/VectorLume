@@ -20,6 +20,8 @@ pub struct AppSettings {
     pub theme: ThemeChoice,
     pub recent_files: Vec<PathBuf>,
     pub last_port: String,
+    /// Adresse für „Netzwerk“, z. B. `192.168.4.1:23`.
+    pub network_address: String,
     pub jog_step: f64,
     pub show_travel: bool,
     pub safety_acknowledged: bool,
@@ -37,6 +39,7 @@ impl Default for AppSettings {
             theme: ThemeChoice::Dark,
             recent_files: Vec::new(),
             last_port: String::new(),
+            network_address: String::new(),
             jog_step: 10.0,
             show_travel: true,
             safety_acknowledged: false,

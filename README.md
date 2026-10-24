@@ -17,7 +17,7 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
 - **30 Farbebenen** mit den Modi *Linie* (Schnittbreite, Laschen), *Füllen* (Winkel, Kreuzschraffur, Overscan),
   *Versatz-Füllen* und *Bild* (8 Dithering-Verfahren oder Graustufen, Helligkeit/Kontrast/Gamma)
 - **Material:** Materialtest-Generator und Materialbibliothek; Z-Versatz je Durchgang für Geräte mit Z-Achse
-- **Laser:** USB-Verbindung, Status, Konsole, Referenzfahrt, Verfahren, Rahmen, Start/Pause/Stopp,
+- **Laser:** USB- oder Netzwerkverbindung (TCP/Telnet, z. B. FluidNC), Status, Konsole, Referenzfahrt, Verfahren, Rahmen, Start/Pause/Stopp,
   Job-Ursprung (absolut, Benutzer-Ursprung, aktuelle Position, 9 Ankerpunkte), Drehachse (Rollen/Futter, Y oder A)
 - **Vorschau** mit Laufzeitschätzung, Leerfahrten und Abspielregler
 - **Optimierung:** kürzeste Wege, innen vor außen, Gravieren vor Schneiden

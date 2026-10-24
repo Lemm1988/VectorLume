@@ -438,6 +438,24 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 app.connect();
             }
         });
+        if app.selected_port == vl_device::NETWORK_PORT {
+            ui.horizontal(|ui| {
+                ui.label("Adresse");
+                let edit = egui::TextEdit::singleline(&mut app.settings.network_address)
+                    .hint_text("192.168.4.1:23")
+                    .desired_width(170.0);
+                let resp = ui.add_enabled(!connected, edit).on_hover_text(
+                    "IP-Adresse oder Name der Steuerung, optional mit Port (Standard 23 = Telnet). \
+                     Für FluidNC, grblHAL und ESP3D.",
+                );
+                if resp.lost_focus() {
+                    app.settings.save();
+                }
+                if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !connected {
+                    app.connect();
+                }
+            });
+        }
         if connected {
             ui.add_space(4.0);
             let state = app.machine.status.as_ref().map(|s| s.state).unwrap_or_default();

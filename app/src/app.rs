@@ -1045,6 +1045,16 @@ impl VectorLumeApp {
         }
         self.settings.last_port = port.clone();
         self.settings.save();
+        let port = if port == vl_device::NETWORK_PORT {
+            let addr = self.settings.network_address.trim();
+            if addr.is_empty() {
+                self.toast(ToastKind::Error, "Bitte die Netzwerkadresse der Steuerung eingeben (z. B. 192.168.4.1).");
+                return;
+            }
+            format!("{}{}", vl_device::TCP_PREFIX, vl_device::with_default_port(addr))
+        } else {
+            port
+        };
         let p = &self.settings.profile;
         self.machine.settings.clear();
         self.device.send(Command::Connect { port, baud: p.baud, rx_buffer: p.rx_buffer, firmware: p.firmware });

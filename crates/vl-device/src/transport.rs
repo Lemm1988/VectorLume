@@ -1,6 +1,7 @@
-//! Übertragungswege zur Steuerung: serielle Schnittstelle (USB) und Simulator.
+//! Übertragungswege zur Steuerung: serielle Schnittstelle (USB), Netzwerk (TCP/Telnet) und Simulator.
 
 use std::io;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
 pub trait Transport: Send {
@@ -38,6 +39,59 @@ impl Transport for SerialTransport {
     }
 }
 
+/// Rohe TCP-Verbindung, wie sie FluidNC, grblHAL oder ESP3D als „Telnet“ anbieten (Standard-Port 23).
+pub struct TcpTransport {
+    stream: TcpStream,
+}
+
+impl TcpTransport {
+    pub fn connect(address: &str) -> io::Result<Self> {
+        let addr = with_default_port(address);
+        let mut last = io::Error::other(format!("{addr}: Adresse nicht gefunden"));
+        for sa in addr.to_socket_addrs()? {
+            match TcpStream::connect_timeout(&sa, Duration::from_secs(3)) {
+                Ok(stream) => {
+                    stream.set_nodelay(true)?;
+                    stream.set_read_timeout(Some(Duration::from_millis(5)))?;
+                    return Ok(Self { stream });
+                }
+                Err(e) => last = io::Error::other(format!("{addr}: {e}")),
+            }
+        }
+        Err(last)
+    }
+}
+
+/// Ergänzt Port 23, falls die Adresse keinen enthält.
+pub fn with_default_port(address: &str) -> String {
+    let a = address.trim();
+    let has_port = match a.rsplit_once(':') {
+        // IPv6 ohne Klammern enthält mehrere Doppelpunkte und keinen Port
+        Some((host, port)) => {
+            !port.is_empty() && port.chars().all(|c| c.is_ascii_digit()) && !host.contains(':')
+                || a.starts_with('[') && a.contains("]:")
+        }
+        None => false,
+    };
+    if has_port { a.to_string() } else { format!("{a}:23") }
+}
+
+impl Transport for TcpTransport {
+    fn write_all(&mut self, data: &[u8]) -> io::Result<()> {
+        io::Write::write_all(&mut self.stream, data)?;
+        io::Write::flush(&mut self.stream)
+    }
+
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match io::Read::read(&mut self.stream, buf) {
+            Ok(0) => Err(io::Error::new(io::ErrorKind::ConnectionAborted, "Gegenstelle hat die Verbindung beendet")),
+            Ok(n) => Ok(n),
+            Err(e) if e.kind() == io::ErrorKind::TimedOut || e.kind() == io::ErrorKind::WouldBlock => Ok(0),
+            Err(e) => Err(e),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PortInfo {
     pub name: String,
@@ -45,6 +99,9 @@ pub struct PortInfo {
 }
 
 pub const SIMULATOR_PORT: &str = "Simulator";
+/// Eintrag in der Anschlussliste für eine Netzwerkverbindung; die Adresse folgt als `tcp:host:port`.
+pub const NETWORK_PORT: &str = "Netzwerk";
+pub const TCP_PREFIX: &str = "tcp:";
 
 /// Verfügbare serielle Anschlüsse plus der eingebaute Simulator.
 pub fn available_ports() -> Vec<PortInfo> {
@@ -65,6 +122,19 @@ pub fn available_ports() -> Vec<PortInfo> {
         })
         .collect();
     ports.sort_by(|a, b| a.name.cmp(&b.name));
+    ports.push(PortInfo { name: NETWORK_PORT.into(), description: "WLAN/LAN, z. B. FluidNC".into() });
     ports.push(PortInfo { name: SIMULATOR_PORT.into(), description: "Ohne Laser testen".into() });
     ports
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_port() {
+        assert_eq!(with_default_port(" 192.168.4.1 "), "192.168.4.1:23");
+        assert_eq!(with_default_port("laser.local:8080"), "laser.local:8080");
+        assert_eq!(with_default_port("[fe80::1]:23"), "[fe80::1]:23");
+    }
 }
