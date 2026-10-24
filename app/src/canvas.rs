@@ -294,7 +294,7 @@ impl VectorLumeApp {
     fn hit_test(&mut self, p: Point, tol: f64) -> Option<ObjectId> {
         for idx in (0..self.doc.objects.len()).rev() {
             let obj = &self.doc.objects[idx];
-            if !self.doc.layers[obj.layer].visible {
+            if !self.doc.layers[obj.layer].selectable() {
                 continue;
             }
             match &obj.shape {
@@ -817,7 +817,7 @@ impl VectorLumeApp {
                             .doc
                             .objects
                             .iter()
-                            .filter(|o| self.doc.layers[o.layer].visible)
+                            .filter(|o| self.doc.layers[o.layer].selectable())
                             .filter(|o| {
                                 let b = o.bounds();
                                 if crossing { band.intersects(&b) } else { band.contains_rect(&b) }

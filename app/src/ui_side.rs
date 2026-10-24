@@ -130,6 +130,20 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                             app.doc.move_layer(l, -1);
                             app.mark_changed();
                         }
+                        let lock = if layer.locked { icon::LOCK_SIMPLE } else { icon::LOCK_SIMPLE_OPEN };
+                        if ui
+                            .small_button(lock)
+                            .on_hover_text("Sperren: Objekte bleiben sichtbar, lassen sich aber nicht auswählen")
+                            .clicked()
+                        {
+                            app.checkpoint();
+                            app.doc.layers[l].locked = !layer.locked;
+                            if !layer.locked {
+                                let doc = &app.doc;
+                                app.selection.retain(|id| doc.get(*id).is_some_and(|o| o.layer != l));
+                            }
+                            app.mark_changed();
+                        }
                         let vis = if layer.visible { icon::EYE } else { icon::EYE_SLASH };
                         if ui.small_button(vis).on_hover_text("Anzeigen/Ausblenden").clicked() {
                             app.checkpoint();

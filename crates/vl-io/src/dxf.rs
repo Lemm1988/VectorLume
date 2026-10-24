@@ -1,9 +1,10 @@
-//! DXF-Import: Linien, Polylinien (mit Bögen), Kreise, Bögen, Ellipsen, Splines und Blockreferenzen.
+//! DXF-Import (Linien, Polylinien mit Bögen, Kreise, Bögen, Ellipsen, Splines, Blockreferenzen) und DXF-Export.
 
 use crate::{Imported, ImportedItem};
 use dxf::entities::{Entity, EntityType};
 use std::f64::consts::TAU;
-use vl_core::{Affine, PathBuilder, Point, VectorPath};
+use std::fmt::Write as _;
+use vl_core::{Affine, Document, PathBuilder, Point, Shape, VectorPath};
 
 const MAX_INSERT_DEPTH: usize = 8;
 
@@ -266,6 +267,104 @@ fn de_boor(u: f64, p: usize, knots: &[f64], cps: &[Point], w: &[f64]) -> Point {
     if wt.abs() < 1e-12 { pt } else { pt * (1.0 / wt) }
 }
 
+/// Ergebnis des DXF-Exports.
+pub struct DxfExport {
+    pub text: String,
+    /// Anzahl der Bilder, die nicht exportiert werden konnten.
+    pub skipped_images: usize,
+}
+
+/// Exportiert alle Vektorobjekte als DXF R12 (mm, Y nach oben, Ursprung unten links der Arbeitsfläche).
+/// Kurven werden mit 0,01 mm Toleranz in Polylinien umgewandelt; je VectorLume-Ebene entsteht ein DXF-Layer.
+pub fn export_dxf(doc: &Document, bed_height: f64) -> DxfExport {
+    let mut t = String::new();
+    let pair = |t: &mut String, code: i32, value: &str| {
+        let _ = writeln!(
+            t,
+            "{code}
+{value}"
+        );
+    };
+    pair(&mut t, 0, "SECTION");
+    pair(&mut t, 2, "HEADER");
+    pair(&mut t, 9, "$ACADVER");
+    pair(&mut t, 1, "AC1009");
+    pair(&mut t, 9, "$INSUNITS");
+    pair(&mut t, 70, "4");
+    pair(&mut t, 0, "ENDSEC");
+
+    let used = doc.used_layers();
+    pair(&mut t, 0, "SECTION");
+    pair(&mut t, 2, "TABLES");
+    pair(&mut t, 0, "TABLE");
+    pair(&mut t, 2, "LAYER");
+    pair(&mut t, 70, &used.len().to_string());
+    for &l in &used {
+        pair(&mut t, 0, "LAYER");
+        pair(&mut t, 2, &layer_name(&doc.layers[l].name, l));
+        pair(&mut t, 70, "0");
+        pair(&mut t, 62, &aci(doc.layers[l].color).to_string());
+        pair(&mut t, 6, "CONTINUOUS");
+    }
+    pair(&mut t, 0, "ENDTAB");
+    pair(&mut t, 0, "ENDSEC");
+
+    pair(&mut t, 0, "SECTION");
+    pair(&mut t, 2, "ENTITIES");
+    let mut skipped_images = 0;
+    for o in &doc.objects {
+        if matches!(o.shape, Shape::Image(_)) {
+            skipped_images += 1;
+            continue;
+        }
+        let layer = layer_name(&doc.layers[o.layer].name, o.layer);
+        for poly in o.polylines(0.01) {
+            if poly.points.len() < 2 {
+                continue;
+            }
+            pair(&mut t, 0, "POLYLINE");
+            pair(&mut t, 8, &layer);
+            pair(&mut t, 66, "1");
+            pair(&mut t, 70, if poly.closed { "1" } else { "0" });
+            for p in &poly.points {
+                pair(&mut t, 0, "VERTEX");
+                pair(&mut t, 8, &layer);
+                pair(&mut t, 10, &format!("{:.4}", p.x));
+                pair(&mut t, 20, &format!("{:.4}", bed_height - p.y));
+            }
+            pair(&mut t, 0, "SEQEND");
+            pair(&mut t, 8, &layer);
+        }
+    }
+    pair(&mut t, 0, "ENDSEC");
+    pair(&mut t, 0, "EOF");
+    DxfExport { text: t, skipped_images }
+}
+
+/// DXF-Layernamen dürfen nur bestimmte Zeichen enthalten.
+fn layer_name(name: &str, index: usize) -> String {
+    let clean: String =
+        name.chars().map(|c| if c.is_ascii_alphanumeric() || "-_$".contains(c) { c } else { '_' }).collect();
+    if clean.is_empty() { format!("L{:02}", index + 1) } else { clean }
+}
+
+/// Nächstliegende Farbe der AutoCAD-Grundpalette (1–7, 8, 9).
+fn aci(rgb: [u8; 3]) -> u8 {
+    const BASE: [(u8, [u8; 3]); 9] = [
+        (1, [255, 0, 0]),
+        (2, [255, 255, 0]),
+        (3, [0, 255, 0]),
+        (4, [0, 255, 255]),
+        (5, [0, 0, 255]),
+        (6, [255, 0, 255]),
+        (7, [255, 255, 255]),
+        (8, [128, 128, 128]),
+        (9, [192, 192, 192]),
+    ];
+    let dist = |c: [u8; 3]| (0..3).map(|i| (c[i] as i32 - rgb[i] as i32).pow(2)).sum::<i32>();
+    BASE.iter().min_by_key(|(_, c)| dist(*c)).map(|(i, _)| *i).unwrap_or(7)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -314,5 +413,29 @@ mod tests {
         assert!((b.width() - 10.0).abs() < 1e-3);
         // Y wird gespiegelt
         assert!((b.center().y + 50.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn export_round_trip() {
+        let mut doc = Document::new();
+        doc.add_path("Kreis", 0, VectorPath::ellipse(Point::new(50.0, 50.0), 10.0, 10.0));
+        doc.add_path("Linie", 3, VectorPath::line(Point::new(0.0, 0.0), Point::new(20.0, 5.0)));
+        let out = export_dxf(&doc, 400.0);
+        assert_eq!(out.skipped_images, 0);
+        let back = import_dxf(out.text.as_bytes()).unwrap();
+        assert_eq!(back.items.len(), 2, "{:?}", back.warnings);
+        // Import spiegelt Y (Dokument: Y nach unten); Abstände bleiben erhalten.
+        let mut bounds: Vec<vl_core::Rect> = back
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                crate::ImportedItem::Path { path, .. } => Some(path.bounds(&Affine::IDENTITY)),
+                _ => None,
+            })
+            .collect();
+        bounds.sort_by(|a, b| b.width().total_cmp(&a.width()));
+        assert!((bounds[0].width() - 20.0).abs() < 0.01 && (bounds[1].width() - 20.0).abs() < 0.01);
+        assert_eq!(aci([255, 10, 10]), 1);
+        assert_eq!(layer_name("Schnitt außen", 0), "Schnitt_au_en");
     }
 }

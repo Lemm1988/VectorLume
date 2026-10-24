@@ -245,6 +245,9 @@ fn file_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, "Als SVG exportieren…", "", has) {
         app.export_svg_dialog();
     }
+    if menu_item(ui, "Als DXF exportieren…", "", has) {
+        app.export_dxf_dialog();
+    }
     ui.separator();
     if menu_item(ui, "Beenden", "", true) {
         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);

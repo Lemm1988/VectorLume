@@ -158,6 +158,7 @@ pub enum Modal {
     Safety { job: Arc<Job> },
     Unsaved(AfterDiscard),
     Message { title: String, text: String },
+    Recover { path: PathBuf, meta: crate::autosave::Meta },
 }
 
 pub struct TextDialog {
@@ -204,6 +205,7 @@ pub struct VectorLumeApp {
     pub rotate_by: f64,
     pub materials: crate::materials::MaterialsUi,
     pub test: crate::materials::TestUi,
+    pub autosave: crate::autosave::Autosave,
     last_edit: Option<(&'static str, Instant)>,
     last_title: String,
     close_confirmed: bool,
@@ -277,6 +279,7 @@ impl VectorLumeApp {
             rotate_by: 90.0,
             materials: crate::materials::MaterialsUi::load(),
             test: crate::materials::TestUi::default(),
+            autosave: crate::autosave::Autosave::default(),
             last_edit: None,
             last_title: String::new(),
             close_confirmed: false,
@@ -301,6 +304,9 @@ impl VectorLumeApp {
         if std::env::var_os("VECTORLUME_SIMULATOR").is_some() {
             app.selected_port = vl_device::SIMULATOR_PORT.into();
             app.connect();
+        }
+        if let Some((path, meta)) = crate::autosave::find() {
+            app.modal = Some(Modal::Recover { path, meta });
         }
         match std::env::var("VECTORLUME_WINDOW").as_deref() {
             Ok("materialtest") => app.open_material_test(),
@@ -389,6 +395,7 @@ impl VectorLumeApp {
     }
 
     fn reset_after_load(&mut self, path: Option<PathBuf>) {
+        self.autosave.clear();
         self.history.clear();
         self.selection.clear();
         self.geom.clear();
@@ -410,6 +417,23 @@ impl VectorLumeApp {
         });
         if let Some(p) = path {
             self.open_project(&p);
+        }
+    }
+
+    /// Lädt eine automatische Sicherung; das Projekt gilt danach als ungespeichert.
+    pub fn restore_autosave(&mut self, path: &Path, original: Option<PathBuf>) {
+        match vl_core::project::load_project(path) {
+            Ok(doc) => {
+                self.doc = doc;
+                self.reset_after_load(original);
+                self.dirty = true;
+                self.zoom_to_fit();
+                self.toast(ToastKind::Success, "Sicherung wiederhergestellt. Bitte das Projekt speichern.");
+            }
+            Err(e) => {
+                self.autosave.clear();
+                self.toast(ToastKind::Error, format!("Sicherung unbrauchbar: {e}"));
+            }
         }
     }
 
@@ -443,6 +467,7 @@ impl VectorLumeApp {
         match vl_core::project::save_project(&self.doc, &path) {
             Ok(()) => {
                 self.dirty = false;
+                self.autosave.clear();
                 self.settings.add_recent(path.clone());
                 self.settings.save();
                 self.toast(ToastKind::Success, format!("Gespeichert: {}", file_name(&path)));
@@ -545,10 +570,34 @@ impl VectorLumeApp {
         }
     }
 
+    pub fn export_dxf_dialog(&mut self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .set_title("Als DXF exportieren")
+            .set_file_name("Export.dxf")
+            .add_filter("DXF", &["dxf"])
+            .save_file()
+        {
+            let out = vl_io::dxf::export_dxf(&self.doc, self.settings.profile.bed_height);
+            match std::fs::write(&path, out.text) {
+                Ok(()) => {
+                    self.toast(ToastKind::Success, format!("DXF gespeichert: {}", file_name(&path)));
+                    if out.skipped_images > 0 {
+                        self.toast(
+                            ToastKind::Info,
+                            format!("{} Bild(er) sind im DXF nicht enthalten.", out.skipped_images),
+                        );
+                    }
+                }
+                Err(e) => self.toast(ToastKind::Error, format!("DXF konnte nicht gespeichert werden: {e}")),
+            }
+        }
+    }
+
     // ---------------------------------------------------------------- Bearbeiten
 
     pub fn select_all(&mut self) {
-        self.selection = self.doc.objects.iter().map(|o| o.id).collect();
+        self.selection =
+            self.doc.objects.iter().filter(|o| self.doc.layers[o.layer].selectable()).map(|o| o.id).collect();
     }
 
     pub fn delete_selection(&mut self) {
@@ -1194,6 +1243,7 @@ impl eframe::App for VectorLumeApp {
         crate::materials::show(self, &ctx);
         self.update_preview();
         self.update_title(&ctx);
+        self.autosave.tick(&self.doc, self.revision, self.dirty, self.file_path.as_deref());
         if self.machine.job_running || self.jobs.busy > 0 || !self.toasts.is_empty() {
             ctx.request_repaint_after(Duration::from_millis(250));
         }
@@ -1201,5 +1251,6 @@ impl eframe::App for VectorLumeApp {
 
     fn on_exit(&mut self) {
         self.settings.save();
+        self.autosave.clear();
     }
 }

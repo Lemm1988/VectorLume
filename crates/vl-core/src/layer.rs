@@ -174,6 +174,9 @@ pub struct Layer {
     pub color: [u8; 3],
     #[serde(default = "default_true")]
     pub visible: bool,
+    /// Gesperrte Ebenen werden angezeigt und gelasert, ihre Objekte lassen sich aber nicht auswählen.
+    #[serde(default)]
+    pub locked: bool,
     pub settings: CutSettings,
 }
 
@@ -188,7 +191,13 @@ impl Layer {
             name: format!("L{:02}", index + 1),
             color: PALETTE[index % LAYER_COUNT],
             visible: true,
+            locked: false,
             settings: CutSettings::default(),
         }
+    }
+
+    /// Objekte dieser Ebene können ausgewählt werden.
+    pub fn selectable(&self) -> bool {
+        self.visible && !self.locked
     }
 }

@@ -387,6 +387,27 @@ fn modal(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     }
                 });
             }
+            Modal::Recover { path, meta } => {
+                ui.label(RichText::new(format!("{} Ungespeicherte Arbeit gefunden", icon::CLOCK_COUNTER_CLOCKWISE)).font(theme::strong_font(18.0)));
+                ui.add_space(6.0);
+                let of = meta.original.as_deref().map(crate::app::file_name).map(|n| format!(" von „{n}“")).unwrap_or_default();
+                ui.label(format!(
+                    "VectorLume wurde zuletzt nicht regulär beendet. Es gibt eine automatische Sicherung{of} ({}).",
+                    meta.age_label()
+                ));
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.add(Button::new(RichText::new("Wiederherstellen").color(Color32::WHITE)).fill(pal.accent)).clicked() {
+                        let (path, original) = (path.clone(), meta.original.clone());
+                        action = Some(Box::new(move |app: &mut VectorLumeApp| app.restore_autosave(&path, original)));
+                        keep = false;
+                    }
+                    if ui.button("Verwerfen").clicked() {
+                        action = Some(Box::new(|app: &mut VectorLumeApp| app.autosave.clear()));
+                        keep = false;
+                    }
+                });
+            }
             Modal::Message { title, text } => {
                 ui.label(RichText::new(title).font(theme::strong_font(18.0)));
                 ui.add_space(6.0);
