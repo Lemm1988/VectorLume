@@ -45,17 +45,32 @@ fn files() -> Option<(PathBuf, PathBuf)> {
     Some((d.join("autosave.vlume"), d.join("autosave.json")))
 }
 
-/// Vorhandene Sicherung aus einer früheren Sitzung.
-pub fn find() -> Option<(PathBuf, Meta)> {
-    let (project, meta) = files()?;
-    if !project.exists() {
+/// Sicherung aus einer früheren Sitzung beiseitelegen. Sie wird umbenannt, damit das Öffnen einer Datei beim
+/// Start (z. B. „Öffnen mit …“) sie nicht löscht, bevor der Benutzer über die Wiederherstellung entschieden hat.
+pub fn take_previous() -> Option<(PathBuf, Meta)> {
+    let (project, meta_path) = files()?;
+    let recover = project.with_file_name("wiederherstellen.vlume");
+    let recover_meta = project.with_file_name("wiederherstellen.json");
+    if project.exists() {
+        // Neuere Sicherung ersetzt eine ältere, noch nicht entschiedene
+        let _ = std::fs::remove_file(&recover_meta);
+        std::fs::rename(&project, &recover).ok()?;
+        let _ = std::fs::rename(&meta_path, &recover_meta);
+    }
+    if !recover.exists() {
         return None;
     }
-    let meta: Meta = std::fs::read_to_string(meta)
+    let meta: Meta = std::fs::read_to_string(&recover_meta)
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or(Meta { original: None, saved_at: 0 });
-    Some((project, meta))
+    Some((recover, meta))
+}
+
+/// Beiseitegelegte Sicherung nach der Entscheidung entfernen.
+pub fn discard_previous(path: &Path) {
+    let _ = std::fs::remove_file(path);
+    let _ = std::fs::remove_file(path.with_extension("json"));
 }
 
 pub struct Autosave {

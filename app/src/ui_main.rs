@@ -480,6 +480,8 @@ fn properties(app: &mut VectorLumeApp, ui: &mut Ui) {
             let a = app.rotate_by;
             app.rotate_selection(a);
         }
+        ui.add_space(6.0);
+        power_scale_field(app, ui);
 
         if !has {
             return;
@@ -510,6 +512,37 @@ fn properties(app: &mut VectorLumeApp, ui: &mut Ui) {
             app.mark_changed();
         }
     });
+}
+
+/// Leistung der ausgewählten Objekte in Prozent der Ebenenleistung (z. B. für Materialtests).
+fn power_scale_field(app: &mut VectorLumeApp, ui: &mut Ui) {
+    let ids = app.selection.clone();
+    let scales: Vec<f64> = ids.iter().filter_map(|id| app.doc.get(*id)).map(|o| o.power_scale).collect();
+    let Some(&first) = scales.first() else { return };
+    let mixed = scales.iter().any(|s| *s != first);
+    let pal = theme::of(ui);
+    let color = if first != 100.0 || mixed { pal.accent } else { pal.text_weak };
+    ui.label(RichText::new(icon::LIGHTNING).color(color)).on_hover_text("Leistung der Auswahl");
+    let mut v = first;
+    let resp = ui
+        .add(DragValue::new(&mut v).speed(0.5).range(1.0..=100.0).max_decimals(1).suffix(if mixed {
+            " % …"
+        } else {
+            " %"
+        }))
+        .on_hover_text(
+            "Leistung dieser Objekte in Prozent der Ebenenleistung (100 % = wie die Ebene). \
+             Praktisch für Materialtests mit mehreren Leistungen auf einer Ebene.",
+        );
+    if resp.changed() {
+        app.checkpoint_coalesced("power_scale");
+        for id in ids {
+            if let Some(o) = app.doc.get_mut(id) {
+                o.power_scale = v;
+            }
+        }
+        app.mark_changed();
+    }
 }
 
 fn tool_options(app: &mut VectorLumeApp, ui: &mut Ui) {

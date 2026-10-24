@@ -5,7 +5,7 @@ use crate::gcode::{CoordMode, GcodeOptions, emit, fmt_mm};
 use crate::machine::{JobSettings, MachineProfile, RotaryKind, StartFrom};
 use crate::optimize::order_polylines;
 use crate::toolpath::{Block, BlockKind, Op, RasterPreview, Toolpath, hatch_ops, line_ops, raster_ops};
-use vl_core::{Document, LayerMode, Object, ObjectId, Point, Polyline, Rect, Shape};
+use vl_core::{CutSettings, Document, LayerMode, Object, ObjectId, Point, Polyline, Rect, Shape};
 
 /// Toleranz beim Abflachen von Kurven für die Ausgabe (mm).
 pub const OUTPUT_TOLERANCE: f64 = 0.01;
@@ -243,93 +243,113 @@ pub fn generate(doc: &Document, objects: &[&Object], settings: &JobSettings, sta
             continue;
         }
         let objs: Vec<&Object> = objects.iter().copied().filter(|o| o.layer == layer).collect();
-        if objs.is_empty() {
-            continue;
-        }
-        let power = (cs.power_max / 100.0).clamp(0.0, 1.0) as f32;
-
-        let mut raster_blocks: Vec<(usize, Vec<Op>)> = Vec::new();
-        let mut polys: Vec<Polyline> = Vec::new();
+        // Objekte mit eigener Leistung (z. B. Materialtest) getrennt ausgeben, in der Reihenfolge des Dokuments
+        let mut scales: Vec<f64> = Vec::new();
         for o in &objs {
-            match &o.shape {
-                Shape::Image(img) => {
-                    let r = vl_raster::engrave_image(img, &o.transform, cs.interval, cs.dither, cs.negative)
-                        .map_err(|e| format!("Bild „{}“: {e}", o.name))?;
-                    let ops = raster_ops(&r, cs);
-                    if let Some(last) = ops.last() {
-                        cur = last.target();
-                    }
-                    raster_blocks.push((tp.rasters.len(), ops));
-                    tp.rasters.push(RasterPreview { layer, result: r });
-                }
-                Shape::Path(p) => polys.extend(p.flatten(&o.transform, OUTPUT_TOLERANCE)),
+            if !scales.contains(&o.power_scale) {
+                scales.push(o.power_scale);
             }
         }
-
-        let (vector_kind, vector_ops) = match cs.mode {
-            LayerMode::Line => {
-                if cs.kerf.abs() > 1e-6 {
-                    polys = apply_kerf(polys, cs.kerf);
-                }
-                let mut ordered =
-                    if settings.optimize_order { order_polylines(polys, cur, settings.inner_first) } else { polys };
-                if cs.tab_count > 0 && cs.tab_width > 0.0 {
-                    ordered = apply_tabs(ordered, cs.tab_count as usize, cs.tab_width, cs.tabs_outer_only);
-                }
-                (BlockKind::Line, line_ops(&ordered, power))
-            }
-            LayerMode::OffsetFill => {
-                let rings = vl_core::ops::offset_fill(&polys, cs.interval, MAX_OFFSET_RINGS);
-                let ordered = if settings.optimize_order { order_polylines(rings, cur, false) } else { rings };
-                (BlockKind::Fill, line_ops(&ordered, power))
-            }
-            LayerMode::Fill | LayerMode::Image => {
-                let mut ops = hatch_ops(&polys, cs.interval, cs.fill_angle, cs.bidirectional, cs.overscan, power);
-                if cs.crosshatch {
-                    ops.extend(hatch_ops(
-                        &polys,
-                        cs.interval,
-                        cs.fill_angle + 90.0,
-                        cs.bidirectional,
-                        cs.overscan,
-                        power,
-                    ));
-                }
-                (BlockKind::Fill, ops)
-            }
-        };
-        if let Some(last) = vector_ops.last() {
-            cur = last.target();
-        }
-
-        for pass in 0..cs.passes.max(1) {
-            for (idx, ops) in &raster_blocks {
-                tp.blocks.push(Block {
-                    layer,
-                    kind: BlockKind::Raster,
-                    pass,
-                    feed: cs.speed,
-                    air: cs.air_assist,
-                    ops: ops.clone(),
-                    raster: Some(*idx),
-                    z: cs.z_for_pass(pass),
-                });
-            }
-            if !vector_ops.is_empty() {
-                tp.blocks.push(Block {
-                    layer,
-                    kind: vector_kind,
-                    pass,
-                    feed: cs.speed,
-                    air: cs.air_assist,
-                    ops: vector_ops.clone(),
-                    raster: None,
-                    z: cs.z_for_pass(pass),
-                });
+        for scale in scales {
+            let part: Vec<&Object> = objs.iter().copied().filter(|o| o.power_scale == scale).collect();
+            if scale == 100.0 {
+                layer_blocks(&mut tp, &mut cur, layer, cs, &part, settings)?;
+            } else {
+                let mut scaled = cs.clone();
+                scaled.power_max *= scale / 100.0;
+                scaled.power_min *= scale / 100.0;
+                layer_blocks(&mut tp, &mut cur, layer, &scaled, &part, settings)?;
             }
         }
     }
     Ok(tp)
+}
+
+/// Bahnen einer Ebene (bzw. ihrer Objekte mit gleicher Leistung) an den Werkzeugweg anhängen.
+fn layer_blocks(
+    tp: &mut Toolpath,
+    cur: &mut Point,
+    layer: usize,
+    cs: &CutSettings,
+    objs: &[&Object],
+    settings: &JobSettings,
+) -> Result<(), String> {
+    let power = (cs.power_max / 100.0).clamp(0.0, 1.0) as f32;
+
+    let mut raster_blocks: Vec<(usize, Vec<Op>)> = Vec::new();
+    let mut polys: Vec<Polyline> = Vec::new();
+    for o in objs {
+        match &o.shape {
+            Shape::Image(img) => {
+                let r = vl_raster::engrave_image(img, &o.transform, cs.interval, cs.dither, cs.negative)
+                    .map_err(|e| format!("Bild „{}“: {e}", o.name))?;
+                let ops = raster_ops(&r, cs);
+                if let Some(last) = ops.last() {
+                    *cur = last.target();
+                }
+                raster_blocks.push((tp.rasters.len(), ops));
+                tp.rasters.push(RasterPreview { layer, result: r });
+            }
+            Shape::Path(p) => polys.extend(p.flatten(&o.transform, OUTPUT_TOLERANCE)),
+        }
+    }
+
+    let (vector_kind, vector_ops) = match cs.mode {
+        LayerMode::Line => {
+            if cs.kerf.abs() > 1e-6 {
+                polys = apply_kerf(polys, cs.kerf);
+            }
+            let mut ordered =
+                if settings.optimize_order { order_polylines(polys, *cur, settings.inner_first) } else { polys };
+            if cs.tab_count > 0 && cs.tab_width > 0.0 {
+                ordered = apply_tabs(ordered, cs.tab_count as usize, cs.tab_width, cs.tabs_outer_only);
+            }
+            (BlockKind::Line, line_ops(&ordered, power))
+        }
+        LayerMode::OffsetFill => {
+            let rings = vl_core::ops::offset_fill(&polys, cs.interval, MAX_OFFSET_RINGS);
+            let ordered = if settings.optimize_order { order_polylines(rings, *cur, false) } else { rings };
+            (BlockKind::Fill, line_ops(&ordered, power))
+        }
+        LayerMode::Fill | LayerMode::Image => {
+            let mut ops = hatch_ops(&polys, cs.interval, cs.fill_angle, cs.bidirectional, cs.overscan, power);
+            if cs.crosshatch {
+                ops.extend(hatch_ops(&polys, cs.interval, cs.fill_angle + 90.0, cs.bidirectional, cs.overscan, power));
+            }
+            (BlockKind::Fill, ops)
+        }
+    };
+    if let Some(last) = vector_ops.last() {
+        *cur = last.target();
+    }
+
+    for pass in 0..cs.passes.max(1) {
+        for (idx, ops) in &raster_blocks {
+            tp.blocks.push(Block {
+                layer,
+                kind: BlockKind::Raster,
+                pass,
+                feed: cs.speed,
+                air: cs.air_assist,
+                ops: ops.clone(),
+                raster: Some(*idx),
+                z: cs.z_for_pass(pass),
+            });
+        }
+        if !vector_ops.is_empty() {
+            tp.blocks.push(Block {
+                layer,
+                kind: vector_kind,
+                pass,
+                feed: cs.speed,
+                air: cs.air_assist,
+                ops: vector_ops.clone(),
+                raster: None,
+                z: cs.z_for_pass(pass),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Obergrenze für konzentrische Linien beim Versatz-Füllen (schützt vor riesigen Jobs bei kleinem Abstand).
@@ -576,6 +596,22 @@ mod tests {
         let tabs = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
         // nur die Außenkontur bekommt Laschen: 4 × 1 mm weniger
         assert!((cut_lengths(&tabs) - 196.0).abs() < 1e-6, "{}", cut_lengths(&tabs));
+    }
+
+    #[test]
+    fn power_scale_per_object() {
+        let mut doc = Document::new();
+        doc.layers[0].settings.power_max = 80.0;
+        doc.add_path("voll", 0, VectorPath::rect(0.0, 0.0, 10.0, 10.0, 0.0));
+        let half = doc.add_path("halb", 0, VectorPath::rect(20.0, 0.0, 10.0, 10.0, 0.0));
+        doc.get_mut(half).unwrap().power_scale = 50.0;
+        let objs: Vec<&Object> = doc.objects.iter().collect();
+        let tp = generate(&doc, &objs, &JobSettings::default(), Point::ZERO).unwrap();
+        let max_power = |b: &Block| {
+            b.ops.iter().map(|o| if let Op::Move { power, .. } = o { *power } else { 0.0 }).fold(0.0, f32::max)
+        };
+        let powers: Vec<f32> = tp.blocks.iter().map(max_power).collect();
+        assert_eq!(powers, vec![0.8, 0.4]);
     }
 
     #[test]

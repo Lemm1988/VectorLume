@@ -76,10 +76,10 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-01 | Neu/Öffnen/Speichern/Speichern unter | Projektformat `.vlume` (JSON, Bilder als PNG eingebettet), sicheres Speichern über Temp-Datei, Nachfrage bei ungespeicherten Änderungen | ✅ |
 | LF-02 | Import SVG/DXF/Bilder | SVG über `usvg` (Einheiten, Transformationen, Text → Pfade, Farbe → Ebene), DXF (Linie, Kreis, Bogen, Ellipse, LW-/Polylinie mit Bulge, Spline, Blockreferenzen, Einheiten), PNG/JPG/BMP/GIF/WEBP/TIFF; Drag & Drop; Befehlszeile | ✅ |
 | LF-03 | PDF/AI/EPS/HPGL | PDF und PDF-kompatible AI (erste Seite, Formular-XObjekte, Farben → Ebenen; Text/Bilder mit Hinweis übersprungen), HPGL/PLT (PU/PD/PA/PR, CI, AA/AR, Stift → Ebene); EPS ⏳ (PostScript-Interpreter nötig) | 🟡 |
-| LF-04 | LightBurn-Projekte lesen | – | ⏳ |
+| LF-04 | LightBurn-Projekte lesen | `.lbrn2` über „Öffnen“ oder Ziehen auf das Fenster: Ebenen (Modus Linie/Füllen/Versatz-Füllen/Bild, Geschwindigkeit mm/s → mm/min, Leistung max./min., Durchgänge, Zeilenabstand/dpi, Winkel, Kreuzschraffur, bidirektional, Luft, Ausgabe, ausgeblendet, eigener Name, Priorität → Reihenfolge, Dithering), Rechteck mit Eckenradius, Ellipse, Pfade (Linien und Bézier, gemeinsame Punktlisten), Gruppen (auch verschachtelt, mit Transformation), Texte über die mitgespeicherten Umrisse, eingebettete Bilder samt Kopien und Helligkeit/Kontrast/Gamma, Leistung je Objekt; Werkzeugebenen T1/T2 auf freie Ebenen ohne Ausgabe; getrennte Bild-Einstellungen einer Ebene auf eigene Ebene; Y nach oben → Y nach unten über die Betthöhe. Ergebnis ist ein neues, ungespeichertes Projekt; nicht Übernommenes wird gemeldet. Mit 19 echten Projekten geprüft. Älteres `.lbrn` ⏳ | 🟡 |
 | LF-05 | Export | G-Code, SVG, DXF (R12, Ebenen mit ACI-Farben) | ✅ |
 | LF-06 | Rückgängig, Zwischenablage | 200 Schritte, Ausschneiden/Kopieren/Einfügen/Duplizieren | ✅ |
-| LF-07 | Zuletzt geöffnet, Autosicherung | Liste der letzten 10 Dateien; Autosicherung alle 90 s im Hintergrund, Wiederherstellen nach Absturz | ✅ |
+| LF-07 | Zuletzt geöffnet, Autosicherung | Liste der letzten 10 Dateien; Autosicherung alle 90 s im Hintergrund, Wiederherstellen nach Absturz (die Sicherung wird beim Start beiseitegelegt, damit eine per „Öffnen mit …“ übergebene Datei sie nicht ersetzt) | ✅ |
 
 ### 4.2 Gestalten und Bearbeiten
 | LF | Funktion | Umsetzung | Stand |
@@ -104,7 +104,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 |---|---|---|---|
 | LF-30 | 30 Farbebenen | eigene Palette, Klick weist Auswahl zu | ✅ |
 | LF-31 | Modi | Linie, Füllen, Versatz-Füllen, Bild | ✅ |
-| LF-32 | Basiswerte | Geschwindigkeit, Leistung max./min., Durchgänge, Ausgabe, Luft (M8/M9) | ✅ |
+| LF-32 | Basiswerte | Geschwindigkeit, Leistung max./min., Durchgänge, Ausgabe, Luft (M8/M9); **Leistung je Objekt** in Prozent der Ebenenleistung (Eigenschaftenleiste, z. B. für Materialtests auf einer Ebene) | ✅ |
 | LF-33 | Füllen | Zeilenabstand (mit dpi-Anzeige), Winkel, bidirektional, Kreuzschraffur, Overscan; Gerade-Ungerade-Regel (Löcher bleiben frei) | ✅ |
 | LF-34 | Bildmodi | Schwellwert, Floyd-Steinberg, Jarvis, Stucki, Atkinson, Burkes, Sierra, Bayer 8×8, Graustufen; Negativ | ✅ |
 | LF-35 | Bildanpassung | Helligkeit, Kontrast, Gamma, live in der Ansicht | ✅ |
@@ -204,12 +204,14 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (100):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (103):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
   Objektfang, Materialtest und -bibliothek, Z je Durchgang, Nachzeichnen, Platzhalter, Text auf Pfad, Drehachse,
-  G-Code-Dialekte und Streaming für Marlin/Smoothieware (Simulator), Netzwerkverbindung, CSV-Datenlisten.
+  G-Code-Dialekte und Streaming für Marlin/Smoothieware (Simulator), Netzwerkverbindung, CSV-Datenlisten,
+  LightBurn-Import (Ebenen, Formen, Gruppen, gemeinsame Punktlisten, Werkzeugebenen), Leistung je Objekt. Zusätzlich
+  prüft ein abschaltbarer Test echte LightBurn-Projekte aus einem Ordner (`VL_LBRN_DIR`).
 - **End-to-End:** Ein Job mit Schnitt, Kreuzschraffur und Graustufenbild sowie die Rahmenfahrt werden zeilenweise durch
   den Simulator gestreamt – jede Zeile muss mit `ok` bestätigt werden.
 - **Oberfläche:** manuell bzw. per automatisierten Klicks geprüft (Zeichnen, Drehen, Text, Import, Vorschau, Job im

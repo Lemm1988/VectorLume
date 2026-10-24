@@ -159,6 +159,17 @@ pub struct Object {
     /// Bei Texten: Daten zum erneuten Erzeugen (Bearbeiten, variabler Text).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<Box<crate::text::TextData>>,
+    /// Leistung dieses Objekts in Prozent der Ebenenleistung (z. B. für Materialtests).
+    #[serde(default = "full_power", skip_serializing_if = "is_full_power")]
+    pub power_scale: f64,
+}
+
+fn full_power() -> f64 {
+    100.0
+}
+
+fn is_full_power(v: &f64) -> bool {
+    *v == 100.0
 }
 
 impl Object {
@@ -250,6 +261,7 @@ impl Document {
             transform,
             shape,
             text: None,
+            power_scale: 100.0,
         });
         id
     }

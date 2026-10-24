@@ -82,6 +82,10 @@ mod tests {
         );
         doc.layers[2].settings.speed = 1234.0;
         let text = project_to_string(&doc).unwrap();
+        // volle Leistung ist Standard und wird nicht gespeichert
+        assert!(!text.contains("power_scale"));
+        doc.objects[0].power_scale = 40.0;
+        let text = project_to_string(&doc).unwrap();
         let back = project_from_str(&text).unwrap();
         assert_eq!(back, doc);
         match &back.objects[1].shape {

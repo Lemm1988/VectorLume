@@ -19,6 +19,7 @@ serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "gif", "webp", "tiff"] }
 base64 = "0.23"
+roxmltree = "0.20"
 i_overlay = "9.1"
 usvg = "0.48"
 dxf = "0.6"

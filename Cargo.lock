@@ -4344,10 +4344,12 @@ dependencies = [
 name = "vl-io"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "dxf",
  "fontdb",
  "image",
  "lopdf",
+ "roxmltree 0.20.0",
  "ttf-parser",
  "usvg",
  "vl-core",

@@ -342,7 +342,8 @@ fn modal(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         keep = false;
                     }
                     if ui.button("Verwerfen").clicked() {
-                        action = Some(Box::new(|app: &mut VectorLumeApp| app.autosave.clear()));
+                        let path = path.clone();
+                        action = Some(Box::new(move |_: &mut VectorLumeApp| crate::autosave::discard_previous(&path)));
                         keep = false;
                     }
                 });

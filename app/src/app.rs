@@ -183,6 +183,8 @@ pub struct VectorLumeApp {
     pub console: Vec<ConsoleLine>,
     pub console_input: String,
     pub file_path: Option<PathBuf>,
+    /// Name für Titel und Speichern-Dialog, solange das Projekt noch keine Datei hat (z. B. nach LightBurn-Import).
+    pub name_hint: Option<String>,
     pub dirty: bool,
     pub revision: u64,
     pub clipboard: Vec<Object>,
@@ -259,6 +261,7 @@ impl VectorLumeApp {
             console: Vec::new(),
             console_input: String::new(),
             file_path: None,
+            name_hint: None,
             dirty: false,
             revision: 1,
             clipboard: Vec::new(),
@@ -290,6 +293,10 @@ impl VectorLumeApp {
             last_title: String::new(),
             close_confirmed: false,
         };
+        // Vor dem Öffnen von Dateien, die sonst die Sicherung der letzten Sitzung ersetzen würden
+        if let Some((path, meta)) = crate::autosave::take_previous() {
+            app.modal = Some(Modal::Recover { path, meta });
+        }
         // Dateien aus der Befehlszeile öffnen bzw. importieren („Öffnen mit …“).
         for arg in std::env::args_os().skip(1) {
             let path = PathBuf::from(arg);
@@ -310,9 +317,6 @@ impl VectorLumeApp {
         if std::env::var_os("VECTORLUME_SIMULATOR").is_some() {
             app.selected_port = vl_device::SIMULATOR_PORT.into();
             app.connect();
-        }
-        if let Some((path, meta)) = crate::autosave::find() {
-            app.modal = Some(Modal::Recover { path, meta });
         }
         match std::env::var("VECTORLUME_WINDOW").as_deref() {
             Ok("materialtest") => app.open_material_test(),
@@ -406,6 +410,7 @@ impl VectorLumeApp {
         self.selection.clear();
         self.geom.clear();
         self.file_path = path;
+        self.name_hint = None;
         self.dirty = false;
         self.revision += 1;
         self.current_layer = self.doc.used_layers().first().copied().unwrap_or(0);
@@ -418,7 +423,9 @@ impl VectorLumeApp {
         let path = path.or_else(|| {
             rfd::FileDialog::new()
                 .set_title("Projekt öffnen")
+                .add_filter("Alle Projekte", &[vl_core::project::PROJECT_EXTENSION, "lbrn2"])
                 .add_filter("VectorLume-Projekt", &[vl_core::project::PROJECT_EXTENSION])
+                .add_filter("LightBurn-Projekt", &["lbrn2"])
                 .pick_file()
         });
         if let Some(p) = path {
@@ -428,7 +435,9 @@ impl VectorLumeApp {
 
     /// Lädt eine automatische Sicherung; das Projekt gilt danach als ungespeichert.
     pub fn restore_autosave(&mut self, path: &Path, original: Option<PathBuf>) {
-        match vl_core::project::load_project(path) {
+        let loaded = vl_core::project::load_project(path);
+        crate::autosave::discard_previous(path);
+        match loaded {
             Ok(doc) => {
                 self.doc = doc;
                 self.reset_after_load(original);
@@ -444,6 +453,10 @@ impl VectorLumeApp {
     }
 
     pub fn open_project(&mut self, path: &Path) {
+        if is_lightburn(path) {
+            self.open_lightburn(path);
+            return;
+        }
         match vl_core::project::load_project(path) {
             Ok(doc) => {
                 self.doc = doc;
@@ -457,12 +470,46 @@ impl VectorLumeApp {
         }
     }
 
+    /// LightBurn-Projekt als neues, noch ungespeichertes VectorLume-Projekt übernehmen.
+    fn open_lightburn(&mut self, path: &Path) {
+        let bed_height = self.settings.profile.bed_height;
+        let result = std::fs::read(path)
+            .map_err(|e| format!("Datei konnte nicht gelesen werden: {e}"))
+            .and_then(|data| vl_io::import_lightburn(&data, bed_height, path.parent()));
+        match result {
+            Ok(im) => {
+                self.doc = im.doc;
+                self.reset_after_load(None);
+                self.name_hint = path.file_stem().map(|s| s.to_string_lossy().into_owned());
+                self.dirty = true;
+                self.settings.add_recent(path.to_path_buf());
+                self.settings.save();
+                self.zoom_to_fit();
+                self.toast(
+                    ToastKind::Success,
+                    format!(
+                        "LightBurn-Projekt „{}“ übernommen. Gespeichert wird als VectorLume-Projekt.",
+                        file_name(path)
+                    ),
+                );
+                for w in im.warnings {
+                    self.toast(ToastKind::Info, w);
+                }
+            }
+            Err(e) => self.toast(ToastKind::Error, format!("{}: {e}", file_name(path))),
+        }
+    }
+
     pub fn save(&mut self, save_as: bool) -> bool {
         let path = match (&self.file_path, save_as) {
             (Some(p), false) => Some(p.clone()),
             _ => rfd::FileDialog::new()
                 .set_title("Projekt speichern")
-                .set_file_name("Projekt.vlume")
+                .set_file_name(format!(
+                    "{}.{}",
+                    self.name_hint.as_deref().unwrap_or("Projekt"),
+                    vl_core::project::PROJECT_EXTENSION
+                ))
                 .add_filter("VectorLume-Projekt", &[vl_core::project::PROJECT_EXTENSION])
                 .save_file(),
         };
@@ -505,7 +552,7 @@ impl VectorLumeApp {
 
     pub fn import_path(&mut self, path: &Path) {
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
-        if ext == vl_core::project::PROJECT_EXTENSION {
+        if ext == vl_core::project::PROJECT_EXTENSION || is_lightburn(path) {
             self.open_dialog(false, Some(path.to_path_buf()));
             return;
         }
@@ -1256,7 +1303,12 @@ impl VectorLumeApp {
     }
 
     fn update_title(&mut self, ctx: &egui::Context) {
-        let name = self.file_path.as_ref().map(|p| file_name(p)).unwrap_or_else(|| "Unbenannt".into());
+        let name = self
+            .file_path
+            .as_ref()
+            .map(|p| file_name(p))
+            .or_else(|| self.name_hint.clone())
+            .unwrap_or_else(|| "Unbenannt".into());
         let title = format!("{}{} – VectorLume", name, if self.dirty { " •" } else { "" });
         if title != self.last_title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
@@ -1270,6 +1322,10 @@ impl VectorLumeApp {
         self.settings.save();
         self.preview.texture_generation += 1;
     }
+}
+
+fn is_lightburn(path: &Path) -> bool {
+    path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("lbrn2"))
 }
 
 pub fn apply_theme(ctx: &egui::Context, theme: ThemeChoice) {

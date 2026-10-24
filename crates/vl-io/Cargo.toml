@@ -8,6 +8,8 @@ publish.workspace = true
 
 [dependencies]
 vl-core.workspace = true
+base64.workspace = true
+roxmltree.workspace = true
 usvg.workspace = true
 dxf.workspace = true
 lopdf.workspace = true
