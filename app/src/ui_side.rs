@@ -471,7 +471,10 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                     ui.label(RichText::new(format!("X {:.2}  Y {:.2}", p.x, p.y)).monospace());
                 }
             });
+            // Laser-Modus ($32) und Einstellungen gibt es nur bei GRBL.
+            let fw = app.firmware();
             match app.machine.laser_mode() {
+                _ if !fw.is_grbl() => ui.label(RichText::new(fw.label()).small().color(pal.text_weak)),
                 Some(true) => ui.label(
                     RichText::new(format!("{} Laser-Modus aktiv ($32=1)", icon::CHECK)).small().color(pal.success),
                 ),

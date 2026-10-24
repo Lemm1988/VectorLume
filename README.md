@@ -8,7 +8,7 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
 ## Funktionen
 
 - **Gestalten:** Rechteck (mit Eckenradius), Ellipse, Linie, Vieleck, Stern, Text mit installierten Schriften
-  (bearbeitbar, entlang eines Pfades, variabel mit Seriennummer `{n}`, `{datum}`, `{zeit}`);
+  (bearbeitbar, entlang eines Pfades, variabel mit Seriennummer `{n}`, `{datum}`, `{zeit}` und Datenliste aus CSV);
   Auswählen, Verschieben, Skalieren, Drehen, Spiegeln, Ausrichten, Verteilen, Gruppieren, Rückgängig/Wiederholen
 - **Bearbeiten:** Knotenwerkzeug, Boolesche Operationen und Verschweißen, Versatz, Reihen-Kopien (Raster, Kreis,
   entlang Pfad), Bild nachzeichnen, Objektfang mit Ausrichtungslinien, Ebenen sperren

@@ -1,5 +1,6 @@
 //! Import und Export von Dateien für VectorLume.
 
+pub mod csv;
 pub mod dxf;
 pub mod hpgl;
 pub mod image;
@@ -11,6 +12,7 @@ use std::path::Path;
 use std::sync::Arc;
 use vl_core::{Document, ImageObject, LAYER_COUNT, LayerMode, ObjectId, PALETTE, Point, VectorPath};
 
+pub use csv::parse_csv;
 pub use text::{TextAlign, TextSpec, font_families, render_text, system_fonts, text_to_path};
 
 pub const VECTOR_EXTENSIONS: &[&str] = &["svg", "svgz", "dxf", "pdf", "ai", "plt", "hpgl", "hgl"];

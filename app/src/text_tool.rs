@@ -1,10 +1,11 @@
-//! Text: Einfügen und Bearbeiten, Text auf Pfad und variable Texte (Zähler, Datum, Uhrzeit).
+//! Text: Einfügen und Bearbeiten, Text auf Pfad und variable Texte (Zähler, Datum, Uhrzeit, Datenliste).
 
 use crate::app::{ToastKind, VectorLumeApp};
 use crate::theme;
 use egui::{Align2, Button, DragValue, RichText, vec2};
 use egui_phosphor::regular as icon;
-use vl_core::text::{Now, PLACEHOLDERS, TextData, TextOnPath, TextVars};
+use vl_core::DataList;
+use vl_core::text::{Now, PLACEHOLDERS, ROW_PLACEHOLDER, TextData, TextOnPath, TextVars};
 use vl_core::{Affine, ObjectId, Point, Shape, TextSpec};
 
 /// Zustand des Textdialogs.
@@ -163,18 +164,33 @@ impl VectorLumeApp {
         !changed.is_empty()
     }
 
-    /// Nach einem erfolgreich gelaserten Job: Zähler weiterschalten.
+    /// Nach einem erfolgreich gelaserten Job: Zähler und Datenzeile weiterschalten.
     pub fn advance_text_counters(&mut self) {
         let mut any = false;
+        let mut list_done = false;
         for o in &mut self.doc.objects {
-            if let Some(t) = o.text.as_mut().filter(|t| t.uses_counter() && t.vars.advance_after_job) {
+            let Some(t) = o.text.as_mut().filter(|t| t.vars.advance_after_job) else { continue };
+            if t.uses_counter() {
                 t.vars.counter += t.vars.step;
                 any = true;
+            }
+            if t.uses_data()
+                && let Some(d) = &mut t.vars.data
+            {
+                if d.is_last_row() {
+                    list_done = true;
+                } else {
+                    d.row += 1;
+                    any = true;
+                }
             }
         }
         if any {
             self.refresh_variable_texts();
             self.dirty = true;
+        }
+        if list_done {
+            self.toast(ToastKind::Info, "Datenliste: Die letzte Zeile wurde gelasert.");
         }
     }
 
@@ -194,6 +210,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     let families = app.font_families.lock().unwrap().clone();
     let mut open = true;
     let mut insert = false;
+    let mut load_csv = false;
     let editing = app.text_dialog.edit.is_some();
     let title = match (editing, app.text_dialog.on_path.is_some()) {
         (true, _) => format!("{} Text bearbeiten", icon::TEXT_T),
@@ -222,6 +239,13 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     if ui.small_button(p).on_hover_text(help).clicked() {
                         d.spec.text.push_str(p);
                     }
+                }
+                if ui
+                    .small_button(format!("{} CSV…", icon::TABLE))
+                    .on_hover_text("Datenliste (CSV) laden: jede Spalte wird ein Platzhalter, z. B. für Namensschilder")
+                    .clicked()
+                {
+                    load_csv = true;
                 }
             });
             ui.add_space(6.0);
@@ -306,6 +330,54 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     ui.end_row();
                 });
             }
+            let mut remove_list = false;
+            if let Some(list) = &mut d.vars.data {
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Datenliste").strong());
+                    ui.label(
+                        RichText::new(format!("{} · {} Zeilen", list.source, list.rows.len()))
+                            .small()
+                            .color(pal.text_weak),
+                    );
+                    if ui.small_button(icon::X).on_hover_text("Datenliste entfernen").clicked() {
+                        remove_list = true;
+                    }
+                });
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new("Spalten:").small().color(pal.text_weak));
+                    for h in &list.headers {
+                        let p = DataList::placeholder(h);
+                        if ui.small_button(&p).clicked() {
+                            d.spec.text.push_str(&p);
+                        }
+                    }
+                    if ui.small_button(ROW_PLACEHOLDER).on_hover_text("Zeilennummer").clicked() {
+                        d.spec.text.push_str(ROW_PLACEHOLDER);
+                    }
+                });
+                ui.horizontal(|ui| {
+                    let n = list.rows.len();
+                    ui.label("Zeile");
+                    if ui.add_enabled(list.row > 0, Button::new(icon::CARET_LEFT).small()).clicked() {
+                        list.row -= 1;
+                    }
+                    let mut r = list.row.min(n - 1) + 1;
+                    if ui.add(DragValue::new(&mut r).range(1..=n)).changed() {
+                        list.row = r - 1;
+                    }
+                    if ui.add_enabled(list.row + 1 < n, Button::new(icon::CARET_RIGHT).small()).clicked() {
+                        list.row += 1;
+                    }
+                    ui.label(format!("von {n}"));
+                });
+                if !data.uses_counter() {
+                    ui.checkbox(&mut d.vars.advance_after_job, "Nach jedem fertigen Job zur nächsten Zeile");
+                }
+            }
+            if remove_list {
+                d.vars.data = None;
+            }
             if data.is_variable() {
                 ui.label(
                     RichText::new(format!("Ergebnis jetzt: {}", data.expand(now()).lines().next().unwrap_or("")))
@@ -324,10 +396,39 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 insert = true;
             }
         });
+    if load_csv {
+        load_data_list(app);
+    }
     if insert {
         app.apply_text_dialog();
     } else if !open {
         app.text_dialog.open = false;
+    }
+}
+
+/// CSV-Datei als Datenliste für den Text im Dialog laden.
+fn load_data_list(app: &mut VectorLumeApp) {
+    let Some(path) = rfd::FileDialog::new().add_filter("CSV-Datei", &["csv", "txt", "tsv"]).pick_file() else {
+        return;
+    };
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let result = std::fs::read(&path).map_err(|e| e.to_string()).and_then(|b| vl_io::parse_csv(&b, &name));
+    let d = &mut app.text_dialog;
+    match result {
+        Ok(list) => {
+            // Ohne Spalten-Platzhalter im Text die erste Spalte vorschlagen
+            if !list.headers.iter().any(|h| d.spec.text.contains(&DataList::placeholder(h))) {
+                let first = DataList::placeholder(&list.headers[0]);
+                if d.spec.text.trim().is_empty() || d.spec.text == TextSpec::default().text {
+                    d.spec.text = first;
+                } else {
+                    d.spec.text.push_str(&first);
+                }
+            }
+            d.vars.data = Some(list);
+            d.error = None;
+        }
+        Err(e) => d.error = Some(format!("{name}: {e}")),
     }
 }
 
