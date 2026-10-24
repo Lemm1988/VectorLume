@@ -25,6 +25,7 @@ pub struct AppSettings {
     pub safety_acknowledged: bool,
     pub snap_to_grid: bool,
     pub grid_snap_mm: f64,
+    pub snap_to_objects: bool,
     pub test_pattern: TestPattern,
 }
 
@@ -41,6 +42,7 @@ impl Default for AppSettings {
             safety_acknowledged: false,
             snap_to_grid: false,
             grid_snap_mm: 1.0,
+            snap_to_objects: true,
             test_pattern: TestPattern::default(),
         }
     }

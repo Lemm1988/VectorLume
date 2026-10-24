@@ -2,6 +2,7 @@
 
 use crate::app::VectorLumeApp;
 use crate::canvas::{Drag, HANDLE, ViewTf};
+use crate::snapping::{SnapKind, SnapTargets};
 use crate::theme;
 use egui::{CursorIcon, PointerButton, Pos2, RichText, Stroke, Ui, vec2};
 use egui_phosphor::regular as icon;
@@ -108,6 +109,22 @@ impl VectorLumeApp {
         }
     }
 
+    /// Fangziele beim Ziehen eines Knotens: andere Objekte und die übrigen Knoten des eigenen Pfades.
+    fn node_snap_targets(&self, dragged: Option<NodeRef>) -> SnapTargets {
+        let Some(id) = self.node_edit.target else { return SnapTargets::default() };
+        let mut targets = self.snap_targets_except(&[id]);
+        if self.settings.snap_to_objects
+            && let Some((path, transform)) = self.node_target()
+        {
+            for (n, p) in nodes::nodes(path) {
+                if Some(n) != dragged {
+                    targets.add_point(transform.apply(p), SnapKind::Node);
+                }
+            }
+        }
+        targets
+    }
+
     fn node_pick(&mut self, p: Point, tol: f64) {
         let hit = self.hit_test(p, tol).filter(|id| self.doc.get(*id).is_some_and(|o| !o.is_image()));
         self.node_edit = NodeEdit { target: hit, selected: None };
@@ -129,6 +146,7 @@ impl VectorLumeApp {
         tf: &ViewTf,
         space: bool,
         tol: f64,
+        snap_tol: f64,
     ) {
         if self.preview.active {
             return;
@@ -143,12 +161,14 @@ impl VectorLumeApp {
             match self.node_hit(press, tf) {
                 Some(Hit::Node(n)) => {
                     self.node_edit.selected = Some(n);
+                    let targets = self.node_snap_targets(Some(n));
                     self.checkpoint();
-                    self.drag = Drag::NodeMove { node: n };
+                    self.drag = Drag::NodeMove { node: n, targets };
                 }
                 Some(Hit::Handle(h)) => {
+                    let targets = self.node_snap_targets(None);
                     self.checkpoint();
-                    self.drag = Drag::NodeHandle { handle: h };
+                    self.drag = Drag::NodeHandle { handle: h, targets };
                 }
                 None => self.node_pick(tf.to_doc(press), tol),
             }
@@ -158,17 +178,21 @@ impl VectorLumeApp {
             && !space
             && let Some(cur) = resp.interact_pointer_pos()
         {
-            let p = self.snap(tf.to_doc(cur));
-            match self.drag {
-                Drag::NodeMove { node } => {
+            let raw = tf.to_doc(cur);
+            match std::mem::replace(&mut self.drag, Drag::None) {
+                Drag::NodeMove { node, targets } => {
+                    let p = self.snap_to(raw, &targets, snap_tol);
                     self.edit_target(|path, inv| nodes::move_node(path, node, inv.apply(p)));
                     ctx.set_cursor_icon(CursorIcon::Grabbing);
+                    self.drag = Drag::NodeMove { node, targets };
                 }
-                Drag::NodeHandle { handle } => {
+                Drag::NodeHandle { handle, targets } => {
+                    let p = self.snap_to(raw, &targets, snap_tol);
                     self.edit_target(|path, inv| nodes::move_handle(path, handle, inv.apply(p)));
                     ctx.set_cursor_icon(CursorIcon::Grabbing);
+                    self.drag = Drag::NodeHandle { handle, targets };
                 }
-                _ => {}
+                other => self.drag = other,
             }
         }
 

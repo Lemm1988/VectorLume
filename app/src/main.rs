@@ -12,6 +12,7 @@ mod materials;
 mod node_tool;
 mod settings;
 mod shape_ops;
+mod snapping;
 mod theme;
 mod ui_main;
 mod ui_side;

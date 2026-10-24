@@ -1,6 +1,7 @@
 //! Arbeitsfläche: Darstellung von Bett, Objekten und Vorschau sowie Maus-Interaktion.
 
 use crate::app::{TextDialog, Tool, VectorLumeApp};
+use crate::snapping::{Guide, SnapHint, SnapTargets};
 use crate::theme;
 use egui::epaint::Vertex;
 use egui::{
@@ -14,6 +15,8 @@ use vl_core::{Affine, ImageObject, Object, ObjectId, Point, Polyline, Rect as DR
 
 const RULER: f32 = 22.0;
 pub(crate) const HANDLE: f32 = 5.0;
+/// Fangradius in Bildschirmpunkten.
+const SNAP_PX: f64 = 8.0;
 const MIN_ZOOM: f32 = 0.05;
 const MAX_ZOOM: f32 = 400.0;
 
@@ -233,13 +236,13 @@ pub enum Handle {
 pub enum Drag {
     None,
     Pan,
-    Move { start: Point, originals: Vec<(ObjectId, Affine)> },
+    Move { start: Point, originals: Vec<(ObjectId, Affine)>, bounds: DRect, targets: SnapTargets },
     Scale { handle: Handle, bounds: DRect, originals: Vec<(ObjectId, Affine)> },
     Rotate { center: Point, start_angle: f64, originals: Vec<(ObjectId, Affine)> },
     Band { start: Point, additive: bool },
     Create { tool: Tool, start: Point },
-    NodeMove { node: NodeRef },
-    NodeHandle { handle: HandleRef },
+    NodeMove { node: NodeRef, targets: SnapTargets },
+    NodeHandle { handle: HandleRef, targets: SnapTargets },
 }
 
 impl Drag {
@@ -278,12 +281,50 @@ fn snap_angle(a: f64, step_deg: f64) -> f64 {
 }
 
 impl VectorLumeApp {
+    /// Alt hält das Fangen vorübergehend an.
+    fn snapping_suspended(&self) -> bool {
+        self.ctx.input(|i| i.modifiers.alt)
+    }
+
     pub(crate) fn snap(&self, p: Point) -> Point {
-        if !self.settings.snap_to_grid {
+        if !self.settings.snap_to_grid || self.snapping_suspended() {
             return p;
         }
         let g = self.settings.grid_snap_mm.max(0.01);
         Point::new((p.x / g).round() * g, (p.y / g).round() * g)
+    }
+
+    /// Fängt `p` an den Objekten in `targets` (Knoten, Mitten, Ausrichtung), sonst am Raster.
+    pub(crate) fn snap_to(&mut self, p: Point, targets: &SnapTargets, tol: f64) -> Point {
+        if self.settings.snap_to_objects
+            && !self.snapping_suspended()
+            && let Some((q, hint)) = targets.snap_point(p, tol)
+        {
+            self.snap_hint = Some(hint);
+            return q;
+        }
+        self.snap(p)
+    }
+
+    /// Wie `snap_to`, mit allen sichtbaren Objekten als Ziel (zwischengespeichert bis zur nächsten Änderung).
+    fn snap_cursor(&mut self, p: Point, tol: f64) -> Point {
+        if !self.settings.snap_to_objects {
+            return self.snap(p);
+        }
+        if self.snap_all.as_ref().is_none_or(|(rev, _)| *rev != self.revision) {
+            self.snap_all = Some((self.revision, Arc::new(SnapTargets::collect(&self.doc, |_| false))));
+        }
+        let targets = self.snap_all.as_ref().map(|(_, t)| t.clone()).unwrap_or_default();
+        self.snap_to(p, &targets, tol)
+    }
+
+    /// Fangziele beim Ziehen: alles Sichtbare außer den Objekten in `skip`.
+    pub(crate) fn snap_targets_except(&self, skip: &[ObjectId]) -> SnapTargets {
+        if self.settings.snap_to_objects {
+            SnapTargets::collect(&self.doc, |id| skip.contains(&id))
+        } else {
+            SnapTargets::default()
+        }
     }
 
     fn originals(&self) -> Vec<(ObjectId, Affine)> {
@@ -486,6 +527,7 @@ impl VectorLumeApp {
         // Objekte
         let preview_active = self.preview.active;
         let ppm = 1.0 / tf.zoom as f64;
+        self.snap_hint = None;
         let objects_alpha = if preview_active { 0.22 } else { 1.0 };
         for idx in 0..self.doc.objects.len() {
             let obj = &self.doc.objects[idx];
@@ -606,6 +648,8 @@ impl VectorLumeApp {
 
         // Gummiband / Vorschau der neuen Form
         if let (Some(cur), true) = (resp.interact_pointer_pos(), resp.dragged_by(PointerButton::Primary)) {
+            let create_end =
+                matches!(self.drag, Drag::Create { .. }).then(|| self.snap_cursor(tf.to_doc(cur), SNAP_PX * ppm));
             match &self.drag {
                 Drag::Band { start, .. } => {
                     let a = tf.to_screen(*start);
@@ -621,7 +665,7 @@ impl VectorLumeApp {
                 }
                 Drag::Create { tool, start } => {
                     let a = *start;
-                    let b = self.snap(tf.to_doc(cur));
+                    let b = create_end.unwrap_or(a);
                     let color = theme::layer_color(self.doc.layers[self.current_layer].color);
                     let stroke = Stroke::new(1.2, color);
                     let ghost = match tool {
@@ -669,6 +713,10 @@ impl VectorLumeApp {
             }
         }
 
+        if let Some(hint) = &self.snap_hint {
+            draw_snap_hint(&clip, &tf, work, pal, hint);
+        }
+
         self.draw_rulers(&painter, rect, work, &tf, pal);
         self.textures.end_frame();
         let alive: Vec<ObjectId> = self.doc.objects.iter().map(|o| o.id).collect();
@@ -688,9 +736,18 @@ impl VectorLumeApp {
     ) {
         let (shift, ctrl) = ctx.input(|i| (i.modifiers.shift, i.modifiers.command));
         let tol = 6.0 * ppm;
+        let snap_tol = SNAP_PX * ppm;
         if self.tool == Tool::Node {
-            self.node_interaction(ctx, resp, tf, space, tol);
+            self.node_interaction(ctx, resp, tf, space, tol, snap_tol);
             return;
+        }
+        // Fangpunkt schon vor dem Zeichnen anzeigen
+        if self.tool != Tool::Select
+            && self.drag.is_idle()
+            && !space
+            && let Some(hover) = resp.hover_pos()
+        {
+            self.snap_cursor(tf.to_doc(hover), snap_tol);
         }
 
         // Mauszeiger über Griffen
@@ -739,14 +796,16 @@ impl VectorLumeApp {
                             }
                         }
                         let originals = self.originals();
+                        let bounds = self.selection_bounds();
+                        let targets = self.snap_targets_except(&self.selection);
                         self.checkpoint();
-                        Drag::Move { start, originals }
+                        Drag::Move { start, originals, bounds, targets }
                     } else {
                         Drag::Band { start, additive: shift }
                     }
                 }
                 Tool::Text => Drag::None,
-                t => Drag::Create { tool: t, start: self.snap(start) },
+                t => Drag::Create { tool: t, start: self.snap_cursor(start, snap_tol) },
             };
         } else if resp.drag_started_by(PointerButton::Middle) {
             self.drag = Drag::Pan;
@@ -758,17 +817,25 @@ impl VectorLumeApp {
         {
             let p = tf.to_doc(cur);
             match std::mem::replace(&mut self.drag, Drag::None) {
-                Drag::Move { start, originals } => {
+                Drag::Move { start, originals, bounds, targets } => {
                     let mut d = p - start;
+                    let mut snapped = false;
                     if shift {
                         if d.x.abs() > d.y.abs() { d.y = 0.0 } else { d.x = 0.0 }
+                    } else if self.settings.snap_to_objects && !self.snapping_suspended() {
+                        let moved = DRect::new(bounds.min + d, bounds.max + d);
+                        if let Some((corr, hint)) = targets.snap_rect(&moved, snap_tol) {
+                            d += corr;
+                            self.snap_hint = Some(hint);
+                            snapped = true;
+                        }
                     }
-                    if self.settings.snap_to_grid {
+                    if !snapped {
                         d = self.snap(d);
                     }
                     self.apply_originals(&originals, &Affine::translate(d.x, d.y));
                     ctx.set_cursor_icon(CursorIcon::Move);
-                    self.drag = Drag::Move { start, originals };
+                    self.drag = Drag::Move { start, originals, bounds, targets };
                 }
                 Drag::Scale { handle, bounds, originals } => {
                     let (moving, anchor) = match handle {
@@ -858,7 +925,7 @@ impl VectorLumeApp {
                 }
                 Drag::Create { tool, start } => {
                     if let Some(end) = end {
-                        let end = self.snap(end);
+                        let end = self.snap_cursor(end, snap_tol);
                         self.create_shape(tool, start, end, shift);
                     }
                 }
@@ -895,7 +962,7 @@ impl VectorLumeApp {
                     }
                 },
                 Tool::Text => {
-                    let at = self.snap(p);
+                    let at = self.snap_cursor(p, snap_tol);
                     let TextDialog { open, at: dialog_at, error, .. } = &mut self.text_dialog;
                     *open = true;
                     *dialog_at = at;
@@ -1129,5 +1196,36 @@ impl VectorLumeApp {
             painter.line_segment([pos2(s.x, top.top()), pos2(s.x, top.bottom())], Stroke::new(1.0, pal.accent));
             painter.line_segment([pos2(left.left(), s.y), pos2(left.right(), s.y)], Stroke::new(1.0, pal.accent));
         }
+    }
+}
+
+/// Fangpunkt bzw. Ausrichtungslinien anzeigen.
+fn draw_snap_hint(painter: &egui::Painter, tf: &ViewTf, work: egui::Rect, pal: &theme::Palette, hint: &SnapHint) {
+    let color = Color32::from_rgb(236, 72, 153);
+    for g in &hint.guides {
+        let (a, b) = match *g {
+            Guide::Vertical(x) => {
+                let s = tf.to_screen(Point::new(x, 0.0)).x;
+                (pos2(s, work.top()), pos2(s, work.bottom()))
+            }
+            Guide::Horizontal(y) => {
+                let s = tf.to_screen(Point::new(0.0, y)).y;
+                (pos2(work.left(), s), pos2(work.right(), s))
+            }
+        };
+        painter.extend(Shape::dashed_line(&[a, b], Stroke::new(1.0, color), 6.0, 4.0));
+    }
+    if let Some((p, kind)) = hint.point {
+        let s = tf.to_screen(p);
+        let d = 6.0;
+        let diamond = vec![s + vec2(0.0, -d), s + vec2(d, 0.0), s + vec2(0.0, d), s + vec2(-d, 0.0)];
+        painter.add(Shape::convex_polygon(diamond, color.gamma_multiply(0.25), Stroke::new(1.5, color)));
+        painter.text(
+            s + vec2(9.0, -9.0),
+            egui::Align2::LEFT_BOTTOM,
+            kind.label(),
+            egui::FontId::proportional(11.0),
+            pal.text,
+        );
     }
 }

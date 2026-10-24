@@ -199,6 +199,8 @@ pub struct VectorLumeApp {
     pub textures: TextureCache,
     pub drag: crate::canvas::Drag,
     pub node_edit: crate::node_tool::NodeEdit,
+    pub snap_hint: Option<crate::snapping::SnapHint>,
+    pub snap_all: Option<(u64, Arc<crate::snapping::SnapTargets>)>,
     pub modal: Option<Modal>,
     pub text_dialog: TextDialog,
     pub font_families: Arc<Mutex<Option<Vec<String>>>>,
@@ -269,6 +271,8 @@ impl VectorLumeApp {
             textures: TextureCache::default(),
             drag: crate::canvas::Drag::None,
             node_edit: Default::default(),
+            snap_hint: None,
+            snap_all: None,
             modal: None,
             text_dialog: TextDialog {
                 open: false,

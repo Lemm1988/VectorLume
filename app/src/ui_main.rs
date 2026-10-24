@@ -379,6 +379,13 @@ fn view_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if ui.checkbox(&mut app.settings.snap_to_grid, "Am Raster fangen (1 mm)").changed() {
         app.settings.save();
     }
+    if ui
+        .checkbox(&mut app.settings.snap_to_objects, "Objektfang")
+        .on_hover_text("Knoten, Mittelpunkte und Kanten anderer Objekte fangen (Alt gedrückt halten = aus)")
+        .changed()
+    {
+        app.settings.save();
+    }
     ui.separator();
     ui.label(RichText::new("Design").small());
     for (t, label) in [(ThemeChoice::Dark, "Dunkel"), (ThemeChoice::Light, "Hell"), (ThemeChoice::System, "Wie System")]
