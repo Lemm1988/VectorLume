@@ -94,13 +94,15 @@ struct Edge {
 /// Abstand, ab dem zwischen Füllzeilen ein Eilgang statt einer Leerfahrt im Vorschub benutzt wird.
 const LINK_RAPID_DISTANCE: f64 = 10.0;
 
-/// Zeilenweises Füllen geschlossener Polylinien (Gerade-Ungerade-Regel).
+/// Zeilenweises Füllen geschlossener Polylinien (Gerade-Ungerade-Regel). `scan_shift` verschiebt jede Zeile gegen
+/// ihre Fahrtrichtung (Scan-Versatz, siehe `MachineProfile::scan_shift`).
 pub fn hatch_ops(
     polys: &[Polyline],
     interval: f64,
     angle_deg: f64,
     bidirectional: bool,
     overscan: f64,
+    scan_shift: f64,
     power: f32,
 ) -> Vec<Op> {
     let interval = interval.max(0.01);
@@ -164,16 +166,17 @@ pub fn hatch_ops(
             }
         }
         let dir = if forward { 1.0 } else { -1.0 };
-        let start = rot(Point::new(segs[0].0 - dir * overscan, y));
+        let at = |x: f64| rot(Point::new(x - dir * scan_shift, y));
+        let start = at(segs[0].0 - dir * overscan);
         match cursor {
             Some(c) if c.distance(start) <= LINK_RAPID_DISTANCE => ops.push(Op::Move { to: start, power: 0.0 }),
             _ => ops.push(Op::Rapid(start)),
         }
         for &(a, b) in &segs {
-            ops.push(Op::Move { to: rot(Point::new(a, y)), power: 0.0 });
-            ops.push(Op::Move { to: rot(Point::new(b, y)), power });
+            ops.push(Op::Move { to: at(a), power: 0.0 });
+            ops.push(Op::Move { to: at(b), power });
         }
-        let end = rot(Point::new(segs.last().unwrap().1 + dir * overscan, y));
+        let end = at(segs.last().unwrap().1 + dir * overscan);
         if overscan > 0.0 {
             ops.push(Op::Move { to: end, power: 0.0 });
         }
@@ -195,8 +198,9 @@ fn cell_power(v: f32, settings: &CutSettings) -> f32 {
     (p * 1000.0).round() / 1000.0
 }
 
-/// Rasterbild zeilenweise gravieren; leere Zeilen und leere Ränder werden übersprungen.
-pub fn raster_ops(r: &RasterResult, settings: &CutSettings) -> Vec<Op> {
+/// Rasterbild zeilenweise gravieren; leere Zeilen und leere Ränder werden übersprungen. `scan_shift` wie bei
+/// [`hatch_ops`].
+pub fn raster_ops(r: &RasterResult, settings: &CutSettings, scan_shift: f64) -> Vec<Op> {
     let mut ops = Vec::new();
     let mut emitted = 0usize;
     let overscan = settings.overscan.max(0.0);
@@ -222,30 +226,32 @@ pub fn raster_ops(r: &RasterResult, settings: &CutSettings) -> Vec<Op> {
         }
 
         let forward = !settings.bidirectional || emitted.is_multiple_of(2);
+        let dir = if forward { 1.0 } else { -1.0 };
+        let at = |x: f64| Point::new(x - dir * scan_shift, y);
         let (start_x, edge_x) =
             if forward { (x_at(first) - overscan, x_at(first)) } else { (x_at(last + 1) + overscan, x_at(last + 1)) };
-        let start = Point::new(start_x, y);
+        let start = at(start_x);
         if emitted == 0 {
             ops.push(Op::Rapid(start))
         } else {
             ops.push(Op::Move { to: start, power: 0.0 })
         }
         if overscan > 0.0 {
-            ops.push(Op::Move { to: Point::new(edge_x, y), power: 0.0 });
+            ops.push(Op::Move { to: at(edge_x), power: 0.0 });
         }
         if forward {
             for &(_, e, p) in &runs {
-                ops.push(Op::Move { to: Point::new(x_at(e + 1), y), power: p });
+                ops.push(Op::Move { to: at(x_at(e + 1)), power: p });
             }
             if overscan > 0.0 {
-                ops.push(Op::Move { to: Point::new(x_at(last + 1) + overscan, y), power: 0.0 });
+                ops.push(Op::Move { to: at(x_at(last + 1) + overscan), power: 0.0 });
             }
         } else {
             for &(s, _, p) in runs.iter().rev() {
-                ops.push(Op::Move { to: Point::new(x_at(s), y), power: p });
+                ops.push(Op::Move { to: at(x_at(s)), power: p });
             }
             if overscan > 0.0 {
-                ops.push(Op::Move { to: Point::new(x_at(first) - overscan, y), power: 0.0 });
+                ops.push(Op::Move { to: at(x_at(first) - overscan), power: 0.0 });
             }
         }
         emitted += 1;
@@ -275,7 +281,7 @@ mod tests {
     #[test]
     fn hatch_square_covers_area() {
         let polys = VectorPath::rect(0.0, 0.0, 10.0, 10.0, 0.0).flatten(&Affine::IDENTITY, 0.01);
-        let ops = hatch_ops(&polys, 0.5, 0.0, true, 1.0, 0.5);
+        let ops = hatch_ops(&polys, 0.5, 0.0, true, 1.0, 0.0, 0.5);
         // 20 Zeilen à 10 mm
         assert!((burned_length(&ops) - 200.0).abs() < 1e-6);
         assert!(matches!(ops[0], Op::Rapid(_)));
@@ -288,7 +294,7 @@ mod tests {
         let polys = ring.flatten(&Affine::IDENTITY, 0.01);
         let area = 100.0 - 36.0;
         for angle in [0.0, 30.0, 90.0] {
-            let ops = hatch_ops(&polys, 0.05, angle, true, 0.0, 1.0);
+            let ops = hatch_ops(&polys, 0.05, angle, true, 0.0, 0.0, 1.0);
             let covered = burned_length(&ops) * 0.05;
             assert!((covered - area).abs() / area < 0.03, "Winkel {angle}: {covered}");
         }
@@ -305,12 +311,35 @@ mod tests {
             intensity: vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0],
         };
         let settings = CutSettings { overscan: 0.0, dither: DitherMode::Threshold, ..CutSettings::default() };
-        let ops = raster_ops(&r, &settings);
+        let ops = raster_ops(&r, &settings, 0.0);
         // Zeile 1: Start, ein Lauf über zwei Zellen
         assert_eq!(ops[0], Op::Rapid(Point::new(1.0, 1.5)));
         assert_eq!(ops[1], Op::Move { to: Point::new(3.0, 1.5), power: 0.3 });
         // Zeile 2 rückwärts: Start rechts, dann Brennen, Pause, Brennen
         assert_eq!(ops[2].target(), Point::new(4.0, 2.5));
         assert!((burned_length(&ops) - 4.0).abs() < 1e-9);
+
+        // Scan-Versatz: vorwärts nach links, rückwärts nach rechts verschoben
+        let settings = CutSettings { bidirectional: true, ..settings };
+        let shifted = raster_ops(&r, &settings, 0.1);
+        assert_eq!(shifted[0], Op::Rapid(Point::new(0.9, 1.5)));
+        assert_eq!(shifted[2].target(), Point::new(4.1, 2.5));
+    }
+
+    #[test]
+    fn scan_shift_moves_rows_against_travel() {
+        let polys = VectorPath::rect(0.0, 0.0, 10.0, 2.0, 0.0).flatten(&Affine::IDENTITY, 0.01);
+        let ops = hatch_ops(&polys, 1.0, 0.0, true, 0.0, 0.1, 1.0);
+        let burn_ends: Vec<Point> = ops
+            .iter()
+            .filter_map(|o| match *o {
+                Op::Move { to, power } if power > 0.0 => Some(to),
+                _ => None,
+            })
+            .collect();
+        // Zeile 1 vorwärts (0 → 10) endet bei 9,9; Zeile 2 rückwärts (10 → 0) endet bei 0,1
+        assert_eq!(burn_ends.len(), 2);
+        assert!((burn_ends[0].x - 9.9).abs() < 1e-9 && (burn_ends[1].x - 0.1).abs() < 1e-9);
+        assert!((burned_length(&ops) - 20.0).abs() < 1e-9);
     }
 }

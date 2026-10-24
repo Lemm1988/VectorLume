@@ -125,6 +125,12 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         .on_hover_text(tr("0 % = Laser aus. Höchstens 5 %, nur mit Schutzbrille!"));
                 });
                 ui.end_row();
+                ui.label(tr("Scan-Versatz")).on_hover_text(tr("Beim Gravieren in beide Richtungen landen hin- und zurückgefahrene Zeilen versetzt, die \
+                         Kanten wirken gezackt oder doppelt. Ein Rechteck mit der jeweiligen Geschwindigkeit bidirektional füllen, die Breite \
+                         der Zacken messen und hier eintragen. Jede Zeile wird dann um die Hälfte gegen ihre Fahrtrichtung verschoben, \
+                         Zwischenwerte werden interpoliert. Ohne Eintrag ist der Ausgleich aus."));
+                scan_offsets_ui(ui, &mut p.scan_offsets);
+                ui.end_row();
             });
             if p.firmware != Firmware::Grbl {
                 ui.add_space(4.0);
@@ -155,8 +161,12 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     apply_device = true;
                 }
                 if ui.button(tr("Sculpfun SF-A9 Standard")).clicked() {
-                    // Drehachse ist Zubehör und bleibt erhalten.
-                    p = MachineProfile { rotary: p.rotary.clone(), ..MachineProfile::sculpfun_sf_a9() };
+                    // Drehachse (Zubehör) und gemessener Scan-Versatz bleiben erhalten.
+                    p = MachineProfile {
+                        rotary: p.rotary.clone(),
+                        scan_offsets: p.scan_offsets.clone(),
+                        ..MachineProfile::sculpfun_sf_a9()
+                    };
                 }
             });
         });
@@ -231,6 +241,35 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
     if !open {
         app.show_about = false;
     }
+}
+
+/// Tabelle Geschwindigkeit → gemessener Versatz.
+fn scan_offsets_ui(ui: &mut egui::Ui, rows: &mut Vec<vl_cam::ScanOffset>) {
+    ui.vertical(|ui| {
+        let mut remove = None;
+        for (i, row) in rows.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut row.speed).speed(50.0).range(1.0..=100_000.0).suffix(" mm/min"));
+                ui.add(DragValue::new(&mut row.offset).speed(0.005).range(-5.0..=5.0).max_decimals(3).suffix(" mm"));
+                if ui.small_button(icon::X).on_hover_text(tr("Eintrag entfernen")).clicked() {
+                    remove = Some(i);
+                }
+            });
+        }
+        if let Some(i) = remove {
+            rows.remove(i);
+        }
+        ui.horizontal(|ui| {
+            if ui.small_button(trs(&format!("{} Messwert", icon::PLUS))).clicked() {
+                let speed = rows.iter().map(|r| r.speed).fold(0.0, f64::max);
+                let speed = if speed > 0.0 { speed * 2.0 } else { 3000.0 };
+                rows.push(vl_cam::ScanOffset { speed, offset: 0.0 });
+            }
+            if rows.is_empty() {
+                ui.label(RichText::new(tr("aus")).color(theme::of(ui).text_weak));
+            }
+        });
+    });
 }
 
 /// Aktion, die nach dem Schließen einer Abfrage ausgeführt wird.

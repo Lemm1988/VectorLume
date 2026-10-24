@@ -1058,6 +1058,13 @@ pub static EN: &[(&str, &str)] = &[
     ("Bild", "Image"),
     ("{} ({})", "{} ({})"),
     ("Lizenzen der Bibliotheken anzeigen", "Show third-party licenses"),
+    ("Scan-Versatz", "Scanning offset"),
+    (
+        "Beim Gravieren in beide Richtungen landen hin- und zurückgefahrene Zeilen versetzt, die Kanten wirken gezackt oder doppelt. Ein Rechteck mit der jeweiligen Geschwindigkeit bidirektional füllen, die Breite der Zacken messen und hier eintragen. Jede Zeile wird dann um die Hälfte gegen ihre Fahrtrichtung verschoben, Zwischenwerte werden interpoliert. Ohne Eintrag ist der Ausgleich aus.",
+        "When engraving in both directions, lines travelled forwards and backwards land offset from each other and the edges look jagged or doubled. Fill a rectangle bidirectionally at the given speed, measure the width of the jags and enter it here. Each line is then shifted against its direction of travel by half of it; values in between are interpolated. Without entries the compensation is off.",
+    ),
+    ("Eintrag entfernen", "Remove entry"),
+    ("{} Messwert", "{} Measurement"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

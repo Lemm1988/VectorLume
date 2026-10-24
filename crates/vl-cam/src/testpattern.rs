@@ -316,8 +316,9 @@ impl TestPattern {
                     LayerMode::Line => (BlockKind::Line, line_ops(&[outline], power)),
                     _ => {
                         let polys = [outline];
+                        let shift = profile.scan_shift(cs.speed);
                         let mut ops =
-                            hatch_ops(&polys, cs.interval, cs.fill_angle, cs.bidirectional, cs.overscan, power);
+                            hatch_ops(&polys, cs.interval, cs.fill_angle, cs.bidirectional, cs.overscan, shift, power);
                         if cs.crosshatch {
                             ops.extend(hatch_ops(
                                 &polys,
@@ -325,6 +326,7 @@ impl TestPattern {
                                 cs.fill_angle + 90.0,
                                 cs.bidirectional,
                                 cs.overscan,
+                                shift,
                                 power,
                             ));
                         }

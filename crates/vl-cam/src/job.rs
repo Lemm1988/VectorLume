@@ -96,7 +96,7 @@ pub fn build_job(
     }
     let design_bounds = objects.iter().fold(Rect::EMPTY, |r, o| r.union(&o.bounds()));
     let (_, _, start) = placement(&design_bounds, profile, settings);
-    let toolpath = generate(doc, &objects, settings, start)?;
+    let toolpath = generate(doc, &objects, profile, settings, start)?;
     if toolpath.is_empty() {
         return Err(
             "Die ausgewählten Objekte erzeugen keinen Werkzeugweg (z. B. offene Pfade auf einer Füllebene).".into()
@@ -223,7 +223,13 @@ pub fn finish_job(
 }
 
 /// Erzeugt den Werkzeugweg aller Ebenen in Ausgabereihenfolge (Dokumentkoordinaten).
-pub fn generate(doc: &Document, objects: &[&Object], settings: &JobSettings, start: Point) -> Result<Toolpath, String> {
+pub fn generate(
+    doc: &Document,
+    objects: &[&Object],
+    profile: &MachineProfile,
+    settings: &JobSettings,
+    start: Point,
+) -> Result<Toolpath, String> {
     let mut tp = Toolpath::default();
     let mut cur = start;
     let mut layers = doc.used_layers();
@@ -253,12 +259,12 @@ pub fn generate(doc: &Document, objects: &[&Object], settings: &JobSettings, sta
         for scale in scales {
             let part: Vec<&Object> = objs.iter().copied().filter(|o| o.power_scale == scale).collect();
             if scale == 100.0 {
-                layer_blocks(&mut tp, &mut cur, layer, cs, &part, settings)?;
+                layer_blocks(&mut tp, &mut cur, layer, cs, &part, profile, settings)?;
             } else {
                 let mut scaled = cs.clone();
                 scaled.power_max *= scale / 100.0;
                 scaled.power_min *= scale / 100.0;
-                layer_blocks(&mut tp, &mut cur, layer, &scaled, &part, settings)?;
+                layer_blocks(&mut tp, &mut cur, layer, &scaled, &part, profile, settings)?;
             }
         }
     }
@@ -272,9 +278,11 @@ fn layer_blocks(
     layer: usize,
     cs: &CutSettings,
     objs: &[&Object],
+    profile: &MachineProfile,
     settings: &JobSettings,
 ) -> Result<(), String> {
     let power = (cs.power_max / 100.0).clamp(0.0, 1.0) as f32;
+    let shift = profile.scan_shift(cs.speed);
 
     let mut raster_blocks: Vec<(usize, Vec<Op>)> = Vec::new();
     let mut polys: Vec<Polyline> = Vec::new();
@@ -283,7 +291,7 @@ fn layer_blocks(
             Shape::Image(img) => {
                 let r = vl_raster::engrave_image(img, &o.transform, cs.interval, cs.dither, cs.negative)
                     .map_err(|e| format!("Bild „{}“: {e}", o.name))?;
-                let ops = raster_ops(&r, cs);
+                let ops = raster_ops(&r, cs, shift);
                 if let Some(last) = ops.last() {
                     *cur = last.target();
                 }
@@ -312,9 +320,10 @@ fn layer_blocks(
             (BlockKind::Fill, line_ops(&ordered, power))
         }
         LayerMode::Fill | LayerMode::Image => {
-            let mut ops = hatch_ops(&polys, cs.interval, cs.fill_angle, cs.bidirectional, cs.overscan, power);
+            let mut ops = hatch_ops(&polys, cs.interval, cs.fill_angle, cs.bidirectional, cs.overscan, shift, power);
             if cs.crosshatch {
-                ops.extend(hatch_ops(&polys, cs.interval, cs.fill_angle + 90.0, cs.bidirectional, cs.overscan, power));
+                let angle = cs.fill_angle + 90.0;
+                ops.extend(hatch_ops(&polys, cs.interval, angle, cs.bidirectional, cs.overscan, shift, power));
             }
             (BlockKind::Fill, ops)
         }
@@ -606,7 +615,7 @@ mod tests {
         let half = doc.add_path("halb", 0, VectorPath::rect(20.0, 0.0, 10.0, 10.0, 0.0));
         doc.get_mut(half).unwrap().power_scale = 50.0;
         let objs: Vec<&Object> = doc.objects.iter().collect();
-        let tp = generate(&doc, &objs, &JobSettings::default(), Point::ZERO).unwrap();
+        let tp = generate(&doc, &objs, &MachineProfile::default(), &JobSettings::default(), Point::ZERO).unwrap();
         let max_power = |b: &Block| {
             b.ops.iter().map(|o| if let Op::Move { power, .. } = o { *power } else { 0.0 }).fold(0.0, f32::max)
         };

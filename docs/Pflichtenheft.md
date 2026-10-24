@@ -122,7 +122,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-43 | Rahmen | Umriss der Ausgabe abfahren (Laser aus oder ≤ 5 % laut Profil), Anfahrt immer im Eilgang | ✅ |
 | LF-44 | Job-Steuerung | Start, Pause (`!`), Fortsetzen (`~`), Stopp (Feed-Hold + Soft-Reset), Fortschritt, Restzeit | ✅ |
 | LF-45 | Job-Ursprung | Absolut, Benutzer-Ursprung, aktuelle Position (G91 mit fehlerfreier Rundung), 9 Ankerpunkte | ✅ |
-| LF-46 | Maschinenprofil | Fläche, Nullpunkt-Ecke, S-Max, M3/M4, Eilgang, Beschleunigung, Luft-Befehle, Empfangspuffer, Rahmen; „Werte vom Gerät“ (`$30`, `$130/$131`, `$110`, `$120`) | ✅ |
+| LF-46 | Maschinenprofil | Fläche, Nullpunkt-Ecke, S-Max, M3/M4, Eilgang, Beschleunigung, Luft-Befehle, Empfangspuffer, Rahmen; „Werte vom Gerät“ (`$30`, `$130/$131`, `$110`, `$120`); **Scan-Versatz:** Tabelle Geschwindigkeit → gemessener Versatz zwischen hin- und zurückgefahrenen Zeilen, jede Füll- und Bildzeile (auch im Materialtest) wird um die Hälfte gegen ihre Fahrtrichtung verschoben; linear interpoliert, außerhalb proportional zur Geschwindigkeit, leer = aus | ✅ |
 | LF-47 | Simulator | GRBL-Nachbildung mit 128-Byte-Puffer, Planer (15), Echtzeitbefehlen, Alarm nach Reset | ✅ |
 | LF-48 | weitere Steuerungen | Marlin 2.1 (Laser im Inline-Modus `M3/M4 I`, S bis 255, Senden und Warten auf `ok`, Jobende per `M400`, Position per `M114`, Pause im Programm, Stopp `M410`+`M5`, Referenzfahrt `G28`), Smoothieware (S 0…1, Statusabfrage `?`, Stopp Strg-X mit `M112` als Rückfall, Freigabe `M999`); beide experimentell, da ohne Hardwaretest; Ruida, Trocen, TopWisdom, Galvo ⏳ | 🟡 |
 | LF-49 | Netzwerk | TCP/Telnet für FluidNC, grblHAL, ESP3D: Eintrag „Netzwerk“ mit Adresse (Standard-Port 23), alle Steuerungsarten | ✅ |
@@ -215,14 +215,14 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (111):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (113):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
   Objektfang, Materialtest und -bibliothek, Z je Durchgang, Nachzeichnen, Platzhalter, Text auf Pfad, Drehachse,
   G-Code-Dialekte und Streaming für Marlin/Smoothieware (Simulator), Netzwerkverbindung, CSV-Datenlisten,
   LightBurn-Import (Ebenen, Formen, Gruppen, gemeinsame Punktlisten, Werkzeugebenen), Leistung je Objekt, EPS (mit
-  Ghostscript, sonst übersprungen), Homographie und Entzerrung des Kamerabildes, Übersetzung (Vorlagen, verschachtelte
+  Ghostscript, sonst übersprungen), Homographie und Entzerrung des Kamerabildes, Scan-Versatz (Interpolation, Verschiebung je Fahrtrichtung), Übersetzung (Vorlagen, verschachtelte
   Meldungen, Vollständigkeit der englischen Tabelle). Zusätzlich
   prüft ein abschaltbarer Test echte LightBurn-Projekte aus einem Ordner (`VL_LBRN_DIR`).
 - **End-to-End:** Ein Job mit Schnitt, Kreuzschraffur und Graustufenbild sowie die Rahmenfahrt werden zeilenweise durch
@@ -281,4 +281,4 @@ Der Info-Dialog verlinkt die Datei. Inno Setup darf auch für kommerzielle Softw
 | 1 ✅ | Nutzbare Version für GRBL/SF-A9 (dieses Dokument) |
 | 2 ✅ | Knotenbearbeitung, Boolesche Operationen, Offset/Offset-Füllen, Arrays, Laschen, Materialbibliothek, Testmuster-Generator, Autosicherung, Objektfang, PDF-Import |
 | 3 🟡 | Bild nachzeichnen ✅, Text auf Pfad/variabler Text ✅, Rotary ✅, Kamera ✅, Marlin/Smoothieware ✅ (experimentell), danach Ruida und Galvo (Hardware-Tester nötig) |
-| 4 🟡 | Eigene Verbesserungen (u. a. Leistung je Objekt, LightBurn-Import ✅), Installer (Benutzerinstallation mit Verknüpfungen und Dateitypen `.vlume`/„Öffnen mit“ für `.lbrn2` ✅, Setup-Paket ✅, Code-Signatur ⏳), mehrsprachige Oberfläche (Deutsch/Englisch ✅), Veröffentlichung |
+| 4 🟡 | Eigene Verbesserungen (u. a. Leistung je Objekt, LightBurn-Import, Scan-Versatz ✅), Installer (Benutzerinstallation mit Verknüpfungen und Dateitypen `.vlume`/„Öffnen mit“ für `.lbrn2` ✅, Setup-Paket ✅, Code-Signatur ⏳), mehrsprachige Oberfläche (Deutsch/Englisch ✅), Veröffentlichung |

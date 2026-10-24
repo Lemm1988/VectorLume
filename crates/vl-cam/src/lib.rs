@@ -11,6 +11,8 @@ pub mod toolpath;
 pub use estimate::{Estimate, format_duration};
 pub use gcode::{CoordMode, strip_for_streaming};
 pub use job::{Job, OutputMapping, build_job, finish_job, frame_gcode, placement};
-pub use machine::{Anchor, JobSettings, MachineProfile, OriginCorner, Rotary, RotaryAxis, RotaryKind, StartFrom};
+pub use machine::{
+    Anchor, JobSettings, MachineProfile, OriginCorner, Rotary, RotaryAxis, RotaryKind, ScanOffset, StartFrom,
+};
 pub use testpattern::{TestAxis, TestLayout, TestParam, TestPattern};
 pub use toolpath::{Block, BlockKind, Op, RasterPreview, Toolpath};

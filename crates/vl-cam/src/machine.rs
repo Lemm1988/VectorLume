@@ -36,6 +36,16 @@ impl OriginCorner {
     }
 }
 
+/// Gemessener Versatz beim Gravieren mit einer Geschwindigkeit: Abstand der Kanten von hin- und zurückgefahrenen
+/// Zeilen (Laser und Mechanik reagieren verzögert, die Zeilen landen in Fahrtrichtung zu weit).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ScanOffset {
+    /// mm/min
+    pub speed: f64,
+    /// mm
+    pub offset: f64,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct MachineProfile {
@@ -66,6 +76,8 @@ pub struct MachineProfile {
     pub frame_speed: f64,
     pub jog_speed: f64,
     pub rotary: Rotary,
+    /// Scan-Versatz je Geschwindigkeit (leer = aus).
+    pub scan_offsets: Vec<ScanOffset>,
 }
 
 impl Default for MachineProfile {
@@ -97,7 +109,30 @@ impl MachineProfile {
             frame_speed: 3000.0,
             jog_speed: 3000.0,
             rotary: Rotary::default(),
+            scan_offsets: Vec::new(),
         }
+    }
+
+    /// Verschiebung jeder Füll- bzw. Bildzeile gegen ihre Fahrtrichtung (halber gemessener Versatz). Zwischen den
+    /// Messwerten wird linear interpoliert; außerhalb wächst der Versatz proportional zur Geschwindigkeit (feste
+    /// Verzögerung).
+    pub fn scan_shift(&self, speed: f64) -> f64 {
+        let mut table: Vec<ScanOffset> = self.scan_offsets.iter().copied().filter(|s| s.speed > 0.0).collect();
+        if table.is_empty() || speed <= 0.0 {
+            return 0.0;
+        }
+        table.sort_by(|a, b| a.speed.total_cmp(&b.speed));
+        let (first, last) = (table[0], table[table.len() - 1]);
+        let offset = if speed <= first.speed {
+            first.offset * speed / first.speed
+        } else if speed >= last.speed {
+            last.offset * speed / last.speed
+        } else {
+            let i = table.iter().position(|s| s.speed >= speed).unwrap_or(table.len() - 1);
+            let (a, b) = (table[i - 1], table[i]);
+            a.offset + (b.offset - a.offset) * (speed - a.speed) / (b.speed - a.speed)
+        };
+        offset / 2.0
     }
 
     pub fn bed_rect(&self) -> Rect {
@@ -341,6 +376,19 @@ impl Default for JobSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scan_shift_interpolates() {
+        let mut p = MachineProfile::default();
+        assert_eq!(p.scan_shift(6000.0), 0.0);
+        p.scan_offsets = vec![ScanOffset { speed: 6000.0, offset: 0.2 }, ScanOffset { speed: 2000.0, offset: 0.1 }];
+        let close = |a: f64, b: f64| (a - b).abs() < 1e-12;
+        assert!(close(p.scan_shift(2000.0), 0.05));
+        assert!(close(p.scan_shift(4000.0), 0.075));
+        // außerhalb proportional zur Geschwindigkeit
+        assert!(close(p.scan_shift(1000.0), 0.025));
+        assert!(close(p.scan_shift(12000.0), 0.2));
+    }
 
     #[test]
     fn rotary_scale() {
