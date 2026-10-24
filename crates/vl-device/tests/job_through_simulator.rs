@@ -10,13 +10,19 @@ fn sample_doc() -> Document {
     let mut doc = Document::new();
     doc.add_path("Rahmen", 0, VectorPath::rect(20.0, 20.0, 60.0, 40.0, 4.0));
     doc.add_path("Loch", 0, VectorPath::ellipse(Point::new(35.0, 35.0), 5.0, 5.0));
-    doc.layers[1].settings = CutSettings { fill_angle: 30.0, crosshatch: true, interval: 0.5, ..CutSettings::default_for(LayerMode::Fill) };
+    doc.layers[1].settings =
+        CutSettings { fill_angle: 30.0, crosshatch: true, interval: 0.5, ..CutSettings::default_for(LayerMode::Fill) };
     doc.add_path("Stern", 1, VectorPath::star(Point::new(60.0, 40.0), 12.0, 5.0, 5));
     let px = (0..40u32).flat_map(|y| (0..60u32).map(move |x| ((x * 4 + y * 2) % 256) as u8)).collect();
     doc.add_image(
         "Bild",
         2,
-        ImageObject { image: Arc::new(RasterImage::new(60, 40, px)), width_mm: 12.0, height_mm: 8.0, adjust: ImageAdjust::default() },
+        ImageObject {
+            image: Arc::new(RasterImage::new(60, 40, px)),
+            width_mm: 12.0,
+            height_mm: 8.0,
+            adjust: ImageAdjust::default(),
+        },
         Point::new(100.0, 30.0),
     );
     doc.layers[2].settings.dither = DitherMode::Grayscale;
@@ -38,7 +44,8 @@ fn stream(lines: &[String]) -> (usize, Vec<String>, [f64; 2]) {
     // Begrüßung abholen
     let _ = sim.read(&mut buf);
     while oks + errors.len() < lines.len() {
-        while next < lines.len() && used + lines[next].len() + 1 <= 127 {
+        // Zeile + Zeilenende muss in den 127-Byte-Puffer passen.
+        while next < lines.len() && used + lines[next].len() < 127 {
             sim.write_all(format!("{}\n", lines[next]).as_bytes()).expect("Simulator-Puffer übergelaufen");
             inflight.push_back(lines[next].len() + 1);
             used += lines[next].len() + 1;

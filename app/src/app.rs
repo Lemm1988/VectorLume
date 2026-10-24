@@ -202,6 +202,8 @@ pub struct VectorLumeApp {
     pub right_tab: crate::ui_side::RightTab,
     pub lock_ratio: bool,
     pub rotate_by: f64,
+    pub materials: crate::materials::MaterialsUi,
+    pub test: crate::materials::TestUi,
     last_edit: Option<(&'static str, Instant)>,
     last_title: String,
     close_confirmed: bool,
@@ -273,6 +275,8 @@ impl VectorLumeApp {
             right_tab: crate::ui_side::RightTab::Laser,
             lock_ratio: true,
             rotate_by: 90.0,
+            materials: crate::materials::MaterialsUi::load(),
+            test: crate::materials::TestUi::default(),
             last_edit: None,
             last_title: String::new(),
             close_confirmed: false,
@@ -297,6 +301,11 @@ impl VectorLumeApp {
         if std::env::var_os("VECTORLUME_SIMULATOR").is_some() {
             app.selected_port = vl_device::SIMULATOR_PORT.into();
             app.connect();
+        }
+        match std::env::var("VECTORLUME_WINDOW").as_deref() {
+            Ok("materialtest") => app.open_material_test(),
+            Ok("materials") => app.materials.open = true,
+            _ => {}
         }
         app
     }
@@ -849,80 +858,99 @@ impl VectorLumeApp {
                         self.preview.job = Some(job.clone());
                         self.preview.built_revision = self.revision;
                         self.preview.texture_generation += 1;
-                        if !self.settings.safety_acknowledged {
-                            self.modal = Some(Modal::Safety { job });
-                        } else if !job.warnings.is_empty() {
-                            self.modal = Some(Modal::ConfirmStart { job });
-                        } else {
-                            self.send_job(&job);
-                        }
+                        self.launch_job(job);
                     }
                     Err(e) => self.toast(ToastKind::Error, e),
                 },
                 JobPurpose::Frame => match result {
-                    Ok(job) => {
-                        let lines = strip_for_streaming(&vl_cam::frame_gcode(&job, &self.settings.profile));
-                        self.device.send(Command::StartJob { name: "Rahmen".into(), lines });
-                    }
+                    Ok(job) => self.run_frame(&job),
                     Err(e) => self.toast(ToastKind::Error, e),
                 },
                 JobPurpose::Export(path) => match result {
-                    Ok(job) => {
-                        let mut text = job.gcode.join("\n");
-                        text.push('\n');
-                        match std::fs::write(&path, text) {
-                            Ok(()) => {
-                                let mut msg = format!(
-                                    "G-Code gespeichert: {} (geschätzt {})",
-                                    file_name(&path),
-                                    job.estimate.format_duration()
-                                );
-                                if !job.warnings.is_empty() {
-                                    msg.push_str(" – mit Warnungen");
-                                }
-                                self.toast(ToastKind::Success, msg);
-                                for w in &job.warnings {
-                                    self.toast(ToastKind::Info, w.clone());
-                                }
-                            }
-                            Err(e) => self.toast(ToastKind::Error, format!("Speichern fehlgeschlagen: {e}")),
-                        }
-                    }
+                    Ok(job) => self.write_gcode(&job, &path),
                     Err(e) => self.toast(ToastKind::Error, e),
                 },
             }
         }
     }
 
-    pub fn start_job(&mut self) {
+    /// Startet einen fertigen Job nach Sicherheitshinweis bzw. Bestätigung der Warnungen.
+    pub fn launch_job(&mut self, job: Arc<Job>) {
+        if !self.settings.safety_acknowledged {
+            self.modal = Some(Modal::Safety { job });
+        } else if !job.warnings.is_empty() {
+            self.modal = Some(Modal::ConfirmStart { job });
+        } else {
+            self.send_job(&job);
+        }
+    }
+
+    pub fn run_frame(&mut self, job: &Job) {
+        let lines = strip_for_streaming(&vl_cam::frame_gcode(job, &self.settings.profile));
+        self.device.send(Command::StartJob { name: "Rahmen".into(), lines });
+    }
+
+    pub fn write_gcode(&mut self, job: &Job, path: &Path) {
+        let mut text = job.gcode.join("\n");
+        text.push('\n');
+        match std::fs::write(path, text) {
+            Ok(()) => {
+                let mut msg =
+                    format!("G-Code gespeichert: {} (geschätzt {})", file_name(path), job.estimate.format_duration());
+                if !job.warnings.is_empty() {
+                    msg.push_str(" – mit Warnungen");
+                }
+                self.toast(ToastKind::Success, msg);
+                for w in &job.warnings {
+                    self.toast(ToastKind::Info, w.clone());
+                }
+            }
+            Err(e) => self.toast(ToastKind::Error, format!("Speichern fehlgeschlagen: {e}")),
+        }
+    }
+
+    /// Prüft, ob ein Job gestartet werden darf, und meldet sonst den Grund.
+    pub fn ready_to_start(&mut self) -> bool {
         if !self.machine.connected {
             self.toast(ToastKind::Error, "Kein Laser verbunden.");
-            return;
+            return false;
         }
         if self.machine.job_running {
             self.toast(ToastKind::Info, "Es läuft bereits ein Job.");
-            return;
+            return false;
         }
         if self.machine.laser_mode() == Some(false) {
             self.modal = Some(Modal::LaserModeOff);
-            return;
+            return false;
         }
-        self.request_job(JobPurpose::Start);
+        true
     }
 
-    pub fn frame_job(&mut self) {
+    pub fn ready_to_frame(&mut self) -> bool {
         if !self.machine.connected {
             self.toast(ToastKind::Error, "Kein Laser verbunden.");
-            return;
+            return false;
         }
         if self.machine.job_running {
-            return;
+            return false;
         }
         if self.settings.profile.frame_power > 0.0 && self.machine.laser_mode() == Some(false) {
             self.modal = Some(Modal::LaserModeOff);
-            return;
+            return false;
         }
-        self.request_job(JobPurpose::Frame);
+        true
+    }
+
+    pub fn start_job(&mut self) {
+        if self.ready_to_start() {
+            self.request_job(JobPurpose::Start);
+        }
+    }
+
+    pub fn frame_job(&mut self) {
+        if self.ready_to_frame() {
+            self.request_job(JobPurpose::Frame);
+        }
     }
 
     pub fn send_job(&mut self, job: &Job) {
@@ -1163,6 +1191,7 @@ impl eframe::App for VectorLumeApp {
         egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| self.canvas_ui(ui));
 
         crate::dialogs::show(self, &ctx);
+        crate::materials::show(self, &ctx);
         self.update_preview();
         self.update_title(&ctx);
         if self.machine.job_running || self.jobs.busy > 0 || !self.toasts.is_empty() {

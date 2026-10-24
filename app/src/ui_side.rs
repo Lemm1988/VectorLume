@@ -15,7 +15,7 @@ pub enum RightTab {
     Console,
 }
 
-fn card<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+pub(crate) fn card<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
     let pal = theme::of(ui);
     Frame::NONE
         .fill(pal.panel_alt)
@@ -180,7 +180,15 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
             ui.painter().rect_filled(r, CornerRadius::same(4), theme::layer_color(layer.color));
             ui.add(egui::TextEdit::singleline(&mut layer.name).desired_width(120.0));
-            ui.label(RichText::new("Einstellungen").color(pal.text_weak));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .small_button(format!("{} Material", icon::BOOKS))
+                    .on_hover_text("Materialbibliothek öffnen")
+                    .clicked()
+                {
+                    app.materials.open = true;
+                }
+            });
         });
         ui.add_space(4.0);
         cut_settings_ui(ui, &mut layer.settings, has_images);
@@ -194,7 +202,7 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     image_adjust_ui(app, ui);
 }
 
-fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool) {
+pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool) {
     egui::Grid::new("cut_settings").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
         ui.label("Modus");
         let before = s.mode;

@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use vl_cam::{JobSettings, MachineProfile};
+use vl_cam::{JobSettings, MachineProfile, TestPattern};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThemeChoice {
@@ -25,6 +25,7 @@ pub struct AppSettings {
     pub safety_acknowledged: bool,
     pub snap_to_grid: bool,
     pub grid_snap_mm: f64,
+    pub test_pattern: TestPattern,
 }
 
 impl Default for AppSettings {
@@ -40,6 +41,7 @@ impl Default for AppSettings {
             safety_acknowledged: false,
             snap_to_grid: false,
             grid_snap_mm: 1.0,
+            test_pattern: TestPattern::default(),
         }
     }
 }

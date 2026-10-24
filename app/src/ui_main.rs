@@ -386,6 +386,13 @@ fn laser_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
         app.device.send(vl_device::Command::Stop);
     }
     ui.separator();
+    if menu_item(ui, "Materialtest…", "", true) {
+        app.open_material_test();
+    }
+    if menu_item(ui, "Materialbibliothek…", "", true) {
+        app.materials.open = true;
+    }
+    ui.separator();
     if menu_item(ui, "Maschineneinstellungen…", "", true) {
         app.show_device_settings = true;
     }

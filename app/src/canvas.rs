@@ -528,7 +528,17 @@ impl VectorLumeApp {
         }
 
         if preview_active {
-            self.draw_preview(&ctx, &clip, &tf, pal, dark);
+            if let Some(job) = self.preview.job.clone() {
+                let generation = self.preview.texture_generation;
+                let textures: Vec<TextureId> =
+                    self.textures.preview(&ctx, &job, generation).iter().map(|t| t.id()).collect();
+                self.draw_job(&clip, &tf, pal, dark, &job, self.preview.progress, &textures, true);
+            }
+        }
+        if self.test.open && self.test.show_on_canvas {
+            if let Some(job) = self.test.job.clone() {
+                self.draw_job(&clip, &tf, pal, dark, &job, 1.0, &[], false);
+            }
         }
 
         // Laserkopf und Benutzer-Ursprung
@@ -920,25 +930,24 @@ impl VectorLumeApp {
         });
     }
 
-    fn draw_preview(
-        &mut self,
-        ctx: &egui::Context,
+    /// Zeichnet den Werkzeugweg eines Jobs bis `progress` (0…1). Mit `layer_colors` erscheinen Linien in
+    /// der Farbe ihrer Ebene, sonst in Brennfarbe (z. B. Materialtest, dessen Felder keine Ebenen sind).
+    #[allow(clippy::too_many_arguments)]
+    fn draw_job(
+        &self,
         painter: &egui::Painter,
         tf: &ViewTf,
         pal: &theme::Palette,
         dark: bool,
+        job: &Job,
+        progress: f32,
+        textures: &[TextureId],
+        layer_colors: bool,
     ) {
-        let Some(job) = self.preview.job.clone() else { return };
-        let generation = self.preview.texture_generation;
         let burn = if dark { Color32::from_rgb(255, 196, 120) } else { Color32::from_rgb(40, 30, 25) };
         let total: usize = job.toolpath.op_count();
-        let limit = if self.preview.progress >= 0.999 {
-            usize::MAX
-        } else {
-            (self.preview.progress as f64 * total as f64) as usize
-        };
+        let limit = if progress >= 0.999 { usize::MAX } else { (progress as f64 * total as f64) as usize };
 
-        let textures: Vec<TextureId> = self.textures.preview(ctx, &job, generation).iter().map(|t| t.id()).collect();
         let mut count = 0usize;
         let mut cur = job.start;
         let mut cut: Vec<Pos2> = Vec::new();
@@ -952,7 +961,10 @@ impl VectorLumeApp {
             cut.clear();
         };
         'outer: for block in &job.toolpath.blocks {
-            let layer_color = theme::layer_color(self.doc.layers[block.layer].color);
+            let layer_color = match self.doc.layers.get(block.layer) {
+                Some(l) if layer_colors => theme::layer_color(l.color),
+                _ => burn,
+            };
             if block.kind == BlockKind::Raster {
                 flush(&mut cut, cut_color);
                 if count >= limit {

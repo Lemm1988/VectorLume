@@ -163,6 +163,20 @@ impl Anchor {
         [Anchor::BottomLeft, Anchor::Bottom, Anchor::BottomRight],
     ];
 
+    pub fn label(self) -> &'static str {
+        match self {
+            Anchor::TopLeft => "Oben links",
+            Anchor::Top => "Oben Mitte",
+            Anchor::TopRight => "Oben rechts",
+            Anchor::Left => "Links Mitte",
+            Anchor::Center => "Mitte",
+            Anchor::Right => "Rechts Mitte",
+            Anchor::BottomLeft => "Unten links",
+            Anchor::Bottom => "Unten Mitte",
+            Anchor::BottomRight => "Unten rechts",
+        }
+    }
+
     pub fn point_in(self, r: &Rect) -> Point {
         let (fx, fy) = match self {
             Anchor::TopLeft => (0.0, 0.0),

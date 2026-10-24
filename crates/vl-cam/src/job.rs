@@ -73,20 +73,42 @@ pub fn build_job(
         return Err("Es gibt nichts auszugeben (keine Objekte auf aktiven Ebenen).".into());
     }
     let design_bounds = objects.iter().fold(Rect::EMPTY, |r, o| r.union(&o.bounds()));
-    let anchor = settings.anchor.point_in(&design_bounds);
-    let mapping = OutputMapping::new(profile, settings, anchor);
-    let start = match settings.start_from {
-        StartFrom::Absolute => profile.machine_to_doc(Point::ZERO),
-        _ => anchor,
-    };
-
+    let (_, _, start) = placement(&design_bounds, profile, settings);
     let toolpath = generate(doc, &objects, settings, start)?;
     if toolpath.is_empty() {
         return Err(
             "Die ausgewählten Objekte erzeugen keinen Werkzeugweg (z. B. offene Pfade auf einer Füllebene).".into()
         );
     }
+    let layer_names = doc.layers.iter().map(|l| l.name.clone()).collect();
+    Ok(finish_job(toolpath, design_bounds, profile, settings, layer_names, None))
+}
 
+/// Ankerpunkt, Ausgabeabbildung und Startpunkt (Dokument) für einen Job mit diesen Umrissen.
+pub fn placement(
+    design_bounds: &Rect,
+    profile: &MachineProfile,
+    settings: &JobSettings,
+) -> (Point, OutputMapping, Point) {
+    let anchor = settings.anchor.point_in(design_bounds);
+    let mapping = OutputMapping::new(profile, settings, anchor);
+    let start = match settings.start_from {
+        StartFrom::Absolute => profile.machine_to_doc(Point::ZERO),
+        _ => anchor,
+    };
+    (anchor, mapping, start)
+}
+
+/// Bereichsprüfung, Zeitschätzung und G-Code für einen fertigen Werkzeugweg.
+pub fn finish_job(
+    toolpath: Toolpath,
+    design_bounds: Rect,
+    profile: &MachineProfile,
+    settings: &JobSettings,
+    layer_names: Vec<String>,
+    title: Option<String>,
+) -> Job {
+    let (anchor, mapping, start) = placement(&design_bounds, profile, settings);
     let mut path_bounds = Rect::EMPTY;
     for b in &toolpath.blocks {
         for op in &b.ops {
@@ -122,6 +144,13 @@ pub fn build_job(
         StartFrom::UserOrigin => settings.user_origin,
         StartFrom::Absolute | StartFrom::CurrentPosition => Point::ZERO,
     });
+    let mut comments = vec![format!("VectorLume {}", env!("CARGO_PKG_VERSION"))];
+    comments.extend(title);
+    comments.extend([
+        format!("Maschine: {}", profile.name),
+        format!("Start: {}", settings.start_from.label()),
+        format!("Geschaetzte Dauer: {}", est.format_duration()),
+    ]);
     let opts = GcodeOptions {
         s_max: profile.s_max,
         dynamic_power: profile.dynamic_power,
@@ -130,16 +159,11 @@ pub fn build_job(
         air_supported: profile.air_assist_supported,
         coord_mode: mapping.mode,
         return_to,
-        comments: vec![
-            format!("VectorLume {}", env!("CARGO_PKG_VERSION")),
-            format!("Maschine: {}", profile.name),
-            format!("Start: {}", settings.start_from.label()),
-            format!("Geschaetzte Dauer: {}", est.format_duration()),
-        ],
-        layer_names: doc.layers.iter().map(|l| l.name.clone()).collect(),
+        comments,
+        layer_names,
     };
     let gcode = emit(&toolpath, &|p| mapping.map(p), &opts);
-    Ok(Job { toolpath, design_bounds, path_bounds, anchor, start, mapping, warnings, estimate: est, gcode })
+    Job { toolpath, design_bounds, path_bounds, anchor, start, mapping, warnings, estimate: est, gcode }
 }
 
 /// Erzeugt den Werkzeugweg aller Ebenen in Ausgabereihenfolge (Dokumentkoordinaten).

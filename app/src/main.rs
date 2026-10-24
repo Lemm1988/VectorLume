@@ -7,6 +7,7 @@ mod canvas;
 mod dialogs;
 mod history;
 mod icon_art;
+mod materials;
 mod settings;
 mod theme;
 mod ui_main;
