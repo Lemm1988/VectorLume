@@ -1,7 +1,9 @@
 //! Import und Export von Dateien für VectorLume.
 
 pub mod dxf;
+pub mod hpgl;
 pub mod image;
+pub mod pdf;
 pub mod svg;
 pub mod text;
 
@@ -11,7 +13,7 @@ use vl_core::{Document, ImageObject, LAYER_COUNT, LayerMode, ObjectId, PALETTE, 
 
 pub use text::{TextAlign, TextSpec, font_families, system_fonts, text_to_path};
 
-pub const VECTOR_EXTENSIONS: &[&str] = &["svg", "svgz", "dxf"];
+pub const VECTOR_EXTENSIONS: &[&str] = &["svg", "svgz", "dxf", "pdf", "ai", "plt", "hpgl", "hgl"];
 pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff"];
 
 #[derive(Clone, Debug)]
@@ -42,6 +44,8 @@ pub fn import_file(path: &Path, fonts: Option<Arc<usvg::fontdb::Database>>) -> R
     match ext.as_str() {
         "svg" | "svgz" => svg::import_svg(&data, fonts),
         "dxf" => dxf::import_dxf(&data),
+        "pdf" | "ai" => pdf::import_pdf(&data),
+        "plt" | "hpgl" | "hgl" => hpgl::import_hpgl(&data),
         e if IMAGE_EXTENSIONS.contains(&e) => image::import_image(&data, &name),
         _ => Err(format!("Dateiformat „.{ext}“ wird nicht unterstützt.")),
     }

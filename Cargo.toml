@@ -22,6 +22,7 @@ base64 = "0.23"
 i_overlay = "9.1"
 usvg = "0.48"
 dxf = "0.6"
+lopdf = { version = "0.46", default-features = false }
 serialport = "4.10"
 eframe = "0.36"
 egui = "0.36"

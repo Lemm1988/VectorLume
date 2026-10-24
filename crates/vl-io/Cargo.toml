@@ -10,6 +10,7 @@ publish.workspace = true
 vl-core.workspace = true
 usvg.workspace = true
 dxf.workspace = true
+lopdf.workspace = true
 image.workspace = true
 fontdb.workspace = true
 ttf-parser.workspace = true

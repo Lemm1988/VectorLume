@@ -498,7 +498,7 @@ impl VectorLumeApp {
         if let Some(files) = rfd::FileDialog::new()
             .set_title("Importieren")
             .add_filter("Alle unterstützten Dateien", &all)
-            .add_filter("Vektorgrafik (SVG, DXF)", vl_io::VECTOR_EXTENSIONS)
+            .add_filter("Vektorgrafik (SVG, DXF, PDF, AI, HPGL)", vl_io::VECTOR_EXTENSIONS)
             .add_filter("Bilder", vl_io::IMAGE_EXTENSIONS)
             .pick_files()
         {
