@@ -188,7 +188,7 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
             );
             ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
             ui.add_space(6.0);
-            ui.label("Software zum Gestalten und Lasern für GRBL-Diodenlaser. Eigenständig in Rust entwickelt.");
+            ui.label("Software zum Gestalten und Lasern für Diodenlaser mit GRBL, Marlin oder Smoothieware. Eigenständig in Rust entwickelt.");
             ui.add_space(6.0);
             ui.label(RichText::new("Tastenkürzel").strong());
             egui::Grid::new("keys").num_columns(2).show(ui, |ui| {
@@ -208,6 +208,13 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
             });
             ui.add_space(6.0);
             ui.label(RichText::new("Privates Projekt – alle Rechte vorbehalten.").small().color(pal.text_weak));
+            ui.label(
+                RichText::new(
+                    "Verwendet freie Bibliotheken (u. a. egui, usvg, lopdf, image, serialport, nokhwa).                      This software is based in part on the work of the Independent JPEG Group.",
+                )
+                .small()
+                .color(pal.text_weak),
+            );
         },
     );
     if !open {

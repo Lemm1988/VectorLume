@@ -126,7 +126,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-47 | Simulator | GRBL-Nachbildung mit 128-Byte-Puffer, Planer (15), Echtzeitbefehlen, Alarm nach Reset | ✅ |
 | LF-48 | weitere Steuerungen | Marlin 2.1 (Laser im Inline-Modus `M3/M4 I`, S bis 255, Senden und Warten auf `ok`, Jobende per `M400`, Position per `M114`, Pause im Programm, Stopp `M410`+`M5`, Referenzfahrt `G28`), Smoothieware (S 0…1, Statusabfrage `?`, Stopp Strg-X mit `M112` als Rückfall, Freigabe `M999`); beide experimentell, da ohne Hardwaretest; Ruida, Trocen, TopWisdom, Galvo ⏳ | 🟡 |
 | LF-49 | Netzwerk | TCP/Telnet für FluidNC, grblHAL, ESP3D: Eintrag „Netzwerk“ mit Adresse (Standard-Port 23), alle Steuerungsarten | ✅ |
-| LF-50 | Drehachse, Kamera | Drehachse: Rollen oder Futter, statt Y-Motor oder als A-Achse, Weg je Umdrehung, Rollen-/Werkstückdurchmesser (auch als Umfang), Richtung; Y wird um den Ankerpunkt auf den Achsweg umgerechnet (Job, Rahmen, Verfahren), Prüfung Motivhöhe ≤ Umfang, Testdrehungen; Kamera ⏳ | 🟡 |
+| LF-50 | Drehachse, Kamera | Drehachse: Rollen oder Futter, statt Y-Motor oder als A-Achse, Weg je Umdrehung, Rollen-/Werkstückdurchmesser (auch als Umfang), Richtung; Y wird um den Ankerpunkt auf den Achsweg umgerechnet (Job, Rahmen, Verfahren), Prüfung Motivhöhe ≤ Umfang, Testdrehungen; **Kamera:** Webcam (Einzelbild oder live alle 0,3 s) oder Foto der Arbeitsfläche, Ausrichten über vier Passpunkte (Bettlage in Maschinenkoordinaten, Klick ins Bild; „Ausrichtmarken lasern“ brennt Kreuze an diesen Stellen), perspektivische Entzerrung (Homographie) und halbtransparente Anzeige unter dem Raster; Objektivverzerrung (Fischauge) wird nicht ausgeglichen | ✅ |
 
 ### 4.5 Vorschau und Optimierung
 | LF | Funktion | Umsetzung | Stand |
@@ -204,14 +204,14 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (105):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (107):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
   Objektfang, Materialtest und -bibliothek, Z je Durchgang, Nachzeichnen, Platzhalter, Text auf Pfad, Drehachse,
   G-Code-Dialekte und Streaming für Marlin/Smoothieware (Simulator), Netzwerkverbindung, CSV-Datenlisten,
   LightBurn-Import (Ebenen, Formen, Gruppen, gemeinsame Punktlisten, Werkzeugebenen), Leistung je Objekt, EPS (mit
-  Ghostscript, sonst übersprungen). Zusätzlich
+  Ghostscript, sonst übersprungen), Homographie und Entzerrung des Kamerabildes. Zusätzlich
   prüft ein abschaltbarer Test echte LightBurn-Projekte aus einem Ordner (`VL_LBRN_DIR`).
 - **End-to-End:** Ein Job mit Schnitt, Kreuzschraffur und Graustufenbild sowie die Rahmenfahrt werden zeilenweise durch
   den Simulator gestreamt – jede Zeile muss mit `ok` bestätigt werden.
@@ -230,8 +230,10 @@ cargo build --release
 ## 9. Abhängigkeiten und Lizenzen
 
 Alle Abhängigkeiten sind freizügig lizenziert (MIT, Apache-2.0, BSD, Zlib, ISC, Unicode); Pakete mit GPL/LGPL-Option
-werden unter ihrer MIT/Apache-Alternative genutzt. `serialport` steht unter MPL-2.0 (Änderungen an dessen Dateien wären
-offenzulegen, die eigene Software nicht). Damit bleiben Veröffentlichung als Open Source und Verkauf möglich.
+werden unter ihrer MIT/Apache-Alternative genutzt. `serialport` (und `option-ext` über `dirs`) stehen unter MPL-2.0
+(Änderungen an deren Dateien wären offenzulegen, die eigene Software nicht). `mozjpeg` (JPEG-Dekoder der Kamera) steht
+unter der IJG-Lizenz: In der Dokumentation einer Weitergabe ist zu vermerken „This software is based in part on the work
+of the Independent JPEG Group“. Damit bleiben Veröffentlichung als Open Source und Verkauf möglich.
 
 | Paket | Zweck | Lizenz |
 |---|---|---|
@@ -248,6 +250,8 @@ offenzulegen, die eigene Software nicht). Damit bleiben Veröffentlichung als Op
 | fontdb 0.24, ttf-parser 0.25 | Schriften | MIT, MIT/Apache-2.0 |
 | serde, serde_json, base64, dirs, log | Infrastruktur | MIT/Apache-2.0 |
 | roxmltree | XML lesen (LightBurn-Projekte) | MIT/Apache-2.0 |
+| nokhwa 0.10 | Kamera (Media Foundation unter Windows) | Apache-2.0 |
+| mozjpeg 0.10 (über nokhwa) | JPEG-Bilder der Kamera | IJG, Zlib, BSD-3-Clause |
 
 ## 10. Weiteres Vorgehen
 
@@ -255,5 +259,5 @@ offenzulegen, die eigene Software nicht). Damit bleiben Veröffentlichung als Op
 |---|---|
 | 1 ✅ | Nutzbare Version für GRBL/SF-A9 (dieses Dokument) |
 | 2 ✅ | Knotenbearbeitung, Boolesche Operationen, Offset/Offset-Füllen, Arrays, Laschen, Materialbibliothek, Testmuster-Generator, Autosicherung, Objektfang, PDF-Import |
-| 3 🟡 | Bild nachzeichnen ✅, Text auf Pfad/variabler Text ✅, Rotary ✅, Kamera, Marlin/Smoothieware ✅ (experimentell), danach Ruida und Galvo (Hardware-Tester nötig) |
+| 3 🟡 | Bild nachzeichnen ✅, Text auf Pfad/variabler Text ✅, Rotary ✅, Kamera ✅, Marlin/Smoothieware ✅ (experimentell), danach Ruida und Galvo (Hardware-Tester nötig) |
 | 4 🟡 | Eigene Verbesserungen (u. a. Leistung je Objekt, LightBurn-Import ✅), Installer (Benutzerinstallation mit Verknüpfungen und Dateitypen `.vlume`/„Öffnen mit“ für `.lbrn2` ✅, Setup-Paket ⏳), mehrsprachige Oberfläche, Veröffentlichung |

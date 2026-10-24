@@ -446,6 +446,9 @@ fn laser_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, "Drehachse…", "", true) {
         app.show_rotary = true;
     }
+    if menu_item(ui, "Kamera…", "", true) {
+        app.camera.open = true;
+    }
     if menu_item(ui, "Maschineneinstellungen…", "", true) {
         app.show_device_settings = true;
     }

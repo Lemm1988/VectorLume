@@ -3,6 +3,7 @@
 //! Ergebnis ist eine „Intensität“ je Rasterzelle: 0.0 = Laser aus, 1.0 = volle Leistung.
 
 pub mod trace;
+pub mod warp;
 
 use vl_core::{Affine, DitherMode, ImageObject, Point, RasterImage};
 

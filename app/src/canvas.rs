@@ -491,6 +491,7 @@ impl VectorLumeApp {
         // Bett und Raster
         let bed_screen = tf.rect(&bed);
         clip.rect_filled(bed_screen, 2.0, pal.bed);
+        crate::camera::paint_overlay(self, &clip, bed_screen);
         let minor = nice_step(8.0 / tf.zoom as f64);
         let major = nice_step(minor * 4.9);
         let visible = DRect::from_points(tf.to_doc(work.min), tf.to_doc(work.max));

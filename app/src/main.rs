@@ -4,6 +4,7 @@
 
 mod app;
 mod autosave;
+mod camera;
 mod canvas;
 mod dialogs;
 mod history;

@@ -29,6 +29,7 @@ pub struct AppSettings {
     pub grid_snap_mm: f64,
     pub snap_to_objects: bool,
     pub test_pattern: TestPattern,
+    pub camera: crate::camera::CameraSettings,
 }
 
 impl Default for AppSettings {
@@ -47,6 +48,7 @@ impl Default for AppSettings {
             grid_snap_mm: 1.0,
             snap_to_objects: true,
             test_pattern: TestPattern::default(),
+            camera: Default::default(),
         }
     }
 }

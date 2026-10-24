@@ -202,6 +202,7 @@ pub struct VectorLumeApp {
     pub font_families: Arc<Mutex<Option<Vec<String>>>>,
     pub show_device_settings: bool,
     pub show_rotary: bool,
+    pub camera: crate::camera::CameraState,
     pub show_about: bool,
     pub right_tab: crate::ui_side::RightTab,
     pub lock_ratio: bool,
@@ -279,6 +280,7 @@ impl VectorLumeApp {
             font_families,
             show_device_settings: false,
             show_rotary: false,
+            camera: Default::default(),
             show_about: false,
             right_tab: crate::ui_side::RightTab::Laser,
             lock_ratio: true,
@@ -1346,6 +1348,7 @@ impl eframe::App for VectorLumeApp {
         self.poll_device();
         self.poll_jobs();
         self.handle_dropped_files(&ctx);
+        crate::camera::tick(self, &ctx);
         self.handle_close_request(&ctx);
         crate::ui_main::shortcuts(self, &ctx);
 
@@ -1359,6 +1362,7 @@ impl eframe::App for VectorLumeApp {
         crate::materials::show(self, &ctx);
         crate::shape_ops::show(self, &ctx);
         crate::trace_ui::show(self, &ctx);
+        crate::camera::show(self, &ctx);
         self.update_preview();
         self.update_title(&ctx);
         self.autosave.tick(&self.doc, self.revision, self.dirty, self.file_path.as_deref());
