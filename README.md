@@ -29,6 +29,8 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
 
 1. Installieren mit `powershell -ExecutionPolicy Bypass -File tools\install.ps1` – danach über die
    Verknüpfung **VectorLume** auf dem Desktop bzw. im Startmenü starten (oder `cargo run --release`).
+   `.vlume`-Projekte öffnen sich per Doppelklick; LightBurn-Projekte (`.lbrn2`) über *Öffnen mit → VectorLume*
+   oder *Datei → Öffnen* (die Zuordnung zu LightBurn bleibt). Entfernen mit `… install.ps1 -Uninstall`.
 2. *Hilfe → Beispielprojekt laden* zeigt alle Ebenenarten.
 3. Rechts unter **Laser** den Anschluss wählen (USB-Port des SF-A9 oder „Simulator“) und **Verbinden**.
 4. *Laser → Maschineneinstellungen → Werte vom Gerät* übernimmt Arbeitsfläche und S-Max aus der Steuerung.

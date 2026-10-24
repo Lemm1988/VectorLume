@@ -246,6 +246,7 @@ offenzulegen, die eigene Software nicht). Damit bleiben Veröffentlichung als Op
 | rfd 0.17 | Dateidialoge | MIT |
 | fontdb 0.24, ttf-parser 0.25 | Schriften | MIT, MIT/Apache-2.0 |
 | serde, serde_json, base64, dirs, log | Infrastruktur | MIT/Apache-2.0 |
+| roxmltree | XML lesen (LightBurn-Projekte) | MIT/Apache-2.0 |
 
 ## 10. Weiteres Vorgehen
 
@@ -254,4 +255,4 @@ offenzulegen, die eigene Software nicht). Damit bleiben Veröffentlichung als Op
 | 1 ✅ | Nutzbare Version für GRBL/SF-A9 (dieses Dokument) |
 | 2 ✅ | Knotenbearbeitung, Boolesche Operationen, Offset/Offset-Füllen, Arrays, Laschen, Materialbibliothek, Testmuster-Generator, Autosicherung, Objektfang, PDF-Import |
 | 3 🟡 | Bild nachzeichnen ✅, Text auf Pfad/variabler Text ✅, Rotary ✅, Kamera, Marlin/Smoothieware ✅ (experimentell), danach Ruida und Galvo (Hardware-Tester nötig) |
-| 4 | Eigene Verbesserungen, Installer, mehrsprachige Oberfläche, Veröffentlichung |
+| 4 🟡 | Eigene Verbesserungen (u. a. Leistung je Objekt, LightBurn-Import ✅), Installer (Benutzerinstallation mit Verknüpfungen und Dateitypen `.vlume`/„Öffnen mit“ für `.lbrn2` ✅, Setup-Paket ⏳), mehrsprachige Oberfläche, Veröffentlichung |
