@@ -5,14 +5,17 @@ geschrieben in Rust.
 
 > Privates Projekt – noch keine Lizenz vergeben, alle Rechte vorbehalten.
 
-## Funktionen (Version 0.1)
+## Funktionen
 
 - **Gestalten:** Rechteck (mit Eckenradius), Ellipse, Linie, Vieleck, Stern, Text mit installierten Schriften;
   Auswählen, Verschieben, Skalieren, Drehen, Spiegeln, Ausrichten, Verteilen, Gruppieren, Rückgängig/Wiederholen
-- **Import/Export:** SVG (inkl. Text), DXF (inkl. Blöcke, Bögen, Splines), PNG/JPG/BMP/GIF/WEBP/TIFF;
-  Export als G-Code und SVG; eigenes Projektformat `.vlume`
-- **30 Farbebenen** mit den Modi *Linie*, *Füllen* (Winkel, Kreuzschraffur, Overscan) und *Bild*
-  (8 Dithering-Verfahren oder Graustufen, Helligkeit/Kontrast/Gamma)
+- **Bearbeiten:** Knotenwerkzeug, Boolesche Operationen und Verschweißen, Versatz, Reihen-Kopien (Raster, Kreis,
+  entlang Pfad), Bild nachzeichnen, Objektfang mit Ausrichtungslinien, Ebenen sperren
+- **Import/Export:** SVG (inkl. Text), DXF (inkl. Blöcke, Bögen, Splines), PDF/AI, HPGL/PLT,
+  PNG/JPG/BMP/GIF/WEBP/TIFF; Export als G-Code, SVG und DXF; eigenes Projektformat `.vlume`; Autosicherung
+- **30 Farbebenen** mit den Modi *Linie* (Schnittbreite, Laschen), *Füllen* (Winkel, Kreuzschraffur, Overscan),
+  *Versatz-Füllen* und *Bild* (8 Dithering-Verfahren oder Graustufen, Helligkeit/Kontrast/Gamma)
+- **Material:** Materialtest-Generator und Materialbibliothek; Z-Versatz je Durchgang für Geräte mit Z-Achse
 - **Laser:** USB-Verbindung, Status, Konsole, Referenzfahrt, Verfahren, Rahmen, Start/Pause/Stopp,
   Job-Ursprung (absolut, Benutzer-Ursprung, aktuelle Position, 9 Ankerpunkte)
 - **Vorschau** mit Laufzeitschätzung, Leerfahrten und Abspielregler
@@ -22,7 +25,8 @@ geschrieben in Rust.
 
 ## Erste Schritte
 
-1. `vectorlume.exe` starten (oder `cargo run --release`).
+1. Installieren mit `powershell -ExecutionPolicy Bypass -File tools\install.ps1` – danach über die
+   Verknüpfung **VectorLume** auf dem Desktop bzw. im Startmenü starten (oder `cargo run --release`).
 2. *Hilfe → Beispielprojekt laden* zeigt alle Ebenenarten.
 3. Rechts unter **Laser** den Anschluss wählen (USB-Port des SF-A9 oder „Simulator“) und **Verbinden**.
 4. *Laser → Maschineneinstellungen → Werte vom Gerät* übernimmt Arbeitsfläche und S-Max aus der Steuerung.
@@ -47,9 +51,9 @@ Hilfreiche Startschalter: `VECTORLUME_DEMO=1` (Beispielprojekt), `VECTORLUME_PRE
 | Ordner | Inhalt |
 |---|---|
 | `crates/vl-core` | Geometrie, Pfade, Ebenen, Dokument, Projektdatei |
-| `crates/vl-raster` | Bildaufbereitung und Dithering |
+| `crates/vl-raster` | Bildaufbereitung, Dithering, Nachzeichnen |
 | `crates/vl-cam` | Werkzeugwege, Optimierung, Zeitschätzung, G-Code |
 | `crates/vl-device` | GRBL-Treiber, Streaming, Simulator |
-| `crates/vl-io` | Import (SVG, DXF, Bilder, Schrift), SVG-Export |
+| `crates/vl-io` | Import (SVG, DXF, PDF/AI, HPGL, Bilder, Schrift), SVG-/DXF-Export |
 | `app` | Oberfläche (egui) |
 | `docs` | [Lastenheft](docs/Lastenheft.md), [Pflichtenheft](docs/Pflichtenheft.md) mit Umsetzungsstand und Roadmap |

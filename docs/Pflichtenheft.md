@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Bezug | [Lastenheft](Lastenheft.md) vom 24.10.2026 |
-| Stand | 24.10.2026, Version 0.1.0 (Phase 1 abgeschlossen) |
+| Stand | 24.10.2026, Version 0.2 in Arbeit (Phase 1 abgeschlossen, Phase 2 abgeschlossen, Phase 3 begonnen) |
 | Status | privat |
 
 Legende: ✅ umgesetzt und getestet · 🟡 teilweise · ⏳ geplant (spätere Phase)
@@ -31,7 +31,7 @@ Materialbibliothek, weitere Steuerungen (Ruida, Marlin, Smoothieware, Galvo), Ka
 | Betriebssystem | Windows 10/11 (64 bit); Linux/macOS technisch möglich (plattformunabhängige Bibliotheken) |
 | Grafik | wgpu, unter Windows standardmäßig DirectX 12 (Umgebungsvariable `WGPU_BACKEND` überschreibt) |
 | Steuerungen | GRBL 1.1 (z. B. Sculpfun SF-A9), USB-seriell, 115 200 Baud |
-| Entwicklung | Rust (Edition 2024, Toolchain ≥ 1.85), Cargo-Workspace, Git/GitHub (privat) |
+| Entwicklung | Rust (Edition 2024, Toolchain ≥ 1.88), Cargo-Workspace, Git/GitHub (privat) |
 
 ## 3. Architektur
 
@@ -62,7 +62,7 @@ Materialbibliothek, weitere Steuerungen (Ruida, Marlin, Smoothieware, Galvo), Ka
 | `vl-raster` | Bild auf Gravurraster abtasten (auch gedreht/skaliert), Helligkeit/Kontrast/Gamma, 8 Dithering-Verfahren + Graustufen | `engrave_image`, `dither_gray` |
 | `vl-cam` | Werkzeugwege (Linie, Schraffur mit Winkel/Kreuzschraffur/Overscan, Raster), Reihenfolge (nächster Nachbar, innen vor außen), Zeitschätzung, G-Code, Rahmen, Job-Ursprung | `build_job`, `frame_gcode`, `MachineProfile`, `JobSettings` |
 | `vl-device` | Treiber-Thread mit Zeichenzähl-Streaming, Statusabfrage, Echtzeitbefehle, Not-Stopp, GRBL-Simulator | `Device`, `Command`, `Event`, `SimTransport` |
-| `vl-io` | Import SVG (inkl. Text), DXF (inkl. Blöcke, Bulges, Splines), Bilder; Schrift → Pfad; SVG-Export | `import_file`, `text_to_path`, `export_svg` |
+| `vl-io` | Import SVG (inkl. Text), DXF (inkl. Blöcke, Bulges, Splines), PDF/AI, HPGL, Bilder; Schrift → Pfad; SVG-/DXF-Export | `import_file`, `text_to_path`, `export_svg`, `export_dxf` |
 | `app` | Oberfläche, Bedienlogik, Rückgängig, Einstellungen | `VectorLumeApp` |
 
 Die Oberfläche blockiert nie: Werkzeugwege werden in Hintergrund-Threads berechnet, die Maschinensteuerung läuft in einem
@@ -75,11 +75,11 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 |---|---|---|---|
 | LF-01 | Neu/Öffnen/Speichern/Speichern unter | Projektformat `.vlume` (JSON, Bilder als PNG eingebettet), sicheres Speichern über Temp-Datei, Nachfrage bei ungespeicherten Änderungen | ✅ |
 | LF-02 | Import SVG/DXF/Bilder | SVG über `usvg` (Einheiten, Transformationen, Text → Pfade, Farbe → Ebene), DXF (Linie, Kreis, Bogen, Ellipse, LW-/Polylinie mit Bulge, Spline, Blockreferenzen, Einheiten), PNG/JPG/BMP/GIF/WEBP/TIFF; Drag & Drop; Befehlszeile | ✅ |
-| LF-03 | PDF/AI/EPS/HPGL | – | ⏳ |
+| LF-03 | PDF/AI/EPS/HPGL | PDF und PDF-kompatible AI (erste Seite, Formular-XObjekte, Farben → Ebenen; Text/Bilder mit Hinweis übersprungen), HPGL/PLT (PU/PD/PA/PR, CI, AA/AR, Stift → Ebene); EPS ⏳ (PostScript-Interpreter nötig) | 🟡 |
 | LF-04 | LightBurn-Projekte lesen | – | ⏳ |
-| LF-05 | Export | G-Code ✅, SVG ✅, DXF ⏳ | 🟡 |
+| LF-05 | Export | G-Code, SVG, DXF (R12, Ebenen mit ACI-Farben) | ✅ |
 | LF-06 | Rückgängig, Zwischenablage | 200 Schritte, Ausschneiden/Kopieren/Einfügen/Duplizieren | ✅ |
-| LF-07 | Zuletzt geöffnet, Autosicherung | Liste der letzten 10 Dateien ✅, Autosicherung ⏳ | 🟡 |
+| LF-07 | Zuletzt geöffnet, Autosicherung | Liste der letzten 10 Dateien; Autosicherung alle 90 s im Hintergrund, Wiederherstellen nach Absturz | ✅ |
 
 ### 4.2 Gestalten und Bearbeiten
 | LF | Funktion | Umsetzung | Stand |
@@ -90,22 +90,28 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-13 | Grundformen | Rechteck mit Eckenradius, Ellipse/Kreis, Linie (Umschalt = 45°), Vieleck, Stern | ✅ |
 | LF-14 | Text | Installierte Schriften, fett/kursiv, Höhe, Zeichen-/Zeilenabstand, Ausrichtung, Kerning | 🟡 (Text auf Pfad, variabler Text ⏳) |
 | LF-15 | Spiegeln, Drehen, Ausrichten, Verteilen | inkl. „Auf Arbeitsfläche zentrieren“, Gruppen werden als Einheit behandelt | ✅ |
-| LF-16 | Gruppen, Ausblenden | Gruppieren/Lösen ✅, Ebenen ausblenden ✅, Sperren ⏳ | 🟡 |
-| LF-17–21 | Knoten, Boolesch, Offset, Arrays, Nachzeichnen | – | ⏳ |
-| LF-22 | Fangen | Raster 1 mm ✅, Objektfang ⏳ | 🟡 |
-| LF-23 | Laschen/Stege | – | ⏳ |
+| LF-16 | Gruppen, Ausblenden | Gruppieren/Lösen, Ebenen ausblenden und sperren | ✅ |
+| LF-17 | Knotenbearbeitung | Knotenwerkzeug (N): Knoten/Kurvengriffe ziehen, Doppelklick fügt ein, Entf löscht, Segment → Linie/Kurve, Pfad öffnen/schließen | ✅ |
+| LF-18 | Boolesche Operationen | Vereinigen, Differenz, Schnittmenge, Exklusiv-Oder, Verschweißen (i_overlay) | ✅ |
+| LF-19 | Versatz | nach außen/innen, Ecken rund/spitz/abgeschrägt, offene Pfade werden umrandet | ✅ |
+| LF-20 | Reihen-Kopien | Raster, Kreis, entlang eines Pfades (gleichmäßig, an der Richtung ausgerichtet) | ✅ |
+| LF-21 | Bild nachzeichnen | Schwellwert, Invertieren, Fleckenfilter, Vereinfachen, Glätten mit Eckenerkennung, Live-Vorschau (eigener Algorithmus) | ✅ |
+| LF-22 | Fangen | Raster 1 mm; Objektfang an Knoten, Mitten und Kanten mit Ausrichtungslinien (Alt = aus) | ✅ |
+| LF-23 | Laschen/Stege | Anzahl und Breite je Kontur, optional nur Außenkonturen | ✅ |
 
 ### 4.3 Ebenen und Laser-Einstellungen
 | LF | Funktion | Umsetzung | Stand |
 |---|---|---|---|
 | LF-30 | 30 Farbebenen | eigene Palette, Klick weist Auswahl zu | ✅ |
-| LF-31 | Modi | Linie, Füllen, Bild | ✅ (Offset-Füllen ⏳) |
+| LF-31 | Modi | Linie, Füllen, Versatz-Füllen, Bild | ✅ |
 | LF-32 | Basiswerte | Geschwindigkeit, Leistung max./min., Durchgänge, Ausgabe, Luft (M8/M9) | ✅ |
 | LF-33 | Füllen | Zeilenabstand (mit dpi-Anzeige), Winkel, bidirektional, Kreuzschraffur, Overscan; Gerade-Ungerade-Regel (Löcher bleiben frei) | ✅ |
 | LF-34 | Bildmodi | Schwellwert, Floyd-Steinberg, Jarvis, Stucki, Atkinson, Burkes, Sierra, Bayer 8×8, Graustufen; Negativ | ✅ |
 | LF-35 | Bildanpassung | Helligkeit, Kontrast, Gamma, live in der Ansicht | ✅ |
 | LF-36 | Reihenfolge | Ebenen verschieben; **zusätzlich „Gravieren vor Schneiden“** (Bild/Füllen vor Schnitten) | ✅ |
-| LF-37–39 | Materialbibliothek, Z/Kerf, Testmuster | – | ⏳ |
+| LF-37 | Materialbibliothek | Material/Stärke/Titel/Notiz, Suche, Import/Export (`.vlmat`), Übernehmen auf Ebene | ✅ |
+| LF-38 | Z/Kerf | Schnittbreitenausgleich; Z-Versatz und Absenkung je Durchgang (nur mit Z-Achse im Profil) | ✅ |
+| LF-39 | Testmuster | Materialtest: zwei Achsen aus Geschwindigkeit, Leistung, Durchgänge, Zeilenabstand, Fokus; beschriftet, Vorschau, Feld als Material speichern | ✅ |
 
 ### 4.4 Maschinensteuerung
 | LF | Funktion | Umsetzung | Stand |
@@ -173,10 +179,11 @@ Luft aus, optional Rückfahrt, im Relativmodus zurück auf `G90`. Kommentare nur
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (51):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (83):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
-  SVG/DXF/Bild/Schrift-Import, Rückgängig.
+  SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
+  Objektfang, Materialtest und -bibliothek, Z je Durchgang, Nachzeichnen.
 - **End-to-End:** Ein Job mit Schnitt, Kreuzschraffur und Graustufenbild sowie die Rahmenfahrt werden zeilenweise durch
   den Simulator gestreamt – jede Zeile muss mit `ok` bestätigt werden.
 - **Oberfläche:** manuell bzw. per automatisierten Klicks geprüft (Zeichnen, Drehen, Text, Import, Vorschau, Job im
@@ -203,6 +210,9 @@ offenzulegen, die eigene Software nicht). Damit bleiben Veröffentlichung als Op
 | egui-phosphor 0.14 | Icons | MIT/Apache-2.0 |
 | usvg 0.48 | SVG | Apache-2.0/MIT |
 | dxf 0.6 | DXF | MIT |
+| lopdf 0.46 | PDF/AI-Import | MIT |
+| i_overlay 9.1 | Boolesche Operationen, Versatz | MIT/Apache-2.0 |
+| winresource 0.1 | Programmsymbol (Build) | MIT |
 | image 0.25 | Bilder | MIT/Apache-2.0 |
 | serialport 4.10 | USB/seriell | MPL-2.0 |
 | rfd 0.17 | Dateidialoge | MIT |
@@ -214,6 +224,6 @@ offenzulegen, die eigene Software nicht). Damit bleiben Veröffentlichung als Op
 | Phase | Inhalt |
 |---|---|
 | 1 ✅ | Nutzbare Version für GRBL/SF-A9 (dieses Dokument) |
-| 2 | Knotenbearbeitung, Boolesche Operationen, Offset/Offset-Füllen, Arrays, Laschen, Materialbibliothek, Testmuster-Generator, Autosicherung, Objektfang, PDF-Import |
-| 3 | Bild nachzeichnen, Text auf Pfad/variabler Text, Rotary, Kamera, Marlin/Smoothieware, danach Ruida und Galvo (Hardware-Tester nötig) |
+| 2 ✅ | Knotenbearbeitung, Boolesche Operationen, Offset/Offset-Füllen, Arrays, Laschen, Materialbibliothek, Testmuster-Generator, Autosicherung, Objektfang, PDF-Import |
+| 3 🟡 | Bild nachzeichnen ✅, Text auf Pfad/variabler Text, Rotary, Kamera, Marlin/Smoothieware, danach Ruida und Galvo (Hardware-Tester nötig) |
 | 4 | Eigene Verbesserungen, Installer, mehrsprachige Oberfläche, Veröffentlichung |
