@@ -9,6 +9,7 @@ mod dialogs;
 mod history;
 mod icon_art;
 mod materials;
+mod node_tool;
 mod settings;
 mod shape_ops;
 mod theme;

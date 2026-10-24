@@ -9,10 +9,11 @@ use egui::{
 use std::collections::HashMap;
 use std::sync::Arc;
 use vl_cam::{BlockKind, Job, Op};
+use vl_core::nodes::{HandleRef, NodeRef};
 use vl_core::{Affine, ImageObject, Object, ObjectId, Point, Polyline, Rect as DRect, Shape as DocShape, VectorPath};
 
 const RULER: f32 = 22.0;
-const HANDLE: f32 = 5.0;
+pub(crate) const HANDLE: f32 = 5.0;
 const MIN_ZOOM: f32 = 0.05;
 const MAX_ZOOM: f32 = 400.0;
 
@@ -61,21 +62,21 @@ impl View {
 }
 
 #[derive(Clone, Copy)]
-struct ViewTf {
+pub(crate) struct ViewTf {
     origin: Pos2,
     zoom: f32,
 }
 
 impl ViewTf {
-    fn to_screen(self, p: Point) -> Pos2 {
+    pub(crate) fn to_screen(self, p: Point) -> Pos2 {
         pos2(self.origin.x + p.x as f32 * self.zoom, self.origin.y + p.y as f32 * self.zoom)
     }
 
-    fn to_doc(self, p: Pos2) -> Point {
+    pub(crate) fn to_doc(self, p: Pos2) -> Point {
         Point::new(((p.x - self.origin.x) / self.zoom) as f64, ((p.y - self.origin.y) / self.zoom) as f64)
     }
 
-    fn affine(&self) -> Affine {
+    pub(crate) fn affine(&self) -> Affine {
         let z = self.zoom as f64;
         Affine([z, 0.0, 0.0, z, self.origin.x as f64, self.origin.y as f64])
     }
@@ -121,6 +122,11 @@ impl GeomCache {
             self.map.insert(obj.id, CachedGeom { scale, key, polys: Arc::new(polys), bounds });
         }
         self.map.get(&obj.id).map(|c| (c.polys.clone(), c.bounds))
+    }
+
+    /// Nach einer Formänderung, die die Segmentanzahl nicht ändert (z. B. Knoten verschieben).
+    pub fn invalidate(&mut self, id: ObjectId) {
+        self.map.remove(&id);
     }
 
     fn retain(&mut self, ids: impl Fn(&ObjectId) -> bool) {
@@ -232,6 +238,8 @@ pub enum Drag {
     Rotate { center: Point, start_angle: f64, originals: Vec<(ObjectId, Affine)> },
     Band { start: Point, additive: bool },
     Create { tool: Tool, start: Point },
+    NodeMove { node: NodeRef },
+    NodeHandle { handle: HandleRef },
 }
 
 impl Drag {
@@ -270,7 +278,7 @@ fn snap_angle(a: f64, step_deg: f64) -> f64 {
 }
 
 impl VectorLumeApp {
-    fn snap(&self, p: Point) -> Point {
+    pub(crate) fn snap(&self, p: Point) -> Point {
         if !self.settings.snap_to_grid {
             return p;
         }
@@ -291,7 +299,7 @@ impl VectorLumeApp {
     }
 
     /// Oberstes Objekt unter dem Punkt (Toleranz in mm).
-    fn hit_test(&mut self, p: Point, tol: f64) -> Option<ObjectId> {
+    pub(crate) fn hit_test(&mut self, p: Point, tol: f64) -> Option<ObjectId> {
         for idx in (0..self.doc.objects.len()).rev() {
             let obj = &self.doc.objects[idx];
             if !self.doc.layers[obj.layer].selectable() {
@@ -359,7 +367,7 @@ impl VectorLumeApp {
             }
             Tool::Polygon => ("Vieleck", VectorPath::regular_polygon(a, a.distance(b), o.polygon_sides)),
             Tool::Star => ("Stern", VectorPath::star(a, a.distance(b), a.distance(b) * o.star_inner, o.star_points)),
-            Tool::Select | Tool::Text => return,
+            Tool::Select | Tool::Text | Tool::Node => return,
         };
         let size = path.bounds(&Affine::IDENTITY);
         if size.width() < 0.2 && size.height() < 0.2 {
@@ -562,7 +570,12 @@ impl VectorLumeApp {
 
         // Auswahlrahmen und Griffe
         let sel_bounds = self.selection_bounds();
-        let sel_screen = (!sel_bounds.is_empty() && !preview_active).then(|| tf.rect(&sel_bounds));
+        let sel_screen =
+            (!sel_bounds.is_empty() && !preview_active && self.tool != Tool::Node).then(|| tf.rect(&sel_bounds));
+        if self.tool == Tool::Node && !preview_active {
+            self.node_sync();
+            self.draw_nodes(&clip, &tf, pal);
+        }
         if let Some(r) = sel_screen {
             let dash = Shape::dashed_line(
                 &[r.left_top(), r.right_top(), r.right_bottom(), r.left_bottom(), r.left_top()],
@@ -675,6 +688,10 @@ impl VectorLumeApp {
     ) {
         let (shift, ctrl) = ctx.input(|i| (i.modifiers.shift, i.modifiers.command));
         let tol = 6.0 * ppm;
+        if self.tool == Tool::Node {
+            self.node_interaction(ctx, resp, tf, space, tol);
+            return;
+        }
 
         // Mauszeiger über Griffen
         if let (Some(hover), Some(r), Tool::Select, true) =
@@ -804,7 +821,11 @@ impl VectorLumeApp {
         if resp.drag_stopped() {
             let end = resp.interact_pointer_pos().map(|p| tf.to_doc(p));
             match std::mem::replace(&mut self.drag, Drag::None) {
-                Drag::Move { .. } | Drag::Scale { .. } | Drag::Rotate { .. } => {
+                Drag::Move { .. }
+                | Drag::Scale { .. }
+                | Drag::Rotate { .. }
+                | Drag::NodeMove { .. }
+                | Drag::NodeHandle { .. } => {
                     self.history.discard_if_unchanged(&self.doc);
                     self.mark_changed();
                 }

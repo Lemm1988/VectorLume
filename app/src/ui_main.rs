@@ -64,7 +64,11 @@ pub fn shortcuts(app: &mut VectorLumeApp, ctx: &egui::Context) {
         app.preview.active = !app.preview.active;
     }
     if pressed(sc(Modifiers::NONE, Key::Delete)) || pressed(sc(Modifiers::NONE, Key::Backspace)) {
-        app.delete_selection();
+        if app.tool == Tool::Node {
+            app.delete_selected_node();
+        } else {
+            app.delete_selection();
+        }
     }
     if pressed(sc(Modifiers::NONE, Key::Escape)) {
         if app.preview.active {
@@ -81,6 +85,7 @@ pub fn shortcuts(app: &mut VectorLumeApp, ctx: &egui::Context) {
         (Key::E, Tool::Ellipse),
         (Key::L, Tool::Line),
         (Key::T, Tool::Text),
+        (Key::N, Tool::Node),
     ] {
         if pressed(sc(Modifiers::NONE, k)) {
             app.tool = t;
@@ -485,6 +490,10 @@ fn properties(app: &mut VectorLumeApp, ui: &mut Ui) {
 }
 
 fn tool_options(app: &mut VectorLumeApp, ui: &mut Ui) {
+    if app.tool == Tool::Node {
+        crate::node_tool::options(app, ui);
+        return;
+    }
     let o = &mut app.tool_options;
     match app.tool {
         Tool::Rect => {

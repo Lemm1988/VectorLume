@@ -21,11 +21,12 @@ pub enum Tool {
     Polygon,
     Star,
     Text,
+    Node,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 7] =
-        [Tool::Select, Tool::Rect, Tool::Ellipse, Tool::Line, Tool::Polygon, Tool::Star, Tool::Text];
+    pub const ALL: [Tool; 8] =
+        [Tool::Select, Tool::Node, Tool::Rect, Tool::Ellipse, Tool::Line, Tool::Polygon, Tool::Star, Tool::Text];
 
     pub fn icon(self) -> &'static str {
         use egui_phosphor::regular as i;
@@ -37,6 +38,7 @@ impl Tool {
             Tool::Polygon => i::POLYGON,
             Tool::Star => i::STAR,
             Tool::Text => i::TEXT_T,
+            Tool::Node => i::BEZIER_CURVE,
         }
     }
 
@@ -49,6 +51,7 @@ impl Tool {
             Tool::Polygon => "Vieleck",
             Tool::Star => "Stern",
             Tool::Text => "Text (T)",
+            Tool::Node => "Knoten bearbeiten (N)",
         }
     }
 }
@@ -195,6 +198,7 @@ pub struct VectorLumeApp {
     pub geom: GeomCache,
     pub textures: TextureCache,
     pub drag: crate::canvas::Drag,
+    pub node_edit: crate::node_tool::NodeEdit,
     pub modal: Option<Modal>,
     pub text_dialog: TextDialog,
     pub font_families: Arc<Mutex<Option<Vec<String>>>>,
@@ -264,6 +268,7 @@ impl VectorLumeApp {
             geom: GeomCache::default(),
             textures: TextureCache::default(),
             drag: crate::canvas::Drag::None,
+            node_edit: Default::default(),
             modal: None,
             text_dialog: TextDialog {
                 open: false,
