@@ -12,7 +12,8 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
   Auswählen, Verschieben, Skalieren, Drehen, Spiegeln, Ausrichten, Verteilen, Gruppieren, Rückgängig/Wiederholen
 - **Bearbeiten:** Knotenwerkzeug, Boolesche Operationen und Verschweißen, Versatz, Reihen-Kopien (Raster, Kreis,
   entlang Pfad), Bild nachzeichnen, Objektfang mit Ausrichtungslinien, Ebenen sperren
-- **Import/Export:** SVG (inkl. Text), DXF (inkl. Blöcke, Bögen, Splines), PDF/AI, HPGL/PLT,
+- **Import/Export:** SVG (inkl. Text), DXF (inkl. Blöcke, Bögen, Splines), PDF/AI, EPS (mit installiertem
+  Ghostscript), HPGL/PLT,
   PNG/JPG/BMP/GIF/WEBP/TIFF; LightBurn-Projekte (`.lbrn2`) öffnen; Export als G-Code, SVG und DXF; eigenes
   Projektformat `.vlume`; Autosicherung
 - **30 Farbebenen** mit den Modi *Linie* (Schnittbreite, Laschen), *Füllen* (Winkel, Kreuzschraffur, Overscan),
@@ -59,6 +60,6 @@ Einstellungen, Autosicherung und Materialbibliothek). Dateien können als Argume
 | `crates/vl-raster` | Bildaufbereitung, Dithering, Nachzeichnen |
 | `crates/vl-cam` | Werkzeugwege, Optimierung, Zeitschätzung, G-Code |
 | `crates/vl-device` | Treiber für GRBL, Marlin und Smoothieware, Streaming, Simulator |
-| `crates/vl-io` | Import (SVG, DXF, PDF/AI, HPGL, Bilder, Schrift, CSV, LightBurn-Projekte), SVG-/DXF-Export |
+| `crates/vl-io` | Import (SVG, DXF, PDF/AI, EPS, HPGL, Bilder, Schrift, CSV, LightBurn-Projekte), SVG-/DXF-Export |
 | `app` | Oberfläche (egui) |
 | `docs` | [Lastenheft](docs/Lastenheft.md), [Pflichtenheft](docs/Pflichtenheft.md) mit Umsetzungsstand und Roadmap |

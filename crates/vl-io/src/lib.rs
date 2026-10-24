@@ -2,6 +2,7 @@
 
 pub mod csv;
 pub mod dxf;
+pub mod eps;
 pub mod hpgl;
 pub mod image;
 pub mod lightburn;
@@ -17,7 +18,7 @@ pub use csv::parse_csv;
 pub use lightburn::{LightBurnImport, import_lightburn};
 pub use text::{TextAlign, TextSpec, font_families, render_text, system_fonts, text_to_path};
 
-pub const VECTOR_EXTENSIONS: &[&str] = &["svg", "svgz", "dxf", "pdf", "ai", "plt", "hpgl", "hgl"];
+pub const VECTOR_EXTENSIONS: &[&str] = &["svg", "svgz", "dxf", "pdf", "ai", "eps", "plt", "hpgl", "hgl"];
 pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff"];
 
 #[derive(Clone, Debug)]
@@ -49,6 +50,7 @@ pub fn import_file(path: &Path, fonts: Option<Arc<usvg::fontdb::Database>>) -> R
         "svg" | "svgz" => svg::import_svg(&data, fonts),
         "dxf" => dxf::import_dxf(&data),
         "pdf" | "ai" => pdf::import_pdf(&data),
+        "eps" | "epsf" => eps::import_eps(&data),
         "plt" | "hpgl" | "hgl" => hpgl::import_hpgl(&data),
         e if IMAGE_EXTENSIONS.contains(&e) => image::import_image(&data, &name),
         _ => Err(format!("Dateiformat „.{ext}“ wird nicht unterstützt.")),
