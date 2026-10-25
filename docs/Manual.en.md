@@ -126,7 +126,7 @@ Under *Arrange → Generators*:
 
 The **Origin** (9 anchor points) sets which corner of the job lies on that point. Move the head by hand in the **Move** tab. **Move laser to selection** and **Find center** help with aligning to existing workpieces.
 
-The job settings also offer: optimize cut order, cut inner shapes before outer, start at corners and remove overlapping lines (shared edges are cut only once).
+The job settings also offer: optimize cut order, cut inner shapes before outer, start at corners and remove overlapping lines (shared edges are cut only once). To set the order yourself, choose *Arrange → Cut order by clicking…* and click the shapes one after another; the numbers show the order within each layer. Enter applies it and switches optimization off, Esc cancels.
 
 Send finished G-code files from other programs with *Laser → Send G-code file…*; save your own jobs with *File → Save G-code…*.
 

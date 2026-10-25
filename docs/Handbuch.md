@@ -126,7 +126,7 @@ Unter *Anordnen → Generatoren*:
 
 Mit dem **Ursprung** (9 Ankerpunkte) bestimmst du, welche Ecke des Jobs auf diesem Punkt liegt. Im Reiter **Bewegen** fährst du den Kopf von Hand. **Laser zur Auswahl fahren** und **Mittelpunkt finden** helfen beim Ausrichten auf vorhandenen Werkstücken.
 
-Unter den Job-Einstellungen findest du außerdem: Schnittreihenfolge optimieren, innen vor außen schneiden, an Ecken beginnen und überlappende Linien entfernen (gemeinsame Kanten nur einmal schneiden).
+Unter den Job-Einstellungen findest du außerdem: Schnittreihenfolge optimieren, innen vor außen schneiden, an Ecken beginnen und überlappende Linien entfernen (gemeinsame Kanten nur einmal schneiden). Willst du die Reihenfolge selbst bestimmen, wähle *Anordnen → Schnittreihenfolge per Klick…* und klicke die Formen nacheinander an; die Nummern zeigen die Reihenfolge innerhalb jeder Ebene. Eingabe übernimmt sie und schaltet die Optimierung aus, Esc bricht ab.
 
 Fertige G-Code-Dateien anderer Programme sendest du mit *Laser → G-Code-Datei senden…*; eigene Jobs speicherst du mit *Datei → G-Code speichern…*.
 

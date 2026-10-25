@@ -1181,6 +1181,93 @@ fn render_tangent_circles() {
     tangent_flow(true);
 }
 
+#[test]
+fn escape_ends_tangent_suggestions() {
+    let mut h = harness(false);
+    for x in [40.0, 70.0, 55.0] {
+        let id =
+            h.state_mut().doc.add_path("K", 0, VectorPath::ellipse(Point::new(x, 50.0 + (x - 55.0).abs()), 10.0, 10.0));
+        h.state_mut().selection.push(id);
+    }
+    h.state_mut().start_tangent_circles();
+    assert!(h.state().tangent.is_some());
+    h.key_press(egui::Key::Escape);
+    h.run_ok();
+    assert!(h.state().tangent.is_none());
+    assert_eq!(h.state().selection.len(), 3, "Esc beendet nur die Vorschläge");
+}
+
+/// Klickt auf die Arbeitsfläche an einen Dokumentpunkt, sobald die Ansicht stillsteht.
+fn click_doc(h: &mut Harness<'static, VectorLumeApp>, target: Point) {
+    let mut pos = None;
+    for _ in 0..50 {
+        let now = h.state().view.tf.map(|t| t.to_screen(target));
+        if now.is_some() && now == pos {
+            break;
+        }
+        pos = now;
+        if let Some(q) = pos {
+            h.hover_at(q);
+        }
+        h.run_ok();
+    }
+    let pos = pos.expect("Ansicht");
+    h.drag_at(pos);
+    h.drop_at(pos);
+    h.run_ok();
+}
+
+fn cut_order_flow(render: bool) {
+    let mut h = harness(render);
+    let ids: Vec<ObjectId> = (0..3)
+        .map(|k| h.state_mut().doc.add_path("R", 0, VectorPath::rect(30.0 + 40.0 * k as f64, 40.0, 25.0, 25.0, 0.0)))
+        .collect();
+    let center = |k: usize| Point::new(42.5 + 40.0 * k as f64, 52.5);
+    h.state_mut().settings.job.optimize_order = true;
+    h.run_ok();
+    h.get_by_label("Anordnen").click();
+    h.run_ok();
+    h.get_by_label("Schnittreihenfolge per Klick…").click();
+    h.run_ok();
+    assert!(h.state().cut_order.is_some());
+    click_doc(&mut h, center(2));
+    click_doc(&mut h, center(0));
+    assert_eq!(h.state().cut_order.as_ref().unwrap().picked, vec![ids[2], ids[0]]);
+    // Rücktaste nimmt den letzten Klick zurück und löscht nichts
+    h.key_press(egui::Key::Backspace);
+    h.run_ok();
+    assert_eq!(h.state().doc.objects.len(), 3);
+    click_doc(&mut h, center(1));
+    let n = crate::cut_order::numbers(&h.state().doc, &h.state().cut_order.as_ref().unwrap().picked);
+    assert_eq!((n[&ids[2]], n[&ids[1]], n[&ids[0]]), (1, 2, 3));
+    if render {
+        save(&mut h, "schnittreihenfolge");
+    }
+    h.key_press(egui::Key::Enter);
+    h.run_ok();
+    let app = h.state();
+    assert!(app.cut_order.is_none());
+    assert_eq!(app.doc.objects.iter().map(|o| o.id).collect::<Vec<_>>(), vec![ids[2], ids[1], ids[0]]);
+    assert!(!app.settings.job.optimize_order, "Optimierung aus, damit die Reihenfolge gilt");
+    // gemeinsamer Einstellungsordner der Tests: Standard wiederherstellen
+    let app = h.state_mut();
+    app.settings.job.optimize_order = true;
+    app.settings.save();
+    app.undo();
+    assert_eq!(app.doc.objects.iter().map(|o| o.id).collect::<Vec<_>>(), ids);
+}
+
+#[test]
+fn cut_order_by_clicks() {
+    cut_order_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_cut_order() {
+    cut_order_flow(true);
+}
+
 /// Leiterplatte: Kupferlage und Bohrdatei landen deckungsgleich in der Arbeitsfläche.
 #[test]
 fn pcb_layers_stay_aligned() {

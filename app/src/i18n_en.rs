@@ -1490,6 +1490,12 @@ pub static EN: &[(&str, &str)] = &[
     ("Seitenleiste (Ebenen, Laser, Konsole)", "Side panel (layers, laser, console)"),
     ("Rahmen wiederholen, bis „Stopp“ gedrückt oder dieser Schalter ausgeschaltet wird – zum Ausrichten des Materials", "Repeat the frame until \"Stop\" is pressed or this switch is turned off – for aligning the material"),
     ("Rahmen läuft – Durchgang {}. Ausschalten beendet nach dieser Runde, „Stopp“ sofort.", "Frame running – pass {}. Switching off ends after this round, \"Stop\" immediately."),
+    ("Es gibt keine Formen auf Ebenen mit Ausgabe.", "There are no shapes on layers with output."),
+    ("Formen in der gewünschten Reihenfolge anklicken (erneut klicken nimmt sie heraus). Eingabe übernimmt, Rücktaste nimmt den letzten Klick zurück, Esc bricht ab.", "Click the shapes in the desired order (click again to remove). Enter applies, Backspace undoes the last click, Esc cancels."),
+    ("Reihenfolge übernommen. „Schnittreihenfolge optimieren“ wurde ausgeschaltet, damit sie beim Lasern gilt.", "Order applied. \"Optimize cut order\" was switched off so that it applies when lasering."),
+    ("Reihenfolge übernommen.", "Order applied."),
+    ("Schnittreihenfolge: {} von {} angeklickt · Eingabe übernimmt · Rücktaste zurück · Esc bricht ab", "Cut order: {} of {} clicked · Enter applies · Backspace undoes · Esc cancels"),
+    ("Schnittreihenfolge per Klick…", "Cut order by clicking…"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
@@ -1503,6 +1509,7 @@ pub static SOURCES: &[(&str, &str)] = &[
     ("canvas.rs", include_str!("canvas.rs")),
     ("center_finder.rs", include_str!("center_finder.rs")),
     ("crash.rs", include_str!("crash.rs")),
+    ("cut_order.rs", include_str!("cut_order.rs")),
     ("dialogs.rs", include_str!("dialogs.rs")),
     ("gear_tool.rs", include_str!("gear_tool.rs")),
     ("grbl_params.rs", include_str!("grbl_params.rs")),

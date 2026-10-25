@@ -9,6 +9,7 @@ mod camera;
 mod canvas;
 mod center_finder;
 mod crash;
+mod cut_order;
 mod dialogs;
 mod gear_tool;
 mod grbl_params;

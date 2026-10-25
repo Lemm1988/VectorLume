@@ -21,6 +21,19 @@ pub fn shortcuts(app: &mut VectorLumeApp, ctx: &egui::Context) {
     }
     let sc = |m: Modifiers, k: Key| KeyboardShortcut::new(m, k);
     let pressed = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
+    // Schnittreihenfolge: nur die Tasten des Klickmodus, damit z. B. Entf nichts löscht
+    if app.cut_order.is_some() {
+        if pressed(sc(Modifiers::NONE, Key::Escape)) {
+            app.cut_order = None;
+        } else if pressed(sc(Modifiers::NONE, Key::Enter)) {
+            app.apply_cut_order();
+        } else if (pressed(sc(Modifiers::NONE, Key::Backspace)) || pressed(sc(Modifiers::NONE, Key::Delete)))
+            && let Some(pick) = app.cut_order.as_mut()
+        {
+            pick.picked.pop();
+        }
+        return;
+    }
     for action in app.keys.pressed(ctx) {
         crate::hotkeys::run(app, action);
     }
@@ -28,7 +41,12 @@ pub fn shortcuts(app: &mut VectorLumeApp, ctx: &egui::Context) {
         app.apply_warp();
     }
     if pressed(sc(Modifiers::NONE, Key::Escape)) {
-        if app.warp.is_some() {
+        // Klickmodi auf der Arbeitsfläche zuerst beenden
+        if app.tangent.is_some() {
+            app.tangent = None;
+        } else if app.print_cut.picking.is_some() {
+            app.print_cut.picking = None;
+        } else if app.warp.is_some() {
             app.cancel_warp();
         } else if app.preview.active {
             app.preview.active = false;
@@ -371,6 +389,10 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
             });
         });
     });
+    let any = !app.doc.objects.is_empty();
+    if menu_item(ui, tr("Schnittreihenfolge per Klick…"), &app.keys.text(Action::CutOrder), any) {
+        app.start_cut_order();
+    }
     ui.separator();
     if menu_item(ui, tr("Horizontal spiegeln"), &app.keys.text(Action::MirrorH), has) {
         app.mirror(true);

@@ -279,6 +279,8 @@ pub struct VectorLumeApp {
     /// Laufendes Verzerren der Auswahl.
     pub warp: Option<crate::warp_tool::WarpSession>,
     pub tangent: Option<crate::tangent_tool::TangentPick>,
+    /// Schnittreihenfolge per Klick festlegen.
+    pub cut_order: Option<crate::cut_order::OrderPick>,
     pub library: crate::library::Library,
     /// Letzte Messung des Messwerkzeugs (Start, Ende).
     pub measure: Option<(Point, Point)>,
@@ -389,6 +391,7 @@ impl VectorLumeApp {
             hotkey_editor: Default::default(),
             warp: None,
             tangent: None,
+            cut_order: None,
             library: Default::default(),
             measure: None,
             trim_hover: None,

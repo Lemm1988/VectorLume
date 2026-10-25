@@ -795,6 +795,7 @@ impl VectorLumeApp {
         if !preview_active {
             self.draw_warp(&clip, &tf, pal);
             self.draw_tangent(&clip, &tf, pal);
+            self.draw_cut_order(&clip, &tf, pal);
         }
 
         // Gummiband / Vorschau der neuen Form
@@ -935,6 +936,9 @@ impl VectorLumeApp {
             return;
         }
         if self.tangent_interaction(ctx, resp, tf, space) {
+            return;
+        }
+        if self.cut_order_interaction(ctx, resp, tf, space, tol) {
             return;
         }
         // Drucken & Schneiden: Marke per Klick setzen (Entwurfsmarken fangen an Mitten und Knoten)

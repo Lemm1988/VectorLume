@@ -63,6 +63,7 @@ pub enum Action {
     Forward,
     Backward,
     ToBack,
+    CutOrder,
     MirrorH,
     MirrorV,
     RotateCw,
@@ -76,7 +77,7 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Action; 46] = [
+    pub const ALL: [Action; 47] = [
         Action::New,
         Action::Open,
         Action::Save,
@@ -102,6 +103,7 @@ impl Action {
         Action::Forward,
         Action::Backward,
         Action::ToBack,
+        Action::CutOrder,
         Action::MirrorH,
         Action::MirrorV,
         Action::RotateCw,
@@ -153,6 +155,7 @@ impl Action {
             Action::Forward => "forward",
             Action::Backward => "backward",
             Action::ToBack => "to_back",
+            Action::CutOrder => "cut_order",
             Action::MirrorH => "mirror_h",
             Action::MirrorV => "mirror_v",
             Action::RotateCw => "rotate_cw",
@@ -206,6 +209,7 @@ impl Action {
             Action::Forward => tr("Eins nach vorne"),
             Action::Backward => tr("Eins nach hinten"),
             Action::ToBack => tr("Ganz nach hinten"),
+            Action::CutOrder => tr("Schnittreihenfolge per Klick…"),
             Action::MirrorH => tr("Horizontal spiegeln"),
             Action::MirrorV => tr("Vertikal spiegeln"),
             Action::RotateCw => tr("90° im Uhrzeigersinn drehen"),
@@ -470,6 +474,7 @@ pub fn run(app: &mut VectorLumeApp, a: Action) {
         Action::Forward => app.reorder_selection(vl_core::ZOrder::Forward),
         Action::Backward => app.reorder_selection(vl_core::ZOrder::Backward),
         Action::ToBack => app.reorder_selection(vl_core::ZOrder::Back),
+        Action::CutOrder => app.start_cut_order(),
         Action::MirrorH => app.mirror(true),
         Action::MirrorV => app.mirror(false),
         Action::RotateCw => app.rotate_selection(90.0),
