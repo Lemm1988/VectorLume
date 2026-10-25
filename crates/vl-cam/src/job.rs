@@ -8,7 +8,9 @@ use crate::toolpath::{
     Block, BlockKind, Leads, Op, RasterPreview, Toolpath, apply_ramp, cut_ops_with_leads, hatch_ops, hatch_ops_on_grid,
     line_ops, raster_ops,
 };
-use vl_core::{CutSettings, Document, FillGrouping, LayerMode, Object, ObjectId, Point, Polyline, Rect, Shape};
+use vl_core::{
+    CutSettings, DitherMode, Document, FillGrouping, LayerMode, Object, ObjectId, Point, Polyline, Rect, Shape,
+};
 
 /// Toleranz beim Abflachen von Kurven für die Ausgabe (mm).
 pub const OUTPUT_TOLERANCE: f64 = 0.01;
@@ -332,7 +334,8 @@ fn layer_blocks(
     let power = (cs.power_max / 100.0).clamp(0.0, 1.0) as f32;
     let shift = profile.scan_shift(cs.speed);
 
-    let mut raster_blocks: Vec<(usize, Vec<Op>)> = Vec::new();
+    // Je Bild: Bahnen für alle Durchgänge gemeinsam oder (3D-Schichten) je Durchgang eigene
+    let mut raster_blocks: Vec<(usize, Vec<Vec<Op>>)> = Vec::new();
     let mut polys: Vec<Polyline> = Vec::new();
     // Konturen je Gruppe (ungruppierte Objekte einzeln) für „Gruppen einzeln füllen“
     let mut units: Vec<(Option<u64>, Vec<Polyline>)> = Vec::new();
@@ -341,11 +344,16 @@ fn layer_blocks(
             Shape::Image(img) => {
                 let r =
                     vl_raster::engrave_image(img, &o.transform, cs).map_err(|e| format!("Bild „{}“: {e}", o.name))?;
-                let ops = raster_ops(&r, cs, shift);
-                if let Some(last) = ops.last() {
+                let per_pass: Vec<Vec<Op>> = if cs.dither == DitherMode::Slices3D {
+                    let n = cs.passes.max(1);
+                    (0..n).map(|k| raster_ops(&r.slice(k as f32 / n as f32), cs, shift)).collect()
+                } else {
+                    vec![raster_ops(&r, cs, shift)]
+                };
+                if let Some(last) = per_pass.iter().rev().find_map(|ops| ops.last()) {
                     *cur = last.target();
                 }
-                raster_blocks.push((tp.rasters.len(), ops));
+                raster_blocks.push((tp.rasters.len(), per_pass));
                 tp.rasters.push(RasterPreview { layer, result: r });
             }
             Shape::Path(p) => {
@@ -415,7 +423,11 @@ fn layer_blocks(
     }
 
     for pass in 0..cs.passes.max(1) {
-        for (idx, ops) in &raster_blocks {
+        for (idx, per_pass) in &raster_blocks {
+            let ops = &per_pass[(pass as usize).min(per_pass.len() - 1)];
+            if ops.is_empty() {
+                continue;
+            }
             tp.blocks.push(Block {
                 layer,
                 kind: BlockKind::Raster,
@@ -591,6 +603,48 @@ mod tests {
         // alle Ecken der Hülle liegen auf dem Kreis
         let pts = vl_core::ops::convex_hull(&burn_points(&job.toolpath));
         assert!(pts.iter().all(|p| (p.distance(Point::new(50.0, 50.0)) - 20.0).abs() < 0.1));
+    }
+
+    #[test]
+    fn slices_engrave_darker_areas_more_often() {
+        let mut doc = Document::new();
+        // Dunkelheit 1,0 / 0,61 / 0,22 / 0 in vier 1-mm-Zellen
+        let img = ImageObject {
+            image: Arc::new(RasterImage::new(4, 1, vec![0, 100, 200, 255])),
+            width_mm: 4.0,
+            height_mm: 1.0,
+            adjust: ImageAdjust::default(),
+            clip: Vec::new(),
+        };
+        doc.add_image("Relief", 0, img, Point::new(10.0, 10.0));
+        let mut cs = vl_core::CutSettings::default_for(LayerMode::Image);
+        cs.dither = DitherMode::Slices3D;
+        cs.interval = 1.0;
+        cs.passes = 4;
+        cs.overscan = 0.0;
+        doc.layers[0].settings = cs;
+        let objs: Vec<&Object> = doc.objects.iter().collect();
+        let tp = generate(&doc, &objs, &MachineProfile::default(), &JobSettings::default(), Point::ZERO).unwrap();
+        let burned: Vec<f64> = tp
+            .blocks
+            .iter()
+            .map(|b| {
+                let mut cur = Point::ZERO;
+                let mut len = 0.0;
+                for op in &b.ops {
+                    if let Op::Move { to, power } = *op
+                        && power > 0.0
+                    {
+                        len += cur.distance(to);
+                    }
+                    cur = op.target();
+                }
+                len
+            })
+            .collect();
+        assert_eq!(tp.blocks.iter().map(|b| b.pass).collect::<Vec<_>>(), [0, 1, 2, 3]);
+        let rounded: Vec<f64> = burned.iter().map(|l| l.round()).collect();
+        assert_eq!(rounded, [3.0, 2.0, 2.0, 1.0], "{burned:?}");
     }
 
     #[test]

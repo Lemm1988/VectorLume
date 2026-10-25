@@ -85,10 +85,13 @@ pub enum DitherMode {
     /// Fertig aufbereitetes Schwarzweißbild unverändert gravieren: nächstes Pixel statt Mittelung, keine
     /// Bildanpassung, kein Dithering (Zeilenabstand passend zur Bildauflösung wählen).
     PassThrough,
+    /// 3D-Schichten: Durchgang k von n graviert nur, was dunkler als k/n ist – dunkle Stellen werden öfter
+    /// gelasert und damit tiefer (Reliefs, Stempel). Durchgänge = Anzahl der Tiefenstufen.
+    Slices3D,
 }
 
 impl DitherMode {
-    pub const ALL: [DitherMode; 12] = [
+    pub const ALL: [DitherMode; 13] = [
         DitherMode::Threshold,
         DitherMode::FloydSteinberg,
         DitherMode::Jarvis,
@@ -101,6 +104,7 @@ impl DitherMode {
         DitherMode::LineScreen,
         DitherMode::Grayscale,
         DitherMode::PassThrough,
+        DitherMode::Slices3D,
     ];
 
     pub fn label(self) -> &'static str {
@@ -117,6 +121,7 @@ impl DitherMode {
             DitherMode::Halftone => "Halbton (Punkte)",
             DitherMode::LineScreen => "Linienraster",
             DitherMode::PassThrough => "Durchreichen (fertiges S/W-Bild)",
+            DitherMode::Slices3D => "3D-Schichten (Tiefe über Durchgänge)",
         }
     }
 

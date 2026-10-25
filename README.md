@@ -20,8 +20,8 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
   PNG/JPG/BMP/GIF/WEBP/TIFF; LightBurn-Projekte (`.lbrn2`) öffnen; Export als G-Code, SVG (mit eingebetteten Bildern), DXF und PDF (1:1 zum Drucken); eigenes
   Projektformat `.vlume`; Autosicherung
 - **30 Farbebenen** (jeweils mit Unterebenen, z. B. Füllen + Kontur) mit den Modi *Linie* (Schnittbreite, Laschen, Überschnitt, Perforieren), *Füllen* (Winkel, Kreuzschraffur, Overscan),
-  *Versatz-Füllen* und *Bild* (8 Dithering-Verfahren, Halbton und Linienraster mit Rasterweite/-winkel oder Graustufen,
-  Helligkeit/Kontrast/Gamma, Schärfen, Zuschnitt auf eine beliebige Form)
+  *Versatz-Füllen* und *Bild* (8 Dithering-Verfahren, Halbton und Linienraster mit Rasterweite/-winkel, Graustufen,
+  3D-Schichten über Durchgänge, Durchreichen;   Helligkeit/Kontrast/Gamma, Schärfen, Zuschnitt auf eine beliebige Form)
 - **Material:** Materialtest-Generator und Materialbibliothek; Z-Versatz je Durchgang für Geräte mit Z-Achse;
   Scan-Versatz-Ausgleich für saubere Kanten beim beidseitigen Gravieren (*Maschineneinstellungen*); mehrere Geräte
   mit Umschalten, Import und Export (`.vldevice`)

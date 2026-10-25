@@ -1109,6 +1109,8 @@ pub static EN: &[(&str, &str)] = &[
     ("PDF gespeichert: {} ({} × {} mm, in 100 % drucken)", "PDF saved: {} ({} × {} mm, print at 100 %)"),
     ("PDF konnte nicht gespeichert werden: {}", "PDF could not be saved: {}"),
     ("Als PDF exportieren…", "Export as PDF…"),
+    ("3D-Schichten (Tiefe über Durchgänge)", "3D slices (depth via passes)"),
+    ("{} Tiefenstufen = Durchgänge; jeder Durchgang graviert nur, was dunkler als seine Stufe ist. Mit Z-Schritt je Durchgang bleibt der Fokus in der Tiefe.", "{} depth levels = passes; each pass only engraves what is darker than its level. With a Z step per pass the focus follows the depth."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

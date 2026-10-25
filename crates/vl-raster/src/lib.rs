@@ -28,6 +28,12 @@ impl RasterResult {
         self.intensity[r * self.cols + c]
     }
 
+    /// Schicht für die 3D-Gravur: volle Leistung, wo die Dunkelheit `level` übersteigt, sonst aus.
+    pub fn slice(&self, level: f32) -> RasterResult {
+        let intensity = self.intensity.iter().map(|&v| if v > level + 1e-4 && v > 0.002 { 1.0 } else { 0.0 }).collect();
+        RasterResult { origin: self.origin, dx: self.dx, dy: self.dy, cols: self.cols, rows: self.rows, intensity }
+    }
+
     /// Vorschaubild: 0 = volle Leistung (schwarz), 255 = aus (weiß).
     pub fn preview_pixels(&self) -> Vec<u8> {
         self.intensity.iter().map(|&v| (255.0 * (1.0 - v.clamp(0.0, 1.0))).round() as u8).collect()
@@ -265,7 +271,7 @@ const SIERRA: Kernel = Kernel {
 pub fn dither_gray(gray: &[f32], cols: usize, rows: usize, mode: DitherMode) -> Vec<f32> {
     assert_eq!(gray.len(), cols * rows);
     match mode {
-        DitherMode::Grayscale => gray.iter().map(|&g| (1.0 - g).clamp(0.0, 1.0)).collect(),
+        DitherMode::Grayscale | DitherMode::Slices3D => gray.iter().map(|&g| (1.0 - g).clamp(0.0, 1.0)).collect(),
         DitherMode::Threshold | DitherMode::PassThrough => {
             gray.iter().map(|&g| if g < 0.5 { 1.0 } else { 0.0 }).collect()
         }

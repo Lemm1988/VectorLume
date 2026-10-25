@@ -87,7 +87,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 | LF-31 | Modi je Ebene: Linie, Füllen, Bild; später Offset-Füllen; mehrere Bearbeitungen je Ebene (Unterebenen) | M / S |
 | LF-32 | Je Ebene: Geschwindigkeit, Leistung min/max, Durchgänge, Ausgabe an/aus, Luftunterstützung | M |
 | LF-33 | Füllen: Linienabstand, Winkel, bidirektional, Kreuzschraffur, Overscan | M |
-| LF-34 | Bild: Graustufen und Dithering (Schwellwert, Floyd-Steinberg, Jarvis, Stucki, Atkinson, Burkes, Sierra, geordnet, Halbton), Negativ | M |
+| LF-34 | Bild: Graustufen und Dithering (Schwellwert, Floyd-Steinberg, Jarvis, Stucki, Atkinson, Burkes, Sierra, geordnet, Halbton), 3D-Schichten über Durchgänge, Negativ | M |
 | LF-35 | Bildanpassung: Helligkeit, Kontrast, Gamma, Schärfen; Bild auf eine Form zuschneiden | M / S |
 | LF-36 | Reihenfolge der Ebenen festlegen | M |
 | LF-37 | Materialbibliothek (Einstellungen speichern/laden) | S |

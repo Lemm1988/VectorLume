@@ -462,6 +462,19 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
                 }
                 ui.end_row();
             }
+            if s.dither == DitherMode::Slices3D {
+                ui.label("");
+                ui.label(
+                    RichText::new(trs(&format!(
+                        "{} Tiefenstufen = Durchgänge; jeder Durchgang graviert nur, was dunkler als seine Stufe ist. \
+                         Mit Z-Schritt je Durchgang bleibt der Fokus in der Tiefe.",
+                        s.passes.max(1)
+                    )))
+                    .small()
+                    .color(theme::of(ui).text_weak),
+                );
+                ui.end_row();
+            }
             if s.dither.is_screen() {
                 ui.label(tr("Rasterweite"));
                 ui.horizontal(|ui| {
