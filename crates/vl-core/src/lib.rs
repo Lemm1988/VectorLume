@@ -7,6 +7,7 @@ pub mod dock;
 pub mod document;
 pub mod firmware;
 pub mod geom;
+pub mod hinge;
 pub mod layer;
 pub mod material;
 pub mod nest;

@@ -436,6 +436,51 @@ fn render_box_generator() {
     box_flow(true);
 }
 
+/// Biegescharnier: Rechteck als Bereich auswählen, Schnitte erzeugen; die Bereichsform verschwindet.
+fn hinge_flow(render: bool) {
+    let mut h = harness(render);
+    let region = add(&mut h, VectorPath::rect(40.0, 40.0, 80.0, 40.0, 0.0));
+    h.state_mut().hinge.open = true;
+    h.state_mut().hinge.spec = vl_core::hinge::HingeSpec { cut: 12.0, bridge: 3.0, spacing: 2.0, angle: 0.0 };
+    h.run_ok();
+    if render {
+        save(&mut h, "biegescharnier");
+    }
+    h.get_by_label_contains("Scharnier erzeugen").click();
+    h.run_ok();
+    let app = h.state();
+    assert!(!app.hinge.open);
+    assert!(app.doc.get(region).is_none(), "Bereichsform entfernt");
+    let id = app.selection[0];
+    let o = app.doc.get(id).unwrap();
+    let Shape::Path(p) = &o.shape else { panic!() };
+    assert_eq!(
+        p.subpaths.len(),
+        app.hinge
+            .spec
+            .lines(&VectorPath::rect(40.0, 40.0, 80.0, 40.0, 0.0).flatten(&vl_core::Affine::IDENTITY, 0.02))
+            .len()
+    );
+    let b = o.bounds();
+    assert!(b.min.x > 40.0 && b.max.x < 120.0 && b.min.y >= 40.0 - 1e-9 && b.max.y <= 80.0 + 1e-9, "{b:?}");
+    if render {
+        h.state_mut().view.request_fit(Some(vl_core::Rect::new(Point::new(35.0, 35.0), Point::new(125.0, 85.0))));
+        h.run_ok();
+        save(&mut h, "biegescharnier_ergebnis");
+    }
+}
+
+#[test]
+fn hinge_fills_selected_shape() {
+    hinge_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_hinge() {
+    hinge_flow(true);
+}
+
 /// Kamerabild übernehmen: dunkles Quadrat in der Bildmitte landet an der passenden Stelle der Arbeitsfläche,
 /// auf einer Ebene ohne Ausgabe.
 #[test]
