@@ -144,6 +144,14 @@ pub struct CutSettings {
     pub z_offset: f64,
     /// Absenkung je weiterem Durchgang in mm (für dicke Materialien). Nur mit Z-Achse.
     pub z_step: f64,
+    /// Überschnitt in mm (nur Linie): geschlossene Konturen laufen so weit über den Startpunkt hinaus,
+    /// damit sich Anfang und Ende sicher überlappen.
+    pub overcut: f64,
+    /// Perforieren (nur Linie): abwechselnd `perf_cut` mm schneiden und `perf_gap` mm Laser aus,
+    /// z. B. für Falz- und Abreißlinien.
+    pub perforate: bool,
+    pub perf_cut: f64,
+    pub perf_gap: f64,
 }
 
 impl Default for CutSettings {
@@ -181,7 +189,16 @@ impl CutSettings {
             tabs_outer_only: true,
             z_offset: 0.0,
             z_step: 0.0,
+            overcut: 0.0,
+            perforate: false,
+            perf_cut: 2.0,
+            perf_gap: 1.0,
         }
+    }
+
+    /// Schnitt- und Lückenlänge, wenn Perforieren eingeschaltet ist.
+    pub fn perforation(&self) -> Option<(f64, f64)> {
+        (self.perforate && self.perf_cut > 0.0 && self.perf_gap > 0.0).then_some((self.perf_cut, self.perf_gap))
     }
 
     /// Z-Höhe für einen Durchgang (0-basiert) oder `None`, wenn keine Z-Bewegung eingestellt ist.

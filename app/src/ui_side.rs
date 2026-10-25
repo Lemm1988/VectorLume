@@ -321,6 +321,27 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
                 ui.checkbox(&mut s.tabs_outer_only, tr("Nur Außenkonturen"));
                 ui.end_row();
             }
+            ui.label(tr("Überschnitt"));
+            ui.add(DragValue::new(&mut s.overcut).speed(0.05).range(0.0..=20.0).max_decimals(2).custom_formatter(
+                |v, _| if v == 0.0 { tr("aus").into() } else { format!("{v:.2} mm") },
+            ))
+            .on_hover_text(tr(
+                "Geschlossene Konturen laufen um diese Strecke über den Startpunkt hinaus, damit sich Anfang und Ende sicher überlappen und das Teil ganz herausfällt.",
+            ));
+            ui.end_row();
+            ui.label("");
+            ui.checkbox(&mut s.perforate, tr("Perforieren"))
+                .on_hover_text(tr("Abwechselnd schneiden und aussetzen, z. B. für Falz- und Abreißlinien"));
+            ui.end_row();
+            if s.perforate {
+                ui.label(tr("Schnitt / Lücke"));
+                ui.horizontal(|ui| {
+                    ui.add(DragValue::new(&mut s.perf_cut).speed(0.05).range(0.05..=100.0).suffix(" mm"));
+                    ui.label("/");
+                    ui.add(DragValue::new(&mut s.perf_gap).speed(0.05).range(0.05..=100.0).suffix(" mm"));
+                });
+                ui.end_row();
+            }
         }
         if s.mode == LayerMode::Fill {
             ui.label(tr("Winkel"));

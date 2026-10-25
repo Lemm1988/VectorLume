@@ -111,7 +111,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-35 | Bildanpassung | Helligkeit, Kontrast, Gamma, live in der Ansicht | ✅ |
 | LF-36 | Reihenfolge | Ebenen verschieben; **zusätzlich „Gravieren vor Schneiden“** (Bild/Füllen vor Schnitten) | ✅ |
 | LF-37 | Materialbibliothek | Material/Stärke/Titel/Notiz, Suche, Import/Export (`.vlmat`), Übernehmen auf Ebene | ✅ |
-| LF-38 | Z/Kerf | Schnittbreitenausgleich; Z-Versatz und Absenkung je Durchgang (nur mit Z-Achse im Profil) | ✅ |
+| LF-38 | Z/Kerf | Schnittbreitenausgleich; Z-Versatz und Absenkung je Durchgang (nur mit Z-Achse im Profil); **Überschnitt** (geschlossene Konturen laufen über den Startpunkt hinaus, höchstens eine Runde) und **Perforieren** (abwechselnd Schnitt- und Lückenlänge, Lücken im Vorschub mit Laser aus, läuft über Ecken weiter) | ✅ |
 | LF-39 | Testmuster | Materialtest: zwei Achsen aus Geschwindigkeit, Leistung, Durchgänge, Zeilenabstand, Fokus; beschriftet, Vorschau, Feld als Material speichern | ✅ |
 
 ### 4.4 Maschinensteuerung
@@ -216,7 +216,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (122):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (123):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,

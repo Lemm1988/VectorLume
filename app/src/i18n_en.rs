@@ -1138,6 +1138,17 @@ pub static EN: &[(&str, &str)] = &[
     ("{} braucht {} oder {} Ziffern.", "{} needs {} or {} digits."),
     ("Die Prüfziffer stimmt nicht (richtig wäre {}).", "The check digit is wrong (it should be {})."),
     ("Der Inhalt kann nicht als {} kodiert werden.", "The content cannot be encoded as {}."),
+    ("Überschnitt", "Overcut"),
+    (
+        "Geschlossene Konturen laufen um diese Strecke über den Startpunkt hinaus, damit sich Anfang und Ende sicher überlappen und das Teil ganz herausfällt.",
+        "Closed contours continue past the start point by this distance so that start and end overlap reliably and the part drops out completely.",
+    ),
+    ("Perforieren", "Perforate"),
+    (
+        "Abwechselnd schneiden und aussetzen, z. B. für Falz- und Abreißlinien",
+        "Alternately cut and pause, e.g. for fold and tear-off lines",
+    ),
+    ("Schnitt / Lücke", "Cut / gap"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

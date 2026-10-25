@@ -83,6 +83,57 @@ pub fn line_ops(polys: &[Polyline], power: f32) -> Vec<Op> {
     ops
 }
 
+/// Linienmodus: wie `line_ops`, zusätzlich mit Überschnitt (geschlossene Konturen laufen `overcut` mm über den
+/// Startpunkt hinaus, höchstens eine Runde) und Perforation (abwechselnd `cut` mm schneiden und `gap` mm im Vorschub
+/// mit ausgeschaltetem Laser; jede Kontur beginnt mit einem Schnitt).
+pub fn cut_ops(polys: &[Polyline], power: f32, overcut: f64, perforation: Option<(f64, f64)>) -> Vec<Op> {
+    let mut ops = Vec::new();
+    for poly in polys {
+        let Some(&first) = poly.points.first() else { continue };
+        let mut pts = poly.points.clone();
+        if poly.closed {
+            pts.push(first);
+            if overcut > 0.0 {
+                let ring = pts.clone();
+                let mut left = overcut.min(poly.length());
+                for w in ring.windows(2) {
+                    let len = w[0].distance(w[1]);
+                    if len >= left {
+                        if len > 1e-9 {
+                            pts.push(w[0] + (w[1] - w[0]) * (left / len));
+                        }
+                        break;
+                    }
+                    pts.push(w[1]);
+                    left -= len;
+                }
+            }
+        }
+        ops.push(Op::Rapid(first));
+        let Some((cut, gap)) = perforation else {
+            ops.extend(pts[1..].iter().map(|&p| Op::Move { to: p, power }));
+            continue;
+        };
+        let (mut on, mut left) = (true, cut);
+        for w in pts.windows(2) {
+            let (a, b) = (w[0], w[1]);
+            let len = a.distance(b);
+            let mut t = 0.0;
+            while len - t > 1e-9 {
+                let step = left.min(len - t);
+                t += step;
+                left -= step;
+                ops.push(Op::Move { to: a + (b - a) * (t / len), power: if on { power } else { 0.0 } });
+                if left <= 1e-9 {
+                    on = !on;
+                    left = if on { cut } else { gap };
+                }
+            }
+        }
+    }
+    ops
+}
+
 #[derive(Clone, Copy)]
 struct Edge {
     y0: f64,
@@ -276,6 +327,30 @@ mod tests {
             cur = op.target();
         }
         sum
+    }
+
+    #[test]
+    fn overcut_and_perforation() {
+        let square = Polyline::new(
+            vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(10.0, 10.0), Point::new(0.0, 10.0)],
+            true,
+        );
+        let sq = std::slice::from_ref(&square);
+        // Überschnitt: nach der Runde 3 mm weiter auf der ersten Kante
+        let ops = cut_ops(sq, 0.5, 3.0, None);
+        assert_eq!(ops.last().unwrap().target(), Point::new(3.0, 0.0));
+        assert!((burned_length(&ops) - 43.0).abs() < 1e-9);
+        // höchstens eine weitere Runde; ohne Optionen wie line_ops
+        assert!((burned_length(&cut_ops(sq, 0.5, 100.0, None)) - 80.0).abs() < 1e-9);
+        assert_eq!(cut_ops(sq, 0.5, 0.0, None), line_ops(sq, 0.5));
+        // offene Linie 10 mm, 2 mm schneiden / 1 mm Lücke: 2 + 2 + 2 + 1 mm
+        let line = Polyline::new(vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)], false);
+        let ops = cut_ops(std::slice::from_ref(&line), 0.5, 0.0, Some((2.0, 1.0)));
+        assert!((burned_length(&ops) - 7.0).abs() < 1e-9);
+        assert_eq!(ops.len(), 1 + 7);
+        assert_eq!(ops.last().unwrap().target(), Point::new(10.0, 0.0));
+        // Perforation läuft über Ecken weiter: 40 mm Umfang = 13 volle Perioden + 1 mm Schnitt
+        assert!((burned_length(&cut_ops(sq, 0.5, 0.0, Some((2.0, 1.0)))) - 27.0).abs() < 1e-9);
     }
 
     #[test]

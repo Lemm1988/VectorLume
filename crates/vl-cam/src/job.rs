@@ -4,7 +4,7 @@ use crate::estimate::{Estimate, estimate};
 use crate::gcode::{CoordMode, GcodeOptions, emit, fmt_mm};
 use crate::machine::{JobSettings, MachineProfile, RotaryKind, StartFrom};
 use crate::optimize::order_polylines;
-use crate::toolpath::{Block, BlockKind, Op, RasterPreview, Toolpath, hatch_ops, line_ops, raster_ops};
+use crate::toolpath::{Block, BlockKind, Op, RasterPreview, Toolpath, cut_ops, hatch_ops, line_ops, raster_ops};
 use vl_core::{CutSettings, Document, LayerMode, Object, ObjectId, Point, Polyline, Rect, Shape};
 
 /// Toleranz beim Abflachen von Kurven für die Ausgabe (mm).
@@ -312,7 +312,7 @@ fn layer_blocks(
             if cs.tab_count > 0 && cs.tab_width > 0.0 {
                 ordered = apply_tabs(ordered, cs.tab_count as usize, cs.tab_width, cs.tabs_outer_only);
             }
-            (BlockKind::Line, line_ops(&ordered, power))
+            (BlockKind::Line, cut_ops(&ordered, power, cs.overcut, cs.perforation()))
         }
         LayerMode::OffsetFill => {
             let rings = vl_core::ops::offset_fill(&polys, cs.interval, MAX_OFFSET_RINGS);
