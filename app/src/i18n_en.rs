@@ -1015,6 +1015,13 @@ pub static EN: &[(&str, &str)] = &[
     ("{} → {} Knoten.", "{} → {} nodes."),
     ("{} Formen vereinfachen", "{} Simplify shapes"),
     ("Formen vereinfachen…", "Simplify shapes…"),
+    ("An Linie spiegeln…", "Mirror across line…"),
+    ("Spiegelachse ziehen, dann oben „An Linie spiegeln“ wählen.", "Drag the mirror axis, then choose “Mirror across line” at the top."),
+    ("An Linie spiegeln", "Mirror across line"),
+    ("Spiegelt die Auswahl an der gemessenen Linie", "Mirrors the selection across the measured line"),
+    ("Gespiegelte Kopie", "Mirrored copy"),
+    ("Legt eine an der Linie gespiegelte Kopie an, das Original bleibt", "Creates a copy mirrored across the line, the original stays"),
+    ("Ziehen zum Messen · danach lässt sich die Auswahl an der Linie spiegeln", "Drag to measure · then the selection can be mirrored across the line"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

@@ -280,6 +280,16 @@ impl Affine {
         )
     }
 
+    /// Spiegelung an der Geraden durch `a` und `b`; `None`, wenn beide Punkte zusammenfallen.
+    pub fn reflect_across(a: Point, b: Point) -> Option<Affine> {
+        let d = b - a;
+        if d.length() < 1e-6 {
+            return None;
+        }
+        let (s, c) = (2.0 * d.y.atan2(d.x)).sin_cos();
+        Some(Affine::translate(-a.x, -a.y).then(&Affine([c, s, s, -c, 0.0, 0.0])).then(&Affine::translate(a.x, a.y)))
+    }
+
     /// Mittlerer Skalierungsfaktor (für Toleranzen beim Abflachen von Kurven).
     pub fn mean_scale(&self) -> f64 {
         self.determinant().abs().sqrt().max(1e-9)
@@ -309,6 +319,21 @@ mod tests {
 
     fn close(a: Point, b: Point) -> bool {
         a.distance(b) < 1e-9
+    }
+
+    #[test]
+    fn reflection_across_line() {
+        let t = Affine::reflect_across(Point::new(1.0, 1.0), Point::new(3.0, 3.0)).unwrap();
+        let near = |p: Point, q: Point| p.distance(q) < 1e-9;
+        assert!(near(t.apply(Point::new(2.0, 0.0)), Point::new(0.0, 2.0)));
+        assert!(near(t.apply(Point::new(5.0, 5.0)), Point::new(5.0, 5.0)), "Punkte auf der Linie bleiben");
+        assert!(t.determinant() < 0.0);
+        let twice = t.then(&t);
+        assert!(near(twice.apply(Point::new(7.0, -3.0)), Point::new(7.0, -3.0)));
+        // senkrechte Linie x = 10
+        let v = Affine::reflect_across(Point::new(10.0, 0.0), Point::new(10.0, 4.0)).unwrap();
+        assert!(near(v.apply(Point::new(12.0, 1.0)), Point::new(8.0, 1.0)));
+        assert!(Affine::reflect_across(Point::ZERO, Point::ZERO).is_none());
     }
 
     #[test]

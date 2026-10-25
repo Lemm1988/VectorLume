@@ -1,6 +1,6 @@
 //! Menü, Werkzeugleisten, Eigenschaftsfelder, Farbpalette, Statusleiste und Tastenkürzel.
 
-use crate::app::{Tool, VectorLumeApp};
+use crate::app::{ToastKind, Tool, VectorLumeApp};
 use crate::i18n::{tr, trs};
 use crate::settings::ThemeChoice;
 use crate::theme;
@@ -357,6 +357,11 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Vertikal spiegeln"), "", has) {
         app.mirror(false);
     }
+    if menu_item(ui, tr("An Linie spiegeln…"), "", has) {
+        app.tool = Tool::Measure;
+        app.measure = None;
+        app.toast(ToastKind::Info, tr("Spiegelachse ziehen, dann oben „An Linie spiegeln“ wählen."));
+    }
     if menu_item(ui, tr("90° im Uhrzeigersinn drehen"), "", has) {
         app.rotate_selection(90.0);
     }
@@ -642,11 +647,35 @@ fn tool_options(app: &mut VectorLumeApp, ui: &mut Ui) {
     }
     if app.tool == Tool::Measure {
         match app.measure {
-            Some((a, b)) => ui.label(crate::canvas::measure_text(a, b)),
-            None => ui.label(
-                RichText::new(tr("Ziehen zum Messen · fängt an Knoten und Mitten")).color(theme::of(ui).text_weak),
-            ),
-        };
+            Some((a, b)) => {
+                ui.label(crate::canvas::measure_text(a, b));
+                if !app.selection.is_empty() && a.distance(b) > 1e-6 {
+                    ui.separator();
+                    if ui
+                        .button(format!("{} {}", icon::FLIP_HORIZONTAL, tr("An Linie spiegeln")))
+                        .on_hover_text(tr("Spiegelt die Auswahl an der gemessenen Linie"))
+                        .clicked()
+                    {
+                        app.mirror_across(a, b, false);
+                    }
+                    if ui
+                        .button(format!("{} {}", icon::COPY, tr("Gespiegelte Kopie")))
+                        .on_hover_text(tr("Legt eine an der Linie gespiegelte Kopie an, das Original bleibt"))
+                        .clicked()
+                    {
+                        app.mirror_across(a, b, true);
+                    }
+                }
+            }
+            None => {
+                let hint = if app.selection.is_empty() {
+                    tr("Ziehen zum Messen · fängt an Knoten und Mitten")
+                } else {
+                    tr("Ziehen zum Messen · danach lässt sich die Auswahl an der Linie spiegeln")
+                };
+                ui.label(RichText::new(hint).color(theme::of(ui).text_weak));
+            }
+        }
         return;
     }
     let o = &mut app.tool_options;

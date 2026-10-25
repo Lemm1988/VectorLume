@@ -891,6 +891,21 @@ impl VectorLumeApp {
         self.transform_selection(&Affine::scale_about(sx, sy, c));
     }
 
+    /// Spiegelt die Auswahl an der Linie `a`–`b` (Messlinie); mit `copy` bleibt das Original stehen.
+    pub fn mirror_across(&mut self, a: Point, b: Point, copy: bool) {
+        let Some(t) = Affine::reflect_across(a, b) else { return };
+        if self.selection.is_empty() {
+            return;
+        }
+        self.checkpoint();
+        if copy {
+            let objs = self.selected_objects();
+            self.selection = self.doc.duplicate(&objs, Point::ZERO);
+        }
+        self.doc.transform_objects(&self.selection, &t);
+        self.mark_changed();
+    }
+
     pub fn rotate_selection(&mut self, degrees: f64) {
         let c = self.selection_bounds().center();
         self.transform_selection(&Affine::rotate_about(degrees.to_radians(), c));
