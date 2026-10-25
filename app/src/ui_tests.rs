@@ -377,6 +377,65 @@ fn render_tabs() {
     tabs_flow(true);
 }
 
+/// Box-Generator: „Box erzeugen“ legt die Platten nebeneinander als Gruppe auf die aktuelle Ebene; unmögliche
+/// Maße sperren den Knopf und zeigen den Grund.
+fn box_flow(render: bool) {
+    use vl_core::boxgen::BoxSpec;
+    let mut h = harness(render);
+    let before = h.state().doc.objects.len();
+    h.state_mut().current_layer = 2;
+    h.state_mut().box_gen.open = true;
+    h.state_mut().box_gen.spec =
+        BoxSpec { width: 120.0, depth: 90.0, height: 60.0, thickness: 3.0, finger: 12.0, ..Default::default() };
+    h.run_ok();
+    if render {
+        save(&mut h, "box_generator");
+    }
+    h.get_by_label_contains("Box erzeugen").click();
+    h.run_ok();
+    let app = h.state();
+    assert!(!app.box_gen.open);
+    let new: Vec<&vl_core::Object> = app.doc.objects[before..].iter().collect();
+    assert_eq!(new.len(), 6);
+    assert!(new.iter().all(|o| o.layer == 2 && o.group.is_some() && o.group == new[0].group));
+    assert_eq!(app.selection.len(), 6);
+    let bed = app.settings.profile.bed_rect();
+    let bounds: Vec<vl_core::Rect> = new.iter().map(|o| o.bounds()).collect();
+    for (i, a) in bounds.iter().enumerate() {
+        assert!(bed.contains_rect(a), "{a:?}");
+        for b in &bounds[i + 1..] {
+            assert!(!a.intersects(b), "Platten überlappen: {a:?} {b:?}");
+        }
+    }
+    if render {
+        let sel = h.state().selection_bounds().expanded(5.0);
+        h.state_mut().view.request_fit(Some(sel));
+        h.run_ok();
+        save(&mut h, "box_platten");
+    }
+    h.state_mut().box_gen.open = true;
+    h.state_mut().box_gen.spec.finger = 2.0;
+    h.run_ok();
+    assert!(h.query_by_label_contains("zu schmal").is_some());
+    // gesperrter Knopf: Klick bewirkt nichts
+    let count = h.state().doc.objects.len();
+    h.get_by_label_contains("Box erzeugen").click();
+    h.run_ok();
+    assert_eq!(h.state().doc.objects.len(), count);
+    assert!(h.state().box_gen.open);
+}
+
+#[test]
+fn box_generator_lays_out_panels() {
+    box_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_box_generator() {
+    box_flow(true);
+}
+
 /// Kamerabild übernehmen: dunkles Quadrat in der Bildmitte landet an der passenden Stelle der Arbeitsfläche,
 /// auf einer Ebene ohne Ausgabe.
 #[test]

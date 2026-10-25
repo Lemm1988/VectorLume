@@ -4,6 +4,7 @@
 
 mod app;
 mod autosave;
+mod box_gen;
 mod camera;
 mod canvas;
 mod center_finder;

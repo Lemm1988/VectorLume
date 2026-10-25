@@ -251,6 +251,7 @@ pub struct VectorLumeApp {
     pub show_rotary: bool,
     pub print_cut: crate::print_cut::PrintCut,
     pub center_finder: crate::center_finder::CenterFinder,
+    pub box_gen: crate::box_gen::BoxGen,
     /// Laufendes Verzerren der Auswahl.
     pub warp: Option<crate::warp_tool::WarpSession>,
     pub library: crate::library::Library,
@@ -346,6 +347,7 @@ impl VectorLumeApp {
             show_rotary: false,
             print_cut: Default::default(),
             center_finder: Default::default(),
+            box_gen: Default::default(),
             warp: None,
             library: Default::default(),
             measure: None,
