@@ -836,6 +836,18 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
         ));
         ui.checkbox(&mut js.optimize_order, tr("Schnittreihenfolge optimieren"));
         ui.add_enabled(js.optimize_order, egui::Checkbox::new(&mut js.inner_first, tr("Innen vor außen schneiden")));
+        ui.horizontal(|ui| {
+            ui.checkbox(&mut js.remove_overlaps, tr("Überlappende Linien entfernen")).on_hover_text(tr(
+                "Gemeinsame Kanten aneinanderliegender Teile und doppelte Linien einer Linienebene nur einmal schneiden. \
+                 Das zuerst gezeichnete Stück bleibt, die übrigen Konturen werden an diesen Stellen geöffnet.",
+            ));
+            if js.remove_overlaps {
+                ui.add(
+                    DragValue::new(&mut js.overlap_tolerance).speed(0.005).range(0.001..=1.0).max_decimals(3).mm(),
+                )
+                .on_hover_text(tr("Abstand, bis zu dem zwei Linien als deckungsgleich gelten"));
+            }
+        });
         if js != app.settings.job {
             app.settings.job = js;
             app.settings.save();

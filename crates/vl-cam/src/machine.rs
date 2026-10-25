@@ -363,6 +363,11 @@ pub struct JobSettings {
     /// Jede Gruppe mit allen ihren Ebenen fertigstellen, bevor die nächste beginnt (z. B. mehrere Untersetzer:
     /// gravieren und ausschneiden, dann der nächste). Ungruppierte Objekte bilden zusammen eine Einheit.
     pub order_by_group: bool,
+    /// Linien, die eine Linienebene doppelt abfahren würde (z. B. gemeinsame Kanten aneinanderliegender Teile),
+    /// nur einmal schneiden.
+    pub remove_overlaps: bool,
+    /// Höchster Abstand in mm, bis zu dem zwei Linien als deckungsgleich gelten.
+    pub overlap_tolerance: f64,
 }
 
 impl Default for JobSettings {
@@ -376,6 +381,8 @@ impl Default for JobSettings {
             inner_first: true,
             engrave_first: true,
             order_by_group: false,
+            remove_overlaps: false,
+            overlap_tolerance: 0.05,
         }
     }
 }

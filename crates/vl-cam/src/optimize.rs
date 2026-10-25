@@ -1,5 +1,6 @@
 //! Reihenfolge-Optimierung für Konturen: kürzeste Leerfahrten und „innen vor außen“.
 
+use std::collections::HashMap;
 use vl_core::{Point, Polyline, Rect};
 
 /// Ab dieser Anzahl wird auf die (quadratische) Verschachtelungsprüfung verzichtet.
@@ -101,10 +102,216 @@ fn rect_distance_sq(r: &Rect, p: Point) -> f64 {
     dx * dx + dy * dy
 }
 
+/// Entfernt Linienstücke, die ein bereits vorhandenes Stück noch einmal abfahren würde (Abstand höchstens `tol`),
+/// z. B. die gemeinsame Kante zweier aneinanderliegender Teile oder doppelt übereinanderliegende Formen. Das erste
+/// Vorkommen bleibt; Konturen ohne Überlappung bleiben unverändert, andere werden an den Lücken in offene Stücke
+/// geteilt.
+pub fn remove_overlaps(polys: Vec<Polyline>, tol: f64) -> Vec<Polyline> {
+    let tol = tol.max(1e-6);
+    let mut index = SegmentGrid::new((tol * 4.0).max(1.0));
+    let mut out = Vec::with_capacity(polys.len());
+    for poly in polys {
+        let edges: Vec<(Point, Point)> = poly.edges().collect();
+        let mut changed = false;
+        let mut pieces: Vec<Vec<(f64, f64)>> = Vec::with_capacity(edges.len());
+        for &(a, b) in &edges {
+            let mut free = vec![(0.0, 1.0)];
+            let len = a.distance(b);
+            if len > 1e-9 {
+                let mut hit = false;
+                for (c, d) in index.near(a, b) {
+                    if let Some((u0, u1)) = covered(a, b, c, d, tol) {
+                        subtract(&mut free, u0, u1);
+                        hit = true;
+                        if free.is_empty() {
+                            break;
+                        }
+                    }
+                }
+                if hit {
+                    // Reste unterhalb der Toleranz lohnen nicht
+                    free.retain(|(t0, t1)| (t1 - t0) * len > tol);
+                    changed |= free != [(0.0, 1.0)];
+                }
+                for &(t0, t1) in &free {
+                    index.insert(a.lerp(b, t0), a.lerp(b, t1));
+                }
+            }
+            pieces.push(free);
+        }
+        if !changed {
+            out.push(poly);
+            continue;
+        }
+        let mut runs: Vec<Vec<Point>> = Vec::new();
+        let mut cur: Vec<Point> = Vec::new();
+        for (&(a, b), free) in edges.iter().zip(&pieces) {
+            for &(t0, t1) in free {
+                let (p0, p1) = (a.lerp(b, t0), a.lerp(b, t1));
+                if cur.last().is_some_and(|l| l.distance(p0) < 1e-9) {
+                    cur.push(p1);
+                } else {
+                    if cur.len() >= 2 {
+                        runs.push(std::mem::take(&mut cur));
+                    }
+                    cur = vec![p0, p1];
+                }
+            }
+        }
+        if cur.len() >= 2 {
+            runs.push(cur);
+        }
+        // Bei geschlossenen Konturen schließt das letzte Stück am Startpunkt an das erste an.
+        if poly.closed && runs.len() >= 2 && runs[0][0].distance(*runs[runs.len() - 1].last().unwrap()) < 1e-9 {
+            let first = runs.remove(0);
+            runs.last_mut().unwrap().extend_from_slice(&first[1..]);
+        }
+        out.extend(runs.into_iter().map(|mut pts| {
+            pts.dedup_by(|q, p| q.distance(*p) < 1e-9);
+            Polyline::new(pts, false)
+        }));
+    }
+    out
+}
+
+/// Abschnitt [u0, u1] der Strecke a–b, den die Strecke c–d abdeckt: c und d liegen höchstens `tol` neben der
+/// Geraden durch a und b, dann ist jeder Punkt von a–b im Schattenbereich von c–d höchstens `tol` von c–d entfernt.
+fn covered(a: Point, b: Point, c: Point, d: Point, tol: f64) -> Option<(f64, f64)> {
+    let ab = b - a;
+    let len = ab.dot(ab).sqrt();
+    let dir = ab * (1.0 / len);
+    let off = |p: Point| (p - a).cross(dir).abs();
+    if off(c) > tol || off(d) > tol {
+        return None;
+    }
+    let t = |p: Point| (p - a).dot(dir) / len;
+    let (u0, u1) = (t(c).min(t(d)).max(0.0), t(c).max(t(d)).min(1.0));
+    (u1 > u0).then_some((u0, u1))
+}
+
+/// Zieht [u0, u1] von den freien Abschnitten ab.
+fn subtract(free: &mut Vec<(f64, f64)>, u0: f64, u1: f64) {
+    let mut out = Vec::with_capacity(free.len() + 1);
+    for &(t0, t1) in free.iter() {
+        if u1 <= t0 || u0 >= t1 {
+            out.push((t0, t1));
+            continue;
+        }
+        if u0 > t0 {
+            out.push((t0, u0));
+        }
+        if u1 < t1 {
+            out.push((u1, t1));
+        }
+    }
+    *free = out;
+}
+
+/// Gitter über die bisher behaltenen Strecken für die Suche nach Nachbarn.
+struct SegmentGrid {
+    cell: f64,
+    cells: HashMap<(i64, i64), Vec<usize>>,
+    segments: Vec<(Point, Point)>,
+    /// Zuletzt geliefert bei Abfrage Nummer … (gegen doppelte Treffer)
+    seen: Vec<usize>,
+    query: usize,
+}
+
+impl SegmentGrid {
+    fn new(cell: f64) -> Self {
+        Self { cell, cells: HashMap::new(), segments: Vec::new(), seen: Vec::new(), query: 0 }
+    }
+
+    /// Zellen der Punkte im Abstand einer halben Zelle entlang der Strecke, je mit `radius` Nachbarzellen.
+    fn cells_along(&self, a: Point, b: Point, radius: i64) -> Vec<(i64, i64)> {
+        let steps = (a.distance(b) / (self.cell / 2.0)).ceil() as usize;
+        let mut out: Vec<(i64, i64)> = Vec::new();
+        for k in 0..=steps {
+            let p = a.lerp(b, if steps == 0 { 0.0 } else { k as f64 / steps as f64 });
+            let (cx, cy) = ((p.x / self.cell).floor() as i64, (p.y / self.cell).floor() as i64);
+            for dy in -radius..=radius {
+                for dx in -radius..=radius {
+                    out.push((cx + dx, cy + dy));
+                }
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
+    fn insert(&mut self, a: Point, b: Point) {
+        let i = self.segments.len();
+        self.segments.push((a, b));
+        self.seen.push(usize::MAX);
+        for c in self.cells_along(a, b, 1) {
+            self.cells.entry(c).or_default().push(i);
+        }
+    }
+
+    /// Strecken, die bis auf eine Zelle an a–b heranreichen.
+    fn near(&mut self, a: Point, b: Point) -> Vec<(Point, Point)> {
+        self.query += 1;
+        let mut out = Vec::new();
+        for c in self.cells_along(a, b, 2) {
+            for &i in self.cells.get(&c).map(Vec::as_slice).unwrap_or(&[]) {
+                if self.seen[i] != self.query {
+                    self.seen[i] = self.query;
+                    out.push(self.segments[i]);
+                }
+            }
+        }
+        out
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use vl_core::{Affine, VectorPath};
+
+    #[test]
+    fn overlapping_lines_are_cut_once() {
+        let total = |v: &[Polyline]| v.iter().map(|p| p.length()).sum::<f64>();
+        let a = poly(VectorPath::rect(0.0, 0.0, 10.0, 10.0, 0.0));
+        let b = poly(VectorPath::rect(10.0, 0.0, 10.0, 10.0, 0.0));
+        // gemeinsame Kante nur einmal; das erste Teil bleibt geschlossen
+        let out = remove_overlaps(vec![a.clone(), b.clone()], 0.05);
+        assert!((total(&out) - 70.0).abs() < 1e-9, "{}", total(&out));
+        assert!(out[0].closed && out[0] == a);
+        assert_eq!(out.len(), 2, "Rest des zweiten Teils als ein offenes Stück");
+        assert!(!out[1].closed);
+        // doppelte Form fällt ganz weg, auch knapp daneben
+        let near = poly(VectorPath::rect(0.03, 0.03, 10.0, 10.0, 0.0));
+        let out = remove_overlaps(vec![a.clone(), near.clone()], 0.05);
+        assert_eq!(out, vec![a.clone()]);
+        // außerhalb der Toleranz bleibt sie
+        assert_eq!(remove_overlaps(vec![a.clone(), near.clone()], 0.01).len(), 2);
+        // teilweise Überdeckung: nur der überstehende Teil bleibt
+        let line = Polyline::new(vec![Point::new(5.0, 0.0), Point::new(20.0, 0.0)], false);
+        let out = remove_overlaps(vec![a.clone(), line], 0.05);
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[1].points, vec![Point::new(10.0, 0.0), Point::new(20.0, 0.0)]);
+        // Kreise: deckungsgleiche Kopie verschwindet
+        let c = poly(VectorPath::ellipse(Point::new(50.0, 50.0), 10.0, 10.0));
+        assert_eq!(remove_overlaps(vec![c.clone(), c.clone()], 0.05).len(), 1);
+        // ohne Überlappung unverändert
+        let far = poly(VectorPath::rect(30.0, 0.0, 10.0, 10.0, 0.0));
+        assert_eq!(remove_overlaps(vec![a.clone(), far.clone()], 0.05), vec![a, far]);
+    }
+
+    #[test]
+    fn grid_of_squares_keeps_each_edge_once() {
+        let n = 30;
+        let polys: Vec<Polyline> = (0..n * n)
+            .map(|i| poly(VectorPath::rect((i % n) as f64 * 5.0, (i / n) as f64 * 5.0, 5.0, 5.0, 0.0)))
+            .collect();
+        let t = std::time::Instant::now();
+        let out = remove_overlaps(polys, 0.05);
+        let total: f64 = out.iter().map(|p| p.length()).sum();
+        assert!((total - 2.0 * (n * (n + 1)) as f64 * 5.0).abs() < 1e-6, "{total}");
+        assert!(t.elapsed().as_secs_f64() < 5.0, "{:?}", t.elapsed());
+    }
 
     fn poly(path: VectorPath) -> Polyline {
         path.flatten(&Affine::IDENTITY, 0.01).remove(0)

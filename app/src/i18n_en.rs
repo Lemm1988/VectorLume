@@ -1217,6 +1217,9 @@ pub static EN: &[(&str, &str)] = &[
     ("Laschen der Auswahl entfernen", "Remove tabs of selection"),
     ("Klick auf Kontur: Lasche setzen · Klick auf Lasche: entfernen · Breite {}", "Click outline: place tab · Click tab: remove · Width {}"),
     ("Die Breite stellt die Ebene ein (Laschen). Gesetzte Laschen gelten im Modus Linie und ersetzen an ihrer Kontur die automatisch verteilten; sie wandern mit dem Objekt.", "The width is set on the layer (Tabs). Placed tabs apply in Line mode and replace the automatically distributed ones on their outline; they move with the object."),
+    ("Überlappende Linien entfernen", "Remove overlapping lines"),
+    ("Gemeinsame Kanten aneinanderliegender Teile und doppelte Linien einer Linienebene nur einmal schneiden. Das zuerst gezeichnete Stück bleibt, die übrigen Konturen werden an diesen Stellen geöffnet.", "Cut shared edges of adjacent parts and duplicate lines of a line layer only once. The piece drawn first stays; the other outlines are opened at those spots."),
+    ("Abstand, bis zu dem zwei Linien als deckungsgleich gelten", "Distance up to which two lines count as coincident"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

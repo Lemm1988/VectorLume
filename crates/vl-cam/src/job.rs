@@ -429,6 +429,9 @@ fn layer_blocks(
             if cs.kerf.abs() > 1e-6 {
                 polys = apply_kerf(polys, cs.kerf);
             }
+            if settings.remove_overlaps {
+                polys = crate::optimize::remove_overlaps(polys, settings.overlap_tolerance);
+            }
             let mut ordered =
                 if settings.optimize_order { order_polylines(polys, *cur, settings.inner_first) } else { polys };
             if cs.tab_width > 0.0 && (cs.tab_count > 0 || !manual_tabs.is_empty()) {
@@ -1003,6 +1006,19 @@ mod tests {
         let tabs = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
         // nur die Außenkontur bekommt Laschen: 4 × 1 mm weniger
         assert!((cut_lengths(&tabs) - 196.0).abs() < 1e-6, "{}", cut_lengths(&tabs));
+    }
+
+    #[test]
+    fn shared_edges_are_cut_once() {
+        let mut doc = Document::new();
+        doc.add_path("A", 0, VectorPath::rect(10.0, 10.0, 20.0, 20.0, 0.0));
+        doc.add_path("B", 0, VectorPath::rect(30.0, 10.0, 20.0, 20.0, 0.0));
+        let profile = MachineProfile::default();
+        let plain = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
+        assert!((cut_lengths(&plain) - 160.0).abs() < 1e-6);
+        let settings = JobSettings { remove_overlaps: true, ..Default::default() };
+        let once = build_job(&doc, &[], &profile, &settings).unwrap();
+        assert!((cut_lengths(&once) - 140.0).abs() < 1e-6, "{}", cut_lengths(&once));
     }
 
     #[test]
