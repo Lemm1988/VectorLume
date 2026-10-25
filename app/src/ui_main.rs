@@ -350,6 +350,35 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
             }
         });
     });
+    ui.add_enabled_ui(has, |ui| {
+        ui.menu_button(tr("Andocken"), |ui| {
+            ui.label(
+                RichText::new(tr("Schiebt die Auswahl, bis sie eine andere Form oder den Rand berührt"))
+                    .small()
+                    .color(theme::of(ui).text_weak),
+            );
+            for (label, glyph, dx, dy) in [
+                (tr("Nach links"), egui_phosphor::regular::ARROW_LEFT, -1.0, 0.0),
+                (tr("Nach rechts"), egui_phosphor::regular::ARROW_RIGHT, 1.0, 0.0),
+                (tr("Nach oben"), egui_phosphor::regular::ARROW_UP, 0.0, -1.0),
+                (tr("Nach unten"), egui_phosphor::regular::ARROW_DOWN, 0.0, 1.0),
+            ] {
+                if menu_item(ui, &format!("{glyph} {label}"), "", true) {
+                    app.dock_selection(vl_core::Point::new(dx, dy));
+                }
+            }
+            ui.horizontal(|ui| {
+                ui.label(tr("Abstand"));
+                ui.add(
+                    egui::DragValue::new(&mut app.shape_dialogs.dock_gap)
+                        .speed(0.05)
+                        .range(0.0..=100.0)
+                        .max_decimals(2)
+                        .suffix(" mm"),
+                );
+            });
+        });
+    });
     ui.separator();
     if menu_item(ui, tr("Horizontal spiegeln"), "", has) {
         app.mirror(true);

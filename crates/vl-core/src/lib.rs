@@ -2,6 +2,7 @@
 
 pub mod cleanup;
 pub mod corners;
+pub mod dock;
 pub mod document;
 pub mod firmware;
 pub mod geom;

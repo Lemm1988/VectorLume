@@ -1092,6 +1092,13 @@ pub static EN: &[(&str, &str)] = &[
     ("{} Ecken bearbeitet.", "{} corners changed."),
     ("{} Ecken abrunden", "{} Round corners"),
     ("Ecken abrunden…", "Round corners…"),
+    ("Die Auswahl liegt in dieser Richtung bereits an.", "The selection already touches in this direction."),
+    ("Andocken", "Dock"),
+    ("Schiebt die Auswahl, bis sie eine andere Form oder den Rand berührt", "Moves the selection until it touches another shape or the edge"),
+    ("Nach links", "Left"),
+    ("Nach rechts", "Right"),
+    ("Nach oben", "Up"),
+    ("Nach unten", "Down"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

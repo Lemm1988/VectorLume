@@ -63,7 +63,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 | LF-12 | Zahleneingabe für Position, Größe, Drehung | M |
 | LF-13 | Grundformen: Rechteck (mit Eckenradius), Ellipse/Kreis, Linie, Polygon, Stern | M / S |
 | LF-14 | Text mit installierten Schriften, Text auf Pfad, variabler Text (Seriennummern, CSV) | M (Text) / S |
-| LF-15 | Spiegeln, 90°-Drehung, Ausrichten und Verteilen | M |
+| LF-15 | Spiegeln, 90°-Drehung, Ausrichten, Verteilen und Andocken | M |
 | LF-16 | Gruppieren/Gruppe auflösen, Ebenen-Sperre, Ausblenden | S |
 | LF-17 | Knotenbearbeitung (Punkte verschieben, einfügen, löschen, Kurven glätten) | S |
 | LF-18 | Boolesche Operationen (Vereinigen, Differenz, Schnitt), Verschweißen | S |

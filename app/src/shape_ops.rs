@@ -79,6 +79,8 @@ pub struct ShapeDialogs {
     /// Radius bzw. Fasenlänge (mm) und Mindestknick (Grad), ab dem ein Knoten als Ecke gilt.
     pub corner_size: f64,
     pub corner_min_angle: f64,
+    /// Abstand, der beim Andocken frei bleibt (mm).
+    pub dock_gap: f64,
 }
 
 /// Verschachteln im Hintergrund: Einheiten, Projektstand beim Start und das Ergebnis.
@@ -128,6 +130,7 @@ impl Default for ShapeDialogs {
             corner_style: CornerStyle::Round,
             corner_size: 2.0,
             corner_min_angle: 15.0,
+            dock_gap: 0.0,
             path_swap: false,
         }
     }
@@ -388,6 +391,44 @@ impl VectorLumeApp {
         }
         self.mark_changed();
         self.toast(ToastKind::Success, trs(&format!("{count} Schlitze angepasst.")));
+    }
+
+    /// Schiebt die Auswahl in Richtung `dir` (Einheitsvektor, Y nach unten), bis ihre Kontur eine andere sichtbare
+    /// Form berührt – sonst bis an den Rand der Arbeitsfläche.
+    pub fn dock_selection(&mut self, dir: Point) {
+        if self.selection.is_empty() {
+            return;
+        }
+        let moving: Vec<Polyline> =
+            self.selection.iter().filter_map(|id| self.doc.get(*id)).flat_map(|o| o.polylines(TOLERANCE)).collect();
+        let obstacles: Vec<Polyline> = self
+            .doc
+            .objects
+            .iter()
+            .filter(|o| !self.selection.contains(&o.id) && self.doc.layers.get(o.layer).is_some_and(|l| l.visible))
+            .flat_map(|o| o.polylines(TOLERANCE))
+            .collect();
+        let b = self.selection_bounds();
+        let p = &self.settings.profile;
+        let edge = if dir.x < 0.0 {
+            b.min.x
+        } else if dir.x > 0.0 {
+            p.bed_width - b.max.x
+        } else if dir.y < 0.0 {
+            b.min.y
+        } else {
+            p.bed_height - b.max.y
+        };
+        let stop = match vl_core::dock::contact_distance(&moving, &obstacles, dir) {
+            Some(t) if t <= edge.max(0.0) => t,
+            _ => edge,
+        };
+        let dist = (stop - self.shape_dialogs.dock_gap).max(0.0);
+        if dist < 1e-6 {
+            self.toast(ToastKind::Info, tr("Die Auswahl liegt in dieser Richtung bereits an."));
+            return;
+        }
+        self.transform_selection(&Affine::translate(dir.x * dist, dir.y * dist));
     }
 
     /// Rundet oder fast die Ecken der ausgewählten Pfade ab; gerechnet in Dokument-Millimetern, damit der
