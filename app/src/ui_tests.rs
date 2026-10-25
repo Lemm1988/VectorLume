@@ -541,6 +541,57 @@ fn stencil_bridges_for_text() {
     assert!(h.state_mut().history.can_undo());
 }
 
+/// Lässt die Oberfläche laufen, bis `done` zutrifft (höchstens etwa 5 s), z. B. auf Antworten des Simulators.
+fn wait_until(h: &mut Harness<'static, VectorLumeApp>, done: impl Fn(&VectorLumeApp) -> bool) {
+    for _ in 0..250 {
+        h.run_ok();
+        if done(h.state()) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    panic!("Zeitüberschreitung");
+}
+
+/// GRBL-Parameter mit dem eingebauten Simulator: Werte lesen, einen ändern, schreiben, neu lesen.
+fn grbl_params_flow(render: bool) {
+    let mut h = harness(render);
+    h.state_mut().selected_port = vl_device::SIMULATOR_PORT.into();
+    h.state_mut().connect();
+    wait_until(&mut h, |app| app.machine.connected && app.machine.settings.contains_key(&130));
+    h.state_mut().open_grbl_params();
+    wait_until(&mut h, |app| app.grbl.edited.contains_key(&130));
+    assert!(h.state().grbl.touched.is_empty());
+    {
+        let g = &mut h.state_mut().grbl;
+        g.edited.insert(130, "321.5".into());
+        g.touched.insert(130);
+    }
+    h.run_ok();
+    if render {
+        save(&mut h, "grbl_parameter");
+    }
+    h.get_by_label("Schreiben (1)").click();
+    h.run_ok();
+    wait_until(&mut h, |app| app.machine.setting_f64(130) == Some(321.5));
+    // geschrieben und neu gelesen: nichts mehr zu schreiben
+    assert!(vl_device::grbl_settings::changes(&h.state().machine.settings, &h.state().grbl.edited).is_empty());
+    h.get_by_label("Schreiben (0)");
+    h.state_mut().disconnect();
+    wait_until(&mut h, |app| !app.machine.connected);
+}
+
+#[test]
+fn grbl_params_written_to_simulator() {
+    grbl_params_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_grbl_params() {
+    grbl_params_flow(true);
+}
+
 /// Automatisch gruppieren über das Menü; „An Arbeitsfläche schieben“ legt die Auswahl in die Ecke unten rechts.
 fn auto_group_flow(render: bool) {
     let mut h = harness(render);

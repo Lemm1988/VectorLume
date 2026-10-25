@@ -711,6 +711,9 @@ fn laser_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Maschineneinstellungen…"), "", true) {
         app.show_device_settings = true;
     }
+    if menu_item(ui, tr("GRBL-Parameter…"), "", app.firmware().is_grbl()) {
+        app.open_grbl_params();
+    }
 }
 
 /// X/Y/B/H der Auswahl in Maschinenkoordinaten bearbeiten.

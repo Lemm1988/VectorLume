@@ -1,6 +1,7 @@
 //! Gerätesteuerung für VectorLume: GRBL-, Marlin- und Smoothieware-Protokoll, serielles Streaming und Simulator.
 
 pub mod driver;
+pub mod grbl_settings;
 pub mod protocol;
 pub mod sim;
 pub mod transport;
