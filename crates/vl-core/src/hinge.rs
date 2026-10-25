@@ -66,7 +66,7 @@ impl HingeSpec {
             if x >= bounds.max.x {
                 break;
             }
-            let phase = if k % 2 == 0 { 0.0 } else { period / 2.0 };
+            let phase = if k.is_multiple_of(2) { 0.0 } else { period / 2.0 };
             for (y0, y1) in inside(&closed, x) {
                 // Schnitte im festen Raster ab der Oberkante des Bereichs, damit Nachbarbereiche zusammenpassen
                 let first = ((y0 - bounds.min.y - phase) / period).floor() as i64;
@@ -103,7 +103,7 @@ fn inside(polys: &[Polyline], x: f64) -> Vec<(f64, f64)> {
         }
     }
     ys.sort_by(f64::total_cmp);
-    ys.chunks_exact(2).map(|c| (c[0], c[1])).collect()
+    ys.as_chunks::<2>().0.iter().map(|&[a, b]| (a, b)).collect()
 }
 
 #[cfg(test)]
