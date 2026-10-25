@@ -85,7 +85,11 @@ mod tests {
         let text = project_to_string(&doc).unwrap();
         // volle Leistung ist Standard und wird nicht gespeichert
         assert!(!text.contains("power_scale"));
+        // leere Notizen werden nicht gespeichert
+        assert!(!text.contains("notes"));
         doc.objects[0].power_scale = 40.0;
+        doc.notes.text = "Pappel 3 mm".into();
+        doc.notes.show_on_open = true;
         let text = project_to_string(&doc).unwrap();
         let back = project_from_str(&text).unwrap();
         assert_eq!(back, doc);

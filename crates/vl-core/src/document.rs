@@ -237,6 +237,20 @@ impl Object {
     }
 }
 
+/// Notizen zum Projekt (Material, Einstellungen, Hinweise), wahlweise beim Öffnen angezeigt.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ProjectNotes {
+    pub text: String,
+    #[serde(default)]
+    pub show_on_open: bool,
+}
+
+impl ProjectNotes {
+    pub fn is_empty(&self) -> bool {
+        self.text.trim().is_empty()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Document {
     pub objects: Vec<Object>,
@@ -244,6 +258,8 @@ pub struct Document {
     /// Ausgabereihenfolge der Ebenen (Permutation von 0..LAYER_COUNT).
     pub layer_order: Vec<usize>,
     next_id: u64,
+    #[serde(default, skip_serializing_if = "ProjectNotes::is_empty")]
+    pub notes: ProjectNotes,
 }
 
 impl Default for Document {
@@ -259,6 +275,7 @@ impl Document {
             layers: (0..LAYER_COUNT).map(Layer::new).collect(),
             layer_order: (0..LAYER_COUNT).collect(),
             next_id: 1,
+            notes: ProjectNotes::default(),
         }
     }
 

@@ -251,6 +251,7 @@ pub struct VectorLumeApp {
     pub trim_hover: Option<(Point, u64, Option<crate::canvas::TrimHit>)>,
     pub camera: crate::camera::CameraState,
     pub show_about: bool,
+    pub show_notes: bool,
     pub right_tab: crate::ui_side::RightTab,
     pub lock_ratio: bool,
     pub rotate_by: f64,
@@ -336,6 +337,7 @@ impl VectorLumeApp {
             trim_hover: None,
             camera: Default::default(),
             show_about: false,
+            show_notes: false,
             right_tab: crate::ui_side::RightTab::Laser,
             lock_ratio: true,
             rotate_by: 90.0,
@@ -432,14 +434,19 @@ impl VectorLumeApp {
         self.revision += 1;
     }
 
+    // Notizen gehören nicht zum Rückgängig-Verlauf: sie bleiben beim Springen erhalten.
     pub fn undo(&mut self) {
+        let notes = self.doc.notes.clone();
         if self.history.undo(&mut self.doc) {
+            self.doc.notes = notes;
             self.after_history_jump();
         }
     }
 
     pub fn redo(&mut self) {
+        let notes = self.doc.notes.clone();
         if self.history.redo(&mut self.doc) {
+            self.doc.notes = notes;
             self.after_history_jump();
         }
     }
@@ -454,7 +461,7 @@ impl VectorLumeApp {
     // ---------------------------------------------------------------- Dateien
 
     pub fn confirm_discard(&mut self, then: AfterDiscard) -> bool {
-        if self.dirty && !self.doc.objects.is_empty() {
+        if self.dirty && (!self.doc.objects.is_empty() || !self.doc.notes.is_empty()) {
             self.modal = Some(Modal::Unsaved(then));
             return false;
         }
@@ -479,6 +486,10 @@ impl VectorLumeApp {
         self.dirty = false;
         self.revision += 1;
         self.current_layer = self.doc.used_layers().first().copied().unwrap_or(0);
+        self.show_notes = self.doc.notes.show_on_open && !self.doc.notes.is_empty();
+        if !self.show_notes && !self.doc.notes.is_empty() {
+            self.toast(ToastKind::Info, tr("Das Projekt enthält Notizen (Ansicht → Projektnotizen)."));
+        }
     }
 
     pub fn open_dialog(&mut self, force: bool, path: Option<PathBuf>) {

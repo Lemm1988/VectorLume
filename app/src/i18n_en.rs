@@ -1025,6 +1025,12 @@ pub static EN: &[(&str, &str)] = &[
     ("Ziehen zum Messen · danach lässt sich die Auswahl an der Linie spiegeln", "Drag to measure · then the selection can be mirrored across the line"),
     ("Trimmen", "Trim"),
     ("Auf ein Linienstück klicken: Es wird bis zu den nächsten Schnittpunkten entfernt (rot = Vorschau)", "Click a line piece: it is removed up to the nearest intersections (red = preview)"),
+    ("Das Projekt enthält Notizen (Ansicht → Projektnotizen).", "The project contains notes (View → Project notes)."),
+    ("z. B. Material, Einstellungen, Fokus, Hinweise für das nächste Mal", "e.g. material, settings, focus, notes for next time"),
+    ("Beim Öffnen des Projekts anzeigen", "Show when the project is opened"),
+    ("Wird mit dem Projekt gespeichert.", "Saved with the project."),
+    ("{} Projektnotizen", "{} Project notes"),
+    ("Projektnotizen", "Project notes"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

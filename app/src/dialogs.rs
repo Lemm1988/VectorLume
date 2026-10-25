@@ -15,6 +15,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     crate::print_cut::show(app, ctx);
     device_settings(app, ctx);
     about(app, ctx);
+    notes(app, ctx);
     modal(app, ctx);
     toasts(app, ctx);
 }
@@ -275,6 +276,37 @@ fn device_row(app: &VectorLumeApp, ui: &mut egui::Ui, action: &mut Option<Device
             *action = Some(DeviceAction::Export);
         }
     });
+}
+
+/// Notizen zum Projekt; sie werden mit dem Projekt gespeichert.
+fn notes(app: &mut VectorLumeApp, ctx: &egui::Context) {
+    if !app.show_notes {
+        return;
+    }
+    let mut open = true;
+    let before = app.doc.notes.clone();
+    egui::Window::new(trs(&format!("{} Projektnotizen", icon::NOTE)))
+        .open(&mut open)
+        .collapsible(false)
+        .default_width(380.0)
+        .show(ctx, |ui| {
+            let pal = theme::of(ui);
+            let n = &mut app.doc.notes;
+            ui.add(
+                egui::TextEdit::multiline(&mut n.text)
+                    .desired_rows(8)
+                    .desired_width(f32::INFINITY)
+                    .hint_text(tr("z. B. Material, Einstellungen, Fokus, Hinweise für das nächste Mal")),
+            );
+            ui.checkbox(&mut n.show_on_open, tr("Beim Öffnen des Projekts anzeigen"));
+            ui.label(RichText::new(tr("Wird mit dem Projekt gespeichert.")).small().color(pal.text_weak));
+        });
+    if app.doc.notes != before {
+        app.dirty = true;
+    }
+    if !open {
+        app.show_notes = false;
+    }
 }
 
 fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {

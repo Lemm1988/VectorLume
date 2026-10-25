@@ -81,12 +81,12 @@ pub fn import_lightburn(data: &[u8], bed_height: f64, base_dir: Option<&Path>) -
     if root.attribute("MirrorX") == Some("True") || root.attribute("MirrorY") == Some("True") {
         warnings.push("Die Spiegelung der Ausgabe aus LightBurn wurde nicht übernommen.".into());
     }
-    if let Some(notes) = root.children().find(|n| n.has_tag_name("Notes")).and_then(|n| n.attribute("Notes"))
-        && !notes.trim().is_empty()
-    {
-        warnings.push(format!("Notiz im Projekt: {}", notes.trim()));
+    let mut doc = im.doc;
+    if let Some(n) = root.children().find(|n| n.has_tag_name("Notes")) {
+        doc.notes.text = n.attribute("Notes").unwrap_or_default().trim_end().to_string();
+        doc.notes.show_on_open = n.attribute("ShowOnLoad") == Some("1");
     }
-    Ok(LightBurnImport { doc: im.doc, warnings })
+    Ok(LightBurnImport { doc, warnings })
 }
 
 struct Importer<'a> {
@@ -670,7 +670,7 @@ mod tests {
             <XForm>1 0 0 1 5 5</XForm><VertList>V0 0c0x1c1x1V2 0c0x1c1x1V2 3c0x1c1x1</VertList><PrimList>LineClosed</PrimList>
         </BackupPath>
     </Shape>
-    <Notes ShowOnLoad="0" Notes=""/>
+    <Notes ShowOnLoad="1" Notes="Pappel 3 mm&#10;Fokus prüfen"/>
 </LightBurnProject>"#;
 
     #[test]
@@ -715,6 +715,10 @@ mod tests {
         let text = doc.objects.iter().find(|o| o.name == "Hi").unwrap();
         assert!((text.bounds().max.y - 395.0).abs() < 1e-9);
         assert!(im.warnings.iter().any(|w| w.contains("Text als Umrisse")));
+
+        // Projektnotizen samt „beim Öffnen anzeigen“
+        assert_eq!(doc.notes.text, "Pappel 3 mm\nFokus prüfen");
+        assert!(doc.notes.show_on_open);
     }
 
     #[test]

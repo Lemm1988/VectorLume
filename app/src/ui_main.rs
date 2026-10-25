@@ -453,6 +453,9 @@ fn view_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
         let b = app.selection_bounds();
         app.view.request_fit(Some(b));
     }
+    if menu_item(ui, tr("Projektnotizen"), "", true) {
+        app.show_notes = true;
+    }
     ui.separator();
     ui.checkbox(&mut app.preview.active, tr("Vorschau (Alt+P)"));
     if ui.checkbox(&mut app.settings.show_travel, tr("Leerfahrten in der Vorschau")).changed() {
