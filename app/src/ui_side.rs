@@ -1152,7 +1152,10 @@ fn console_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     });
     macros_ui(app, ui);
     ui.add_space(4.0);
-    let height = (ui.available_height() - 40.0).max(160.0);
+    // Platz für Rahmenränder und die Eingabezeile darunter freihalten, sonst wird sie abgeschnitten
+    let sp = ui.spacing();
+    let reserve = 16.0 + 4.0 + 2.0 * sp.item_spacing.y + sp.interact_size.y + 6.0;
+    let height = (ui.available_height() - reserve).max(120.0);
     Frame::NONE.fill(pal.bg).corner_radius(CornerRadius::same(8)).inner_margin(Margin::same(8)).show(ui, |ui| {
         egui::ScrollArea::vertical()
             .id_salt("console")

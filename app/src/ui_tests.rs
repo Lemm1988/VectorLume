@@ -182,3 +182,42 @@ fn render_all_dialogs() {
         save(&mut h, name);
     }
 }
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_panels_and_menus() {
+    let mut h = harness(true);
+    h.state_mut().load_demo();
+    h.state_mut().zoom_to_fit();
+    h.run_ok();
+    save(&mut h, "demo");
+    // Vorschau: der Job wird im Hintergrund berechnet
+    h.state_mut().preview.active = true;
+    for _ in 0..100 {
+        h.step();
+        if h.state().preview.job.is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    h.run_ok();
+    assert!(h.state().preview.job.is_some(), "Vorschau wurde nicht berechnet: {:?}", h.state().preview.error);
+    save(&mut h, "vorschau");
+    h.state_mut().preview.active = false;
+    for (name, tab) in [
+        ("reiter_bewegen", crate::ui_side::RightTab::Jog),
+        ("reiter_konsole", crate::ui_side::RightTab::Console),
+        ("reiter_bibliothek", crate::ui_side::RightTab::Library),
+    ] {
+        h.state_mut().right_tab = tab;
+        h.run_ok();
+        save(&mut h, name);
+    }
+    for menu in ["Datei", "Bearbeiten", "Ansicht", "Laser"] {
+        h.get_by_label(menu).click();
+        h.run_ok();
+        save(&mut h, &format!("menue_{}", menu.to_lowercase()));
+        h.key_press(egui::Key::Escape);
+        h.run_ok();
+    }
+}
