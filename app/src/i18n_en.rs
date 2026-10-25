@@ -1194,6 +1194,11 @@ pub static EN: &[(&str, &str)] = &[
     ("{} Objekte verzerrt.", "{} objects warped."),
     ("{} Verzerren", "{} Warp"),
     ("{} Anwenden", "{} Apply"),
+    ("Ergebnis", "Result"),
+    ("Umrisse", "Outlines"),
+    ("Mittellinien", "Centerlines"),
+    ("Mittellinien: Striche werden zu einzelnen Linien statt zu Umrissen – für Strichzeichnungen und Handschrift, zum schnellen Ritzen oder Schneiden entlang der Linie.", "Centerlines: strokes become single lines instead of outlines – for line art and handwriting, for quick scoring or cutting along the line."),
+    ("{} Linienzüge · {} Segmente · Ziel-Ebene „{}“", "{} lines · {} segments · target layer “{}”"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

@@ -19,7 +19,7 @@ pub struct TraceUi {
     pub result: Option<Arc<Vec<VectorPath>>>,
     /// Einstellungen, zu denen `result` bzw. die laufende Berechnung gehört.
     computed: Option<(ObjectId, TraceOptions)>,
-    busy: bool,
+    pub(crate) busy: bool,
     tx: Sender<(ObjectId, TraceOptions, Vec<VectorPath>)>,
     rx: Receiver<(ObjectId, TraceOptions, Vec<VectorPath>)>,
 }
@@ -157,6 +157,17 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.label("");
                 ui.checkbox(&mut t.opts.invert, tr("Helle Bereiche nachzeichnen"));
                 ui.end_row();
+                ui.label(tr("Ergebnis"));
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut t.opts.centerline, false, tr("Umrisse"));
+                    ui.selectable_value(&mut t.opts.centerline, true, tr("Mittellinien"));
+                })
+                .response
+                .on_hover_text(tr(
+                    "Mittellinien: Striche werden zu einzelnen Linien statt zu Umrissen – für Strichzeichnungen und \
+                     Handschrift, zum schnellen Ritzen oder Schneiden entlang der Linie.",
+                ));
+                ui.end_row();
                 ui.label(tr("Flecken ignorieren"));
                 ui.add(DragValue::new(&mut t.opts.min_area).speed(0.5).range(0.0..=10000.0).suffix(" px²"))
                     .on_hover_text(tr("Konturen mit kleinerer Fläche werden verworfen (Staub, Rauschen)"));
@@ -182,7 +193,11 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 (_, true) => trs(&format!("{} Berechne …", icon::HOURGLASS)),
                 (Some(r), false) => {
                     let nodes: usize = r.iter().map(|p| p.segment_count()).sum();
-                    trs(&format!("{} Konturen · {} Segmente · Ziel-Ebene „{}“", r.len(), nodes, layer_name))
+                    if t.opts.centerline {
+                        trs(&format!("{} Linienzüge · {} Segmente · Ziel-Ebene „{}“", r.len(), nodes, layer_name))
+                    } else {
+                        trs(&format!("{} Konturen · {} Segmente · Ziel-Ebene „{}“", r.len(), nodes, layer_name))
+                    }
                 }
                 (None, false) => String::new(),
             };

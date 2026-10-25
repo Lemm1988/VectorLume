@@ -69,7 +69,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 | LF-18 | Boolesche Operationen (Vereinigen, Differenz, Schnitt), Verschweißen, Formen zerschneiden | S |
 | LF-19 | Versatz (Offset) von Pfaden, Pfade schließen/verbinden, Optimieren | S |
 | LF-20 | Reihen-Kopien (Raster, kreisförmig), Kopien entlang eines Pfades | S |
-| LF-21 | Bild nachzeichnen (Vektorisierung) | S |
+| LF-21 | Bild nachzeichnen (Vektorisierung), als Umrisse oder Mittellinien | S |
 | LF-22 | Fangen/Einrasten am Raster und an Objekten, Hilfslinien | S |
 | LF-23 | Laschen/Stege (Tabs) für Schneidteile | S |
 | LF-25 | Bereinigen importierter Zeichnungen: offene Pfade verbinden/schließen, doppelte Linien löschen | S |

@@ -236,6 +236,65 @@ fn render_warp() {
     warp_flow(true);
 }
 
+/// Mittellinien nachzeichnen: Strichzeichnung (Ring, Diagonale, X, Bogen) aus wenigen offenen Linienzügen.
+fn centerline_flow(render: bool) {
+    let mut h = harness(render);
+    let (w, hgt) = (600u32, 300u32);
+    let ink = |x: f64, y: f64| {
+        let ring = ((x - 120.0).hypot(y - 150.0) - 80.0).abs() < 6.0;
+        let seg = |ax: f64, ay: f64, bx: f64, by: f64| {
+            let (dx, dy) = (bx - ax, by - ay);
+            let t = (((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
+            (x - ax - t * dx).hypot(y - ay - t * dy) < 5.0
+        };
+        let cross = seg(250.0, 60.0, 380.0, 240.0) || seg(380.0, 60.0, 250.0, 240.0);
+        let arc = (x - 500.0).hypot(y - 240.0) < 80.0 + 4.0 && (x - 500.0).hypot(y - 240.0) > 80.0 - 4.0 && y < 240.0;
+        ring || cross || arc
+    };
+    let pixels = (0..w * hgt).map(|i| if ink((i % w) as f64, (i / w) as f64) { 0 } else { 255 }).collect();
+    let image = vl_core::ImageObject {
+        image: std::sync::Arc::new(vl_core::RasterImage::new(w, hgt, pixels)),
+        width_mm: 120.0,
+        height_mm: 60.0,
+        adjust: Default::default(),
+        clip: vec![],
+    };
+    let id = h.state_mut().doc.add_image("Strich", 0, image, Point::new(30.0, 60.0));
+    h.state_mut().selection = vec![id];
+    h.state_mut().open_trace();
+    h.state_mut().trace.opts.centerline = true;
+    for _ in 0..200 {
+        h.run_ok();
+        if h.state().trace.result.is_some() && !h.state().trace.busy {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let paths = h.state().trace.result.clone().expect("Ergebnis");
+    let polys: Vec<vl_core::Polyline> =
+        paths.iter().flat_map(|p| p.flatten(&vl_core::Affine::IDENTITY, 0.05)).collect();
+    if render {
+        let b = h.state().doc.bounds();
+        h.state_mut().view.request_fit(Some(b));
+        h.run_ok();
+        save(&mut h, "nachzeichnen_mittellinien");
+    }
+    // Ring (geschlossen), X (zwei durchgehende Diagonalen), Bogen (offen)
+    assert_eq!(polys.len(), 4);
+    assert_eq!(polys.iter().filter(|p| p.closed).count(), 1);
+}
+
+#[test]
+fn centerline_trace_of_line_art() {
+    centerline_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_centerline() {
+    centerline_flow(true);
+}
+
 /// Grundformen zeigen ihre Parameter in der oberen Leiste, gewöhnliche Pfade nicht.
 fn primitive_fields_flow(render: bool) {
     use vl_core::primitive::Primitive;
