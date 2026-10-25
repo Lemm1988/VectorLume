@@ -5,7 +5,8 @@
 //!
 //! Störfälle für Tests (nur GRBL, als Zeile gesendet, auch mitten in einem Job): `$SIM=REBOOT` startet die
 //! Steuerung neu wie nach einem Stromausfall, `$SIM=LIMIT` löst einen Endschalter-Alarm aus (danach wird bis zum
-//! Zurücksetzen nichts mehr ausgeführt), `$SIM=HANG=<ms>` lässt die Steuerung so lange verstummen.
+//! Zurücksetzen nichts mehr ausgeführt), `$SIM=HANG=<ms>` lässt die Steuerung so lange verstummen, `$SIM=NOISE`
+//! schickt Zeichensalat wie bei falscher Baudrate (auch ein langes Stück ohne Zeilenende).
 
 use crate::protocol::MachineState;
 use crate::transport::Transport;
@@ -429,6 +430,16 @@ impl SimTransport {
             "SIM=LIMIT" => {
                 self.hard_limit();
                 String::new()
+            }
+            "SIM=NOISE" => {
+                let noise: Vec<u8> = (0..20_000u32).map(|i| 0x80 | (i.wrapping_mul(37) % 0x7F) as u8).collect();
+                self.out.extend(&noise);
+                self.out.extend(b"\r\n");
+                for _ in 0..3 {
+                    self.out.extend(&noise[..40]);
+                    self.out.extend(b"\r\n");
+                }
+                "ok".into()
             }
             "X" => {
                 self.state = MachineState::Idle;

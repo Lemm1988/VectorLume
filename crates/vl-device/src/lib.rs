@@ -143,6 +143,31 @@ mod tests {
         assert_eq!(finished(&evs).map(|f| f.0), Some(true), "{evs:?}");
     }
 
+    /// Falsche Baudrate: Zeichensalat wird einmal gemeldet, ohne den Speicher zu füllen oder die Zählung der
+    /// Bestätigungen zu stören.
+    #[test]
+    fn garbage_from_controller_is_reported() {
+        let mut dev = connect_sim();
+        dev.send(Command::Line("$SIM=NOISE".into()));
+        let evs = dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Warning(_)));
+        let Some(Event::Warning(text)) = evs.last() else { unreachable!() };
+        assert!(text.contains("Baudrate"), "{text}");
+        // Zeichensalat nur gekürzt in der Konsole
+        let shown: Vec<&String> = evs
+            .iter()
+            .filter_map(|e| match e {
+                Event::Console { dir: Direction::Received, text } => Some(text),
+                _ => None,
+            })
+            .collect();
+        assert!(shown.iter().any(|t| t.ends_with('…')), "{shown:?}");
+        assert!(shown.iter().all(|t| t.chars().count() <= 61), "{shown:?}");
+        dev.send(Command::StartJob { name: "Danach".into(), lines: moves(10, 0).into() });
+        let evs = dev.wait_for(Duration::from_secs(20), |e| matches!(e, Event::JobFinished { .. }));
+        assert_eq!(finished(&evs).map(|f| f.0), Some(true), "{evs:?}");
+        assert!(!evs.iter().any(|e| matches!(e, Event::Warning(_))), "nur einmal warnen");
+    }
+
     /// Netzwerkverbindung: ein lokaler TCP-Server reicht die Bytes an den Simulator weiter.
     #[test]
     fn streams_over_tcp() {

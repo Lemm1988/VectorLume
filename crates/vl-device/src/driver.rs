@@ -25,6 +25,8 @@ const STALE_REPLY_TIMEOUT: Duration = Duration::from_secs(3);
 const SILENCE_WARNING: Duration = Duration::from_secs(4);
 /// Mindestabstand automatischer Resets nach „Reset to continue“ (falls der Endschalter noch ausgelöst ist).
 const AUTO_RESET_INTERVAL: Duration = Duration::from_secs(3);
+/// Längere Zeilen gibt es bei keiner Steuerung; ohne Zeilenende (falsche Baudrate, fremdes Gerät) wird verworfen.
+const MAX_LINE: usize = 16 * 1024;
 
 pub const RT_STATUS: u8 = b'?';
 pub const RT_HOLD: u8 = b'!';
@@ -194,6 +196,8 @@ struct Connection {
     last_rx: Instant,
     silence_warned: bool,
     last_auto_reset: Option<Instant>,
+    /// Zeilen aus Zeichensalat (falsche Baudrate) – gewarnt wird einmal je Verbindung.
+    garbled: u32,
 }
 
 impl Connection {
@@ -329,6 +333,7 @@ impl Driver {
                             last_rx: Instant::now(),
                             silence_warned: false,
                             last_auto_reset: None,
+                            garbled: 0,
                         });
                         self.emit(Event::Connected { port });
                         if firmware.is_grbl() {
@@ -503,6 +508,8 @@ impl Driver {
         let Some(c) = &mut self.conn else { return Ok(()) };
         // Empfangen
         let mut buf = [0u8; 1024];
+        let mut lines = Vec::new();
+        let garbled_before = c.garbled;
         loop {
             let n = c.transport.read(&mut buf).map_err(|e| format!("Lesefehler: {e}"))?;
             if n == 0 {
@@ -510,20 +517,39 @@ impl Driver {
             }
             c.rx_buf.extend_from_slice(&buf[..n]);
             c.last_rx = Instant::now();
+            while let Some(pos) = c.rx_buf.iter().position(|&b| b == b'\n') {
+                let raw: Vec<u8> = c.rx_buf.drain(..=pos).collect();
+                let text = String::from_utf8_lossy(&raw).trim().to_string();
+                if garbled(&text) {
+                    c.garbled += 1;
+                    // nur zur Ansicht in der Konsole, nicht auswerten
+                    let short: String = text.chars().take(60).collect();
+                    lines.push((short + if text.chars().count() > 60 { "…" } else { "" }, false));
+                } else if !text.is_empty() {
+                    lines.push((text, true));
+                }
+            }
+            if c.rx_buf.len() > MAX_LINE {
+                c.rx_buf.clear();
+                c.garbled += 1;
+            }
             if n < buf.len() {
                 break;
             }
         }
-        let mut lines = Vec::new();
-        while let Some(pos) = c.rx_buf.iter().position(|&b| b == b'\n') {
-            let raw: Vec<u8> = c.rx_buf.drain(..=pos).collect();
-            let text = String::from_utf8_lossy(&raw).trim().to_string();
-            if !text.is_empty() {
-                lines.push(text);
+        // Einzelne Störzeichen beim Einschalten sind normal; erst wiederholter Zeichensalat deutet auf die Baudrate.
+        let warn_garbled = garbled_before < 2 && c.garbled >= 2;
+        for (line, valid) in lines {
+            if valid {
+                self.on_line(line);
+            } else {
+                self.emit(Event::Console { dir: Direction::Received, text: line });
             }
         }
-        for line in lines {
-            self.on_line(line);
+        if warn_garbled {
+            self.emit(Event::Warning(
+                "Die Steuerung sendet unverständliche Zeichen – stimmt die Baudrate in den Maschineneinstellungen (GRBL-Laser meist 115200)?".into(),
+            ));
         }
 
         let Some(c) = &mut self.conn else { return Ok(()) };
@@ -809,4 +835,11 @@ impl Driver {
             self.finish_job(true, |name| format!("„{name}“ ist fertig."));
         }
     }
+}
+
+/// Zeile aus Zeichensalat, wie ihn eine falsche Baudrate erzeugt: überwiegend Steuer- oder Nicht-ASCII-Zeichen
+/// (Steuerungen antworten in ASCII).
+fn garbled(text: &str) -> bool {
+    let bad = text.chars().filter(|&ch| !ch.is_ascii() || (ch.is_ascii_control() && ch != '\t')).count();
+    bad >= 3 && bad * 4 > text.chars().count()
 }

@@ -1533,6 +1533,7 @@ pub static EN: &[(&str, &str)] = &[
     ("Der Inhalt kann nicht als Code 128 kodiert werden.", "The content cannot be encoded as Code 128."),
     ("Die Seite ist leer.", "The page is empty."),
     ("Leeres Bild.", "Empty image."),
+    ("Die Steuerung sendet unverständliche Zeichen – stimmt die Baudrate in den Maschineneinstellungen (GRBL-Laser meist 115200)?", "The controller is sending unreadable characters – is the baud rate in the machine settings correct (GRBL lasers usually 115200)?"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
@@ -1570,6 +1571,7 @@ pub static SOURCES: &[(&str, &str)] = &[
     ("setup_wizard.rs", include_str!("setup_wizard.rs")),
     ("shape_ops.rs", include_str!("shape_ops.rs")),
     ("snapping.rs", include_str!("snapping.rs")),
+    ("system.rs", include_str!("system.rs")),
     ("tab_tool.rs", include_str!("tab_tool.rs")),
     ("tangent_tool.rs", include_str!("tangent_tool.rs")),
     ("text_tool.rs", include_str!("text_tool.rs")),
