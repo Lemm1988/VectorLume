@@ -380,12 +380,14 @@ impl VectorLumeApp {
     }
 
     fn originals(&self) -> Vec<(ObjectId, Affine)> {
-        self.doc.objects.iter().filter(|o| self.selection.contains(&o.id)).map(|o| (o.id, o.transform)).collect()
+        self.doc.objects_in(&self.selection).map(|o| (o.id, o.transform)).collect()
     }
 
+    /// Läuft bei jedem Bild während des Ziehens – daher über eine Tabelle statt `get_mut` je Objekt.
     fn apply_originals(&mut self, originals: &[(ObjectId, Affine)], t: &Affine) {
-        for (id, orig) in originals {
-            if let Some(o) = self.doc.get_mut(*id) {
+        let by_id: HashMap<ObjectId, &Affine> = originals.iter().map(|(id, a)| (*id, a)).collect();
+        for o in self.doc.objects.iter_mut() {
+            if let Some(orig) = by_id.get(&o.id) {
                 o.transform = orig.then(t);
             }
         }
@@ -656,6 +658,7 @@ impl VectorLumeApp {
         let ppm = 1.0 / tf.zoom as f64;
         self.snap_hint = None;
         let objects_alpha = if preview_active { 0.22 } else { 1.0 };
+        let selected_ids: std::collections::HashSet<ObjectId> = self.selection.iter().copied().collect();
         for idx in 0..self.doc.objects.len() {
             let obj = &self.doc.objects[idx];
             let layer = &self.doc.layers[obj.layer];
@@ -668,7 +671,7 @@ impl VectorLumeApp {
             }
             let alpha = objects_alpha * if layer.settings.output { 1.0 } else { 0.35 };
             let color = color.gamma_multiply(alpha);
-            let selected = self.selection.contains(&obj.id);
+            let selected = selected_ids.contains(&obj.id);
             match &obj.shape {
                 DocShape::Image(img) => {
                     let corners = img.local_rect().corners().map(|c| p2(obj.transform.then(&vt).apply(c)));

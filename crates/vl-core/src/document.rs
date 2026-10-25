@@ -5,7 +5,13 @@ use crate::layer::{LAYER_COUNT, Layer, LayerMode};
 use crate::path::{Polyline, VectorPath};
 use base64::Engine as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::HashSet;
 use std::sync::Arc;
+
+/// Menge für schnelle Mitgliedschaftsprüfung (Auswahl mit Tausenden Objekten).
+fn id_set(ids: &[ObjectId]) -> HashSet<ObjectId> {
+    ids.iter().copied().collect()
+}
 
 pub type ObjectId = u64;
 pub type GroupId = u64;
@@ -565,6 +571,7 @@ impl Document {
     }
 
     pub fn remove(&mut self, ids: &[ObjectId]) {
+        let ids = id_set(ids);
         self.objects.retain(|o| !ids.contains(&o.id));
     }
 
@@ -581,7 +588,19 @@ impl Document {
         self.layer_order.iter().copied().filter(|&l| used[l]).collect()
     }
 
+    /// Die Objekte mit den IDs `ids` in Dokumentreihenfolge – auch bei Tausenden IDs schnell (statt `get` je ID).
+    pub fn objects_in<'a>(&'a self, ids: &[ObjectId]) -> impl Iterator<Item = &'a Object> + use<'a> {
+        let ids = id_set(ids);
+        self.objects.iter().filter(move |o| ids.contains(&o.id))
+    }
+
+    pub fn objects_in_mut<'a>(&'a mut self, ids: &[ObjectId]) -> impl Iterator<Item = &'a mut Object> + use<'a> {
+        let ids = id_set(ids);
+        self.objects.iter_mut().filter(move |o| ids.contains(&o.id))
+    }
+
     pub fn bounds_of(&self, ids: &[ObjectId]) -> Rect {
+        let ids = id_set(ids);
         self.objects.iter().filter(|o| ids.contains(&o.id)).fold(Rect::EMPTY, |r, o| r.union(&o.bounds()))
     }
 
@@ -590,6 +609,7 @@ impl Document {
     }
 
     pub fn transform_objects(&mut self, ids: &[ObjectId], t: &Affine) {
+        let ids = id_set(ids);
         for o in self.objects.iter_mut().filter(|o| ids.contains(&o.id)) {
             o.transform = o.transform.then(t);
         }
@@ -597,7 +617,8 @@ impl Document {
 
     /// Alle Objekte derselben Gruppen wie `ids` (für die Auswahl ganzer Gruppen).
     pub fn expand_groups(&self, ids: &[ObjectId]) -> Vec<ObjectId> {
-        let groups: Vec<GroupId> =
+        let ids = id_set(ids);
+        let groups: HashSet<GroupId> =
             self.objects.iter().filter(|o| ids.contains(&o.id)).filter_map(|o| o.group).collect();
         self.objects
             .iter()
@@ -611,6 +632,7 @@ impl Document {
             return None;
         }
         let gid = self.alloc_id();
+        let ids = id_set(ids);
         for o in self.objects.iter_mut().filter(|o| ids.contains(&o.id)) {
             o.group = Some(gid);
         }
@@ -618,6 +640,7 @@ impl Document {
     }
 
     pub fn ungroup(&mut self, ids: &[ObjectId]) {
+        let ids = id_set(ids);
         for o in self.objects.iter_mut().filter(|o| ids.contains(&o.id)) {
             o.group = None;
         }
@@ -694,6 +717,7 @@ impl Document {
     /// Ändert die Reihenfolge der Objekte (weiter hinten in der Liste = oben gezeichnet und ohne Optimierung später
     /// bearbeitet); die gewählten behalten untereinander ihre Reihenfolge. `true`, wenn sich etwas geändert hat.
     pub fn reorder(&mut self, ids: &[ObjectId], how: ZOrder) -> bool {
+        let ids = id_set(ids);
         let sel = |o: &Object| ids.contains(&o.id);
         let before: Vec<ObjectId> = self.objects.iter().map(|o| o.id).collect();
         let n = self.objects.len();

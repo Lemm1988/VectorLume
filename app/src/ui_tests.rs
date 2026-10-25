@@ -1141,3 +1141,32 @@ fn render_panels_and_menus() {
         h.run_ok();
     }
 }
+
+/// Zeitmessung: ein Bild der Oberfläche mit vielen Formen (nur von Hand, mit `--ignored --nocapture`).
+#[test]
+#[ignore = "Zeitmessung"]
+fn perf_many_shapes() {
+    let mut h = harness(false);
+    {
+        let app = h.state_mut();
+        for i in 0..5000 {
+            let (x, y) = ((i % 100) as f64 * 4.0, (i / 100) as f64 * 8.0);
+            app.doc.add_path("K", i % 3, VectorPath::ellipse(Point::new(x + 2.0, y + 2.0), 1.5, 1.5));
+        }
+        app.selection.clear();
+    }
+    h.run_ok();
+    let t = std::time::Instant::now();
+    for _ in 0..20 {
+        h.state_mut().view.zoom *= 1.001;
+        h.step();
+    }
+    println!("5000 Kreise: {:.1} ms je Bild", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+    h.state_mut().select_all();
+    h.run_ok();
+    let t = std::time::Instant::now();
+    for _ in 0..20 {
+        h.step();
+    }
+    println!("alle ausgewählt: {:.1} ms je Bild", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+}

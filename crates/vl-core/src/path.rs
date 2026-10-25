@@ -296,9 +296,74 @@ impl VectorPath {
         out
     }
 
+    /// Exakte Umrandung nach der Transformation: Endpunkte und Extrempunkte der Kurven, ohne Abflachen (die
+    /// Umrandung wird pro Bild oft für Tausende Objekte gebraucht).
     pub fn bounds(&self, t: &Affine) -> Rect {
-        bounds_of(&self.flatten(t, 0.01))
+        let mut r = Rect::EMPTY;
+        for sp in self.subpaths.iter().filter(|s| !s.segments.is_empty()) {
+            let mut cur = t.apply(sp.start);
+            r.include(cur);
+            for seg in &sp.segments {
+                match seg.transformed(t) {
+                    Segment::Line(p) => r.include(p),
+                    Segment::Quad(c, p) => {
+                        for k in [0, 1] {
+                            let (a, b, e) = (axis(cur, k), axis(c, k), axis(p, k));
+                            let den = a - 2.0 * b + e;
+                            if den.abs() > 1e-12 {
+                                let u = (a - b) / den;
+                                if u > 0.0 && u < 1.0 {
+                                    let m = 1.0 - u;
+                                    r.include(cur * (m * m) + c * (2.0 * m * u) + p * (u * u));
+                                }
+                            }
+                        }
+                        r.include(p);
+                    }
+                    Segment::Cubic(c1, c2, p) => {
+                        for k in [0, 1] {
+                            let (p0, p1, p2, p3) = (axis(cur, k), axis(c1, k), axis(c2, k), axis(p, k));
+                            // Ableitung / 3 = a·u² + b·u + c
+                            let a = -p0 + 3.0 * p1 - 3.0 * p2 + p3;
+                            let b = 2.0 * (p0 - 2.0 * p1 + p2);
+                            let c = p1 - p0;
+                            for u in quadratic_roots(a, b, c).into_iter().flatten() {
+                                if u > 0.0 && u < 1.0 {
+                                    let m = 1.0 - u;
+                                    r.include(
+                                        cur * (m * m * m)
+                                            + c1 * (3.0 * m * m * u)
+                                            + c2 * (3.0 * m * u * u)
+                                            + p * (u * u * u),
+                                    );
+                                }
+                            }
+                        }
+                        r.include(p);
+                    }
+                }
+                cur = t.apply(seg.end());
+            }
+        }
+        r
     }
+}
+
+fn axis(p: Point, k: usize) -> f64 {
+    if k == 0 { p.x } else { p.y }
+}
+
+/// Nullstellen von a·u² + b·u + c (auch linear oder ohne Lösung).
+fn quadratic_roots(a: f64, b: f64, c: f64) -> [Option<f64>; 2] {
+    if a.abs() < 1e-12 {
+        return [(b.abs() > 1e-12).then(|| -c / b), None];
+    }
+    let d = b * b - 4.0 * a * c;
+    if d < 0.0 {
+        return [None, None];
+    }
+    let s = d.sqrt();
+    [Some((-b + s) / (2.0 * a)), Some((-b - s) / (2.0 * a))]
 }
 
 fn dedup_points(pts: &mut Vec<Point>) {
@@ -427,6 +492,27 @@ impl PathBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn exact_bounds_match_fine_flattening() {
+        let mut pb = PathBuilder::new();
+        pb.move_to(Point::new(0.0, 0.0));
+        pb.cubic_to(Point::new(10.0, -20.0), Point::new(30.0, 25.0), Point::new(40.0, 0.0));
+        pb.quad_to(Point::new(50.0, 30.0), Point::new(20.0, 10.0));
+        pb.line_to(Point::new(-5.0, 3.0));
+        let mut path = pb.finish();
+        path.subpaths.extend(VectorPath::ellipse(Point::new(60.0, 60.0), 7.0, 3.0).subpaths);
+        for t in
+            [Affine::IDENTITY, Affine::rotate(0.7).then(&Affine::scale(1.5, 0.5)).then(&Affine::translate(3.0, -8.0))]
+        {
+            let exact = path.bounds(&t);
+            let fine = bounds_of(&path.flatten(&t, 1e-5));
+            for (a, b) in [(exact.min, fine.min), (exact.max, fine.max)] {
+                assert!(a.distance(b) < 1e-4, "{exact:?} {fine:?}");
+            }
+        }
+        assert!(VectorPath::default().bounds(&Affine::IDENTITY).is_empty());
+    }
 
     #[test]
     fn rect_flattens_to_four_points() {

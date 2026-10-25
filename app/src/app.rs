@@ -954,7 +954,7 @@ impl VectorLumeApp {
     }
 
     pub(crate) fn selected_objects(&self) -> Vec<Object> {
-        self.doc.objects.iter().filter(|o| self.selection.contains(&o.id)).cloned().collect()
+        self.doc.objects_in(&self.selection).cloned().collect()
     }
 
     pub fn copy(&mut self) {
@@ -1157,7 +1157,7 @@ impl VectorLumeApp {
     pub(crate) fn selection_units(&self) -> Vec<Vec<ObjectId>> {
         let mut units: Vec<Vec<ObjectId>> = Vec::new();
         let mut groups: Vec<(u64, usize)> = Vec::new();
-        for o in self.doc.objects.iter().filter(|o| self.selection.contains(&o.id)) {
+        for o in self.doc.objects_in(&self.selection) {
             match o.group {
                 Some(g) => match groups.iter().find(|(gid, _)| *gid == g) {
                     Some(&(_, idx)) => units[idx].push(o.id),
@@ -1195,11 +1195,11 @@ impl VectorLumeApp {
             return;
         }
         self.checkpoint();
-        let images_only = self.doc.objects.iter().filter(|o| self.selection.contains(&o.id)).all(|o| o.is_image());
+        let images_only = self.doc.objects_in(&self.selection).all(|o| o.is_image());
         if images_only && self.doc.objects_on_layer(layer).next().is_none() {
             self.doc.layers[layer].settings = vl_core::CutSettings::default_for(vl_core::LayerMode::Image);
         }
-        for o in self.doc.objects.iter_mut().filter(|o| self.selection.contains(&o.id)) {
+        for o in self.doc.objects_in_mut(&self.selection) {
             o.layer = layer;
         }
         self.mark_changed();

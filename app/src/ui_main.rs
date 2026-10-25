@@ -844,10 +844,11 @@ fn primitive_fields(app: &mut VectorLumeApp, ui: &mut Ui) {
 
 /// Leistung der ausgewählten Objekte in Prozent der Ebenenleistung (z. B. für Materialtests).
 fn power_scale_field(app: &mut VectorLumeApp, ui: &mut Ui) {
-    let ids = app.selection.clone();
-    let scales: Vec<f64> = ids.iter().filter_map(|id| app.doc.get(*id)).map(|o| o.power_scale).collect();
-    let Some(&first) = scales.first() else { return };
-    let mixed = scales.iter().any(|s| *s != first);
+    let (first, mixed) = {
+        let mut scales = app.doc.objects_in(&app.selection).map(|o| o.power_scale);
+        let Some(first) = scales.next() else { return };
+        (first, scales.any(|s| s != first))
+    };
     let pal = theme::of(ui);
     let color = if first != 100.0 || mixed { pal.accent } else { pal.text_weak };
     ui.label(RichText::new(icon::LIGHTNING).color(color)).on_hover_text(tr("Leistung der Auswahl"));
@@ -862,10 +863,8 @@ fn power_scale_field(app: &mut VectorLumeApp, ui: &mut Ui) {
              Praktisch für Materialtests mit mehreren Leistungen auf einer Ebene."));
     if resp.changed() {
         app.checkpoint_coalesced("power_scale");
-        for id in ids {
-            if let Some(o) = app.doc.get_mut(id) {
-                o.power_scale = v;
-            }
+        for o in app.doc.objects_in_mut(&app.selection) {
+            o.power_scale = v;
         }
         app.mark_changed();
     }

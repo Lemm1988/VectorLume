@@ -231,7 +231,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (177):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (244):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
@@ -249,6 +249,9 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
   den Simulator gestreamt – jede Zeile muss mit `ok` bestätigt werden.
 - **Oberfläche:** manuell bzw. per automatisierten Klicks geprüft (Zeichnen, Drehen, Text, Import, Vorschau, Job im
   Simulator starten und stoppen).
+- **Leistung:** Ein abschaltbarer Messtest (`perf_many_shapes`, `--release -- --ignored --nocapture`) zeichnet 5000 Kreise:
+  etwa 3 ms je Bild, alle ausgewählt etwa 8 ms (vorher 36 ms). Umrandungen werden exakt aus den Kurven berechnet
+  (Endpunkte und Extremstellen, ohne Abflachen), Auswahlprüfungen laufen über Hash-Mengen statt Suche je Objekt.
 - **Statische Prüfung:** `cargo clippy --workspace --all-targets` ohne Warnungen, `cargo fmt`.
 - **Hardware-Test (durch den Auftraggeber):** zuerst Rahmen ohne Leistung, dann ein kleiner Testjob mit 5–10 % Leistung.
 
