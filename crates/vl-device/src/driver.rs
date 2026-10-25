@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
-use vl_core::Firmware;
+use vl_core::{Firmware, LineBuf};
 
 const STATUS_INTERVAL: Duration = Duration::from_millis(200);
 /// Marlin kennt keine Echtzeit-Statusabfrage: im Ruhezustand wird die Position mit `M114` abgefragt.
@@ -42,7 +42,7 @@ pub enum Command {
     Realtime(u8),
     StartJob {
         name: String,
-        lines: Vec<String>,
+        lines: LineBuf,
     },
     Pause,
     Resume,
@@ -79,6 +79,65 @@ enum Kind {
     Poll,
 }
 
+/// Warteschlange der zu sendenden Zeilen. Jobzeilen bleiben im kompakten Puffer und werden erst beim
+/// Senden gelesen – eine Kopie von Millionen einzelner Strings wäre bei großen Rasterjobs teuer.
+#[derive(Default)]
+struct SendQueue {
+    entries: VecDeque<Entry>,
+}
+
+enum Entry {
+    Line(String, Kind),
+    /// Noch nicht gesendete Zeilen ab `next` (nie leer).
+    Job {
+        lines: LineBuf,
+        next: usize,
+    },
+}
+
+impl SendQueue {
+    fn push(&mut self, line: String, kind: Kind) {
+        self.entries.push_back(Entry::Line(line, kind));
+    }
+
+    fn push_job(&mut self, lines: LineBuf) {
+        if !lines.is_empty() {
+            self.entries.push_back(Entry::Job { lines, next: 0 });
+        }
+    }
+
+    fn front(&self) -> Option<(&str, Kind)> {
+        Some(match self.entries.front()? {
+            Entry::Line(line, kind) => (line.as_str(), *kind),
+            Entry::Job { lines, next } => (&lines[*next], Kind::Job),
+        })
+    }
+
+    /// Entfernt die vorderste Zeile.
+    fn pop(&mut self) {
+        if let Some(Entry::Job { lines, next }) = self.entries.front_mut() {
+            *next += 1;
+            if *next < lines.len() {
+                return;
+            }
+        }
+        self.entries.pop_front();
+    }
+
+    /// Verwirft alle noch nicht gesendeten Jobzeilen.
+    fn drop_job(&mut self) {
+        self.entries.retain(|e| matches!(e, Entry::Line(_, kind) if *kind != Kind::Job));
+    }
+
+    fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    fn clear(&mut self) {
+        self.entries.clear();
+    }
+}
+
 struct JobState {
     name: String,
     total: usize,
@@ -94,7 +153,7 @@ struct Connection {
     rx_capacity: usize,
     inflight: VecDeque<(usize, Kind)>,
     inflight_bytes: usize,
-    queue: VecDeque<(String, Kind)>,
+    queue: SendQueue,
     job: Option<JobState>,
     rx_buf: Vec<u8>,
     last_poll: Instant,
@@ -228,7 +287,7 @@ impl Driver {
                             rx_capacity: rx_buffer.max(32),
                             inflight: VecDeque::new(),
                             inflight_bytes: 0,
-                            queue: VecDeque::new(),
+                            queue: SendQueue::default(),
                             job: None,
                             rx_buf: Vec::new(),
                             last_poll: Instant::now(),
@@ -287,11 +346,11 @@ impl Driver {
 
     fn enqueue(&mut self, line: String, kind: Kind) {
         if let Some(c) = &mut self.conn {
-            c.queue.push_back((line, kind));
+            c.queue.push(line, kind);
         }
     }
 
-    fn start_job(&mut self, name: String, mut lines: Vec<String>) {
+    fn start_job(&mut self, name: String, mut lines: LineBuf) {
         let Some(c) = &mut self.conn else {
             self.info("Nicht verbunden.");
             return;
@@ -307,12 +366,10 @@ impl Driver {
         }
         if !c.firmware.is_grbl() {
             // Das `ok` auf M400 kommt erst, wenn alle Bewegungen ausgeführt sind: Ende des Jobs.
-            lines.push("M400".into());
+            lines.push("M400");
         }
         let total = lines.len();
-        for l in lines {
-            c.queue.push_back((l, Kind::Job));
-        }
+        c.queue.push_job(lines);
         c.paused = false;
         let now = Instant::now();
         c.job = Some(JobState {
@@ -456,7 +513,7 @@ impl Driver {
         let mut sent = Vec::new();
         while c.ready {
             let Some((line, kind)) = c.queue.front() else { break };
-            if c.paused && *kind == Kind::Job {
+            if c.paused && kind == Kind::Job {
                 break;
             }
             let len = line.len() + 1;
@@ -464,14 +521,14 @@ impl Driver {
             if full && !c.inflight.is_empty() {
                 break;
             }
-            let (line, kind) = c.queue.pop_front().unwrap();
             c.transport.write_all(format!("{line}\n").as_bytes()).map_err(|e| format!("Schreibfehler: {e}"))?;
+            if kind == Kind::Console {
+                sent.push(line.to_string());
+            }
+            c.queue.pop();
             c.inflight.push_back((len, kind));
             c.inflight_bytes += len;
             c.last_send = Instant::now();
-            if kind == Kind::Console {
-                sent.push(line);
-            }
         }
         let mut synthetic = None;
         match c.firmware {
@@ -499,7 +556,7 @@ impl Driver {
                     && c.last_poll.elapsed() >= POSITION_POLL_INTERVAL
                 {
                     c.last_poll = Instant::now();
-                    c.queue.push_back(("M114".into(), Kind::Poll));
+                    c.queue.push("M114".into(), Kind::Poll);
                 }
             }
         }
@@ -533,7 +590,7 @@ impl Driver {
     fn halted(&mut self, text: String) {
         if let Some(c) = &mut self.conn {
             c.last_state = MachineState::Alarm;
-            c.queue.retain(|(_, kind)| *kind != Kind::Job);
+            c.queue.drop_job();
         }
         self.finish_job(false, |_| format!("Steuerung angehalten: {text}"));
         self.emit(Event::Alarm(0, text));
@@ -602,7 +659,7 @@ impl Driver {
                 if let Some(c) = &mut self.conn {
                     c.last_state = MachineState::Alarm;
                     // GRBL verwirft im Alarm Puffer und Planer.
-                    c.queue.retain(|(_, kind)| *kind != Kind::Job);
+                    c.queue.drop_job();
                 }
                 self.finish_job(false, |_| format!("Alarm {code}: {text}"));
                 self.emit(Event::Alarm(code, text));

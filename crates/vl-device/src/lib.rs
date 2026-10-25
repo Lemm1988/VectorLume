@@ -102,7 +102,7 @@ mod tests {
         let mut dev = Probe { dev, pending: Default::default() };
         dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Setting(32, _)));
         let lines: Vec<String> = (0..50).map(|i| format!("G1 X{} Y{} F6000 S100", i % 7, i % 5)).collect();
-        dev.send(Command::StartJob { name: "Netz".into(), lines });
+        dev.send(Command::StartJob { name: "Netz".into(), lines: lines.into() });
         let evs = dev.wait_for(Duration::from_secs(10), |e| matches!(e, Event::JobFinished { .. }));
         assert_eq!(finished(&evs).map(|f| f.0), Some(true));
         dev.send(Command::Disconnect);
@@ -136,7 +136,7 @@ mod tests {
         lines.push("G0 X3 Y4".into());
         lines.push("M5".into());
         let total = lines.len() + 1;
-        dev.send(Command::StartJob { name: "Marlin".into(), lines });
+        dev.send(Command::StartJob { name: "Marlin".into(), lines: lines.into() });
         let evs = dev.wait_for(Duration::from_secs(20), |e| matches!(e, Event::JobFinished { .. }));
         assert_eq!(finished(&evs).map(|f| f.0), Some(true), "{:?}", finished(&evs));
         assert!(evs.iter().any(|e| matches!(e, Event::JobStarted { total: t, .. } if *t == total)));
@@ -151,7 +151,7 @@ mod tests {
     fn marlin_pause_and_resume_on_host() {
         let mut dev = connect_sim_with(Firmware::Marlin);
         let lines: Vec<String> = (0..40).map(|i| format!("G1 X{} F3000 S10", (i % 2) * 2)).collect();
-        dev.send(Command::StartJob { name: "Pause".into(), lines });
+        dev.send(Command::StartJob { name: "Pause".into(), lines: lines.into() });
         dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::JobStarted { .. }));
         dev.send(Command::Pause);
         dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Status(s) if s.state == MachineState::Hold));
@@ -166,17 +166,17 @@ mod tests {
     fn smoothie_stop_halts_until_m999() {
         let mut dev = connect_sim_with(Firmware::Smoothieware);
         let lines = vec!["G1 X300 Y300 F100 S0.5".to_string(); 2];
-        dev.send(Command::StartJob { name: "Lang".into(), lines });
+        dev.send(Command::StartJob { name: "Lang".into(), lines: lines.into() });
         dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Status(s) if s.state == MachineState::Run));
         dev.send(Command::Stop);
         let evs = dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::JobFinished { .. }));
         assert_eq!(finished(&evs).map(|f| f.0), Some(false));
         dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Status(s) if s.state == MachineState::Alarm));
-        dev.send(Command::StartJob { name: "Neu".into(), lines: vec!["G0 X1".into()] });
+        dev.send(Command::StartJob { name: "Neu".into(), lines: ["G0 X1"].into() });
         dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::JobFinished { ok: false, .. }));
         dev.send(Command::Line("M999".into()));
         dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Status(s) if s.state == MachineState::Idle));
-        dev.send(Command::StartJob { name: "Kurz".into(), lines: vec!["G1 X1 F6000 S0.2".into()] });
+        dev.send(Command::StartJob { name: "Kurz".into(), lines: ["G1 X1 F6000 S0.2"].into() });
         let evs = dev.wait_for(Duration::from_secs(10), |e| matches!(e, Event::JobFinished { .. }));
         assert_eq!(finished(&evs).map(|f| f.0), Some(true));
     }
@@ -196,7 +196,7 @@ mod tests {
         }
         lines.push("M5".into());
         let total = lines.len();
-        dev.send(Command::StartJob { name: "Test".into(), lines });
+        dev.send(Command::StartJob { name: "Test".into(), lines: lines.into() });
         let evs = dev.wait_for(Duration::from_secs(20), |e| matches!(e, Event::JobFinished { .. }));
         let finished = evs.iter().find_map(|e| match e {
             Event::JobFinished { ok, message, .. } => Some((*ok, message.clone())),
@@ -210,7 +210,7 @@ mod tests {
     fn stop_resets_and_reports() {
         let mut dev = connect_sim();
         let lines = vec!["G1 X300 Y300 F100 S500".to_string(); 3];
-        dev.send(Command::StartJob { name: "Lang".into(), lines });
+        dev.send(Command::StartJob { name: "Lang".into(), lines: lines.into() });
         dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::JobStarted { .. }));
         std::thread::sleep(Duration::from_millis(300));
         dev.send(Command::Stop);
@@ -219,7 +219,7 @@ mod tests {
         // Reset während der Bewegung -> Alarm, neue Jobs werden abgelehnt.
         dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Alarm(3, _)));
         dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Status(s) if s.state == MachineState::Alarm));
-        dev.send(Command::StartJob { name: "Neu".into(), lines: vec!["G0 X1".into()] });
+        dev.send(Command::StartJob { name: "Neu".into(), lines: ["G0 X1"].into() });
         dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::JobFinished { ok: false, .. }));
         dev.send(Command::Line("$X".into()));
         dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Status(s) if s.state == MachineState::Idle));
@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn rejects_console_lines_during_job() {
         let mut dev = connect_sim();
-        dev.send(Command::StartJob { name: "Lang".into(), lines: vec!["G1 X100 F100 S10".into()] });
+        dev.send(Command::StartJob { name: "Lang".into(), lines: ["G1 X100 F100 S10"].into() });
         dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::JobStarted { .. }));
         dev.send(Command::Line("G0 X0".into()));
         dev.wait_for(

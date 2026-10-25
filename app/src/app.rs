@@ -194,7 +194,7 @@ pub enum Modal {
     /// Fremde G-Code-Datei senden (Inhalt ungeprüft).
     SendFile {
         name: String,
-        lines: Arc<Vec<String>>,
+        lines: Arc<vl_core::LineBuf>,
     },
     Unsaved(AfterDiscard),
     Message {
@@ -1409,14 +1409,14 @@ impl VectorLumeApp {
         }
     }
 
-    pub fn send_gcode_lines(&mut self, name: String, lines: &[String]) {
+    pub fn send_gcode_lines(&mut self, name: String, lines: &vl_core::LineBuf) {
         if !self.ready_to_start() {
             return;
         }
         self.machine.document_job = false;
         // Keine Schätzung: die Restzeit wird aus dem Fortschritt hochgerechnet
         self.machine.job_estimate = 0.0;
-        self.device.send(Command::StartJob { name, lines: lines.to_vec() });
+        self.device.send(Command::StartJob { name, lines: lines.clone() });
     }
 
     pub fn run_frame(&mut self, job: &Job, hull: bool) {
@@ -1425,9 +1425,13 @@ impl VectorLumeApp {
     }
 
     pub fn write_gcode(&mut self, job: &Job, path: &Path) {
-        let mut text = job.gcode.join("\n");
-        text.push('\n');
-        match std::fs::write(path, text) {
+        // ohne Kopie des (bei Fotos Hunderte MB großen) Textes schreiben
+        let written = std::fs::File::create(path).and_then(|mut f| {
+            use std::io::Write;
+            f.write_all(job.gcode.text().as_bytes())?;
+            f.write_all(b"\n")
+        });
+        match written {
             Ok(()) => {
                 let mut msg = trs(&format!(
                     "G-Code gespeichert: {} (geschätzt {})",

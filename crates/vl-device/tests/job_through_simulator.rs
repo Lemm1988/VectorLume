@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 use vl_cam::{JobSettings, MachineProfile, StartFrom, build_job, frame_gcode, strip_for_streaming};
-use vl_core::{CutSettings, DitherMode, Document, ImageAdjust, ImageObject, LayerMode, Point, RasterImage, VectorPath};
+use vl_core::{
+    CutSettings, DitherMode, Document, ImageAdjust, ImageObject, LayerMode, LineBuf, Point, RasterImage, VectorPath,
+};
 use vl_device::sim::SimTransport;
 use vl_device::transport::Transport;
 
@@ -32,7 +34,7 @@ fn sample_doc() -> Document {
 }
 
 /// Streamt Zeilen nach dem Zeichenzähl-Verfahren und gibt (ok, Fehlerzeilen) zurück.
-fn stream(lines: &[String]) -> (usize, Vec<String>, [f64; 2]) {
+fn stream(lines: &LineBuf) -> (usize, Vec<String>, [f64; 2]) {
     let mut sim = SimTransport::new(1.0e6);
     let mut inflight: std::collections::VecDeque<usize> = Default::default();
     let mut used = 0;
@@ -47,7 +49,7 @@ fn stream(lines: &[String]) -> (usize, Vec<String>, [f64; 2]) {
     while oks + errors.len() < lines.len() {
         // Zeile + Zeilenende muss in den 127-Byte-Puffer passen.
         while next < lines.len() && used + lines[next].len() < 127 {
-            sim.write_all(format!("{}\n", lines[next]).as_bytes()).expect("Simulator-Puffer übergelaufen");
+            sim.write_all(format!("{}\n", &lines[next]).as_bytes()).expect("Simulator-Puffer übergelaufen");
             inflight.push_back(lines[next].len() + 1);
             used += lines[next].len() + 1;
             next += 1;
@@ -66,7 +68,7 @@ fn stream(lines: &[String]) -> (usize, Vec<String>, [f64; 2]) {
                     oks += 1;
                 } else {
                     let idx = oks + errors.len();
-                    errors.push(format!("{} -> {text}", lines[idx]));
+                    errors.push(format!("{} -> {text}", &lines[idx]));
                 }
             }
         }

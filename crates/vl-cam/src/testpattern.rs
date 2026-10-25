@@ -434,7 +434,7 @@ mod tests {
         assert_eq!(feeds, vec![1000.0, 2000.0, 3000.0]);
         // Zweite Zeile läuft rückwärts (Zickzack).
         assert_eq!(job.toolpath.blocks[4].feed, 3000.0);
-        let code = strip_for_streaming(&job.gcode);
+        let code = strip_for_streaming(&job.gcode).to_vec();
         assert!(code.iter().any(|l| l.contains("F1000")));
         assert!(code.iter().any(|l| l.contains("F3000")));
     }

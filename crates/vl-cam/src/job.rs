@@ -9,7 +9,7 @@ use crate::toolpath::{
     line_ops, raster_ops,
 };
 use vl_core::{
-    CutSettings, DitherMode, Document, FillGrouping, LayerMode, Object, ObjectId, Point, Polyline, Rect, Shape,
+    CutSettings, DitherMode, Document, FillGrouping, LayerMode, LineBuf, Object, ObjectId, Point, Polyline, Rect, Shape,
 };
 
 /// Toleranz beim Abflachen von Kurven für die Ausgabe (mm).
@@ -74,7 +74,7 @@ pub struct Job {
     pub mapping: OutputMapping,
     pub warnings: Vec<String>,
     pub estimate: Estimate,
-    pub gcode: Vec<String>,
+    pub gcode: LineBuf,
 }
 
 /// Objekte, die ausgegeben werden (Ebene aktiv, ggf. nur Auswahl).
@@ -601,7 +601,7 @@ fn apply_tabs(polys: Vec<Polyline>, cs: &CutSettings, manual: &[Point]) -> Vec<P
 
 /// G-Code zum Abfahren des Job-Umrisses (Laser aus oder mit geringer Leistung laut Profil): das umgebende
 /// Rechteck oder mit `hull` die konvexe Hülle aller gelaserten Strecken, die sich runden und schrägen Formen anpasst.
-pub fn frame_gcode(job: &Job, profile: &MachineProfile, hull: bool) -> Vec<String> {
+pub fn frame_gcode(job: &Job, profile: &MachineProfile, hull: bool) -> LineBuf {
     let r = job.design_bounds;
     let mut corners = vec![r.min, Point::new(r.max.x, r.min.y), r.max, Point::new(r.min.x, r.max.y)];
     if hull {
@@ -702,7 +702,7 @@ mod tests {
         let profile = MachineProfile::default();
         let job = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
         // Vorschubbewegungen (G1 ist modal, Folgezeilen beginnen mit der Koordinate)
-        let g1 = |lines: Vec<String>| {
+        let g1 = |lines: LineBuf| {
             lines.iter().filter(|l| l.starts_with("G1") || l.starts_with('X') || l.starts_with('Y')).count()
         };
         assert_eq!(g1(frame_gcode(&job, &profile, false)), 4);
@@ -914,7 +914,7 @@ mod tests {
         let job2 = build_job(&doc, &[], &profile, &in_list_order).unwrap();
         let kinds2: Vec<BlockKind> = job2.toolpath.blocks.iter().map(|b| b.kind).collect();
         assert_eq!(kinds2, vec![BlockKind::Line, BlockKind::Fill, BlockKind::Raster]);
-        let code = strip_for_streaming(&job.gcode);
+        let code = strip_for_streaming(&job.gcode).to_vec();
         assert_eq!(&code[..3], &["G21", "G90", "M4 S0"]);
         assert!(code.iter().any(|l| l.contains("S300")));
         assert!(job.estimate.seconds > 0.0);
@@ -942,7 +942,7 @@ mod tests {
         let (a, b) = (job.mapping.map(Point::new(10.0, 10.0)), job.mapping.map(Point::new(30.0, 30.0)));
         assert!(((a.y - b.y).abs() - 10.0).abs() < 1e-9 && ((a.x - b.x).abs() - 20.0).abs() < 1e-9);
         assert!(job.mapping.map(job.anchor).distance(Point::ZERO) < 1e-9);
-        let code = strip_for_streaming(&job.gcode);
+        let code = strip_for_streaming(&job.gcode).to_vec();
         assert!(code.iter().any(|l| l.contains("Y10") || l.contains("Y-10")), "{code:?}");
         assert!(!code.iter().any(|l| l.contains("Y20") || l.contains("Y-20")), "{code:?}");
 
@@ -951,7 +951,7 @@ mod tests {
         let abs = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
         assert!(abs.mapping.map(abs.anchor).y.abs() < 1e-9);
         assert!(abs.warnings.iter().any(|w| w.contains("Aktuelle Position")), "{:?}", abs.warnings);
-        let code = strip_for_streaming(&abs.gcode);
+        let code = strip_for_streaming(&abs.gcode).to_vec();
         assert!(code.iter().any(|l| l.contains(" A") || l.starts_with('A')), "{code:?}");
         assert!(!code.iter().any(|l| l.contains('Y')), "{code:?}");
 
@@ -977,11 +977,11 @@ mod tests {
             JobSettings { start_from: StartFrom::CurrentPosition, anchor: Anchor::Center, ..Default::default() };
         let job = build_job(&doc, &[], &MachineProfile::default(), &settings).unwrap();
         assert_eq!(job.mapping.map(Point::new(20.0, 20.0)), Point::ZERO);
-        let code = strip_for_streaming(&job.gcode);
+        let code = strip_for_streaming(&job.gcode).to_vec();
         assert_eq!(code[1], "G91");
         assert!(job.warnings.is_empty());
         let lit = MachineProfile { frame_power: 1.0, ..Default::default() };
-        let frame = strip_for_streaming(&frame_gcode(&job, &lit, false));
+        let frame = strip_for_streaming(&frame_gcode(&job, &lit, false)).to_vec();
         assert_eq!(frame[1], "G91");
         assert_eq!(frame.last().unwrap(), "G90");
         // Erste Bewegung ist ein Eilgang, erst danach wird mit geringer Leistung abgefahren.

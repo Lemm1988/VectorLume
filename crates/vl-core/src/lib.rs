@@ -12,6 +12,7 @@ pub mod geom;
 pub mod hinge;
 pub mod kerftest;
 pub mod layer;
+pub mod lines;
 pub mod material;
 pub mod nest;
 pub mod nodes;
@@ -33,6 +34,7 @@ pub use document::{
 pub use firmware::Firmware;
 pub use geom::{Affine, Point, Rect};
 pub use layer::{CutSettings, DitherMode, FillGrouping, LAYER_COUNT, Layer, LayerMode, PALETTE};
+pub use lines::LineBuf;
 pub use material::{MaterialEntry, MaterialLibrary};
 pub use path::{PathBuilder, Polyline, Segment, SubPath, VectorPath};
 pub use text::{BarcodeKind, BarcodeSpec, DataList, QrLevel, TextAlign, TextData, TextSpec};

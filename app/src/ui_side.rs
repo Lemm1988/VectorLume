@@ -1099,7 +1099,7 @@ fn macros_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     });
     if let Some(i) = send {
         let lines = vl_cam::lines_from_file(&app.settings.macros[i].gcode);
-        for line in lines {
+        for line in &lines {
             app.send_line(line);
         }
     }

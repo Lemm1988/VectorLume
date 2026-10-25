@@ -1,7 +1,7 @@
 //! G-Code-Erzeugung für GRBL-Lasersteuerungen (GRBL 1.1 im Laser-Modus `$32=1`).
 
 use crate::toolpath::{BlockKind, Op, Toolpath};
-use vl_core::{Firmware, Point};
+use vl_core::{Firmware, LineBuf, Point};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CoordMode {
@@ -74,7 +74,9 @@ fn fmt_num(v: f64) -> String {
 }
 
 struct Emitter<'a> {
-    out: Vec<String>,
+    out: LineBuf,
+    /// Wiederverwendeter Puffer für die gerade entstehende Zeile.
+    scratch: String,
     opts: &'a GcodeOptions,
     /// Zuletzt ausgegebene Position; `None` = unbekannt (Absolutmodus vor der ersten Bewegung).
     pos: Option<(i64, i64)>,
@@ -116,12 +118,14 @@ impl Emitter<'_> {
     }
 
     fn rapid(&mut self, p: Point) {
-        let mut line = String::with_capacity(24);
+        let mut line = std::mem::take(&mut self.scratch);
+        line.clear();
         line.push_str("G0 ");
         if self.push_axes(&mut line, p) {
             self.motion = Some(0);
-            self.out.push(line);
+            self.out.push(&line);
         }
+        self.scratch = line;
     }
 
     /// Fährt im Eilgang (Laser aus) auf die Höhe `z`.
@@ -134,18 +138,20 @@ impl Emitter<'_> {
             CoordMode::Absolute => target,
             CoordMode::Relative => target - self.z,
         };
-        self.out.push(format!("G0 Z{}", fmt_um(v)));
+        self.out.push(&format!("G0 Z{}", fmt_um(v)));
         self.motion = Some(0);
         self.z = target;
     }
 
     fn feed_move(&mut self, p: Point, feed: f64, power: f32) {
         use std::fmt::Write;
-        let mut line = String::with_capacity(32);
+        let mut line = std::mem::take(&mut self.scratch);
+        line.clear();
         if self.motion != Some(1) {
             line.push_str("G1 ");
         }
         if !self.push_axes(&mut line, p) {
+            self.scratch = line;
             return;
         }
         self.motion = Some(1);
@@ -164,7 +170,8 @@ impl Emitter<'_> {
             }
             self.s = Some(s);
         }
-        self.out.push(line);
+        self.out.push(&line);
+        self.scratch = line;
     }
 
     /// S als Vergleichswert: Smoothieware erwartet einen Anteil 0…1 (hier in Zehntausendstel), die anderen ganze
@@ -195,21 +202,24 @@ fn ascii_comment(text: &str) -> String {
 }
 
 /// Erzeugt G-Code. `map` rechnet Dokument- in Ausgabekoordinaten um.
-pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) -> Vec<String> {
+pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) -> LineBuf {
     let start = match opts.coord_mode {
         CoordMode::Absolute => None,
         CoordMode::Relative => Some((0, 0)),
     };
     let ops: usize = tp.blocks.iter().map(|b| b.ops.len()).sum();
-    let out = Vec::with_capacity(ops + 2 * tp.blocks.len() + opts.comments.len() + 16);
-    let mut e = Emitter { out, opts, pos: start, motion: None, feed: None, s: None, z: 0 };
+    // grob 20 Zeichen je Rasterzeile
+    let lines = ops + 2 * tp.blocks.len() + opts.comments.len() + 16;
+    let out = LineBuf::with_capacity(lines, lines * 20);
+    let mut e =
+        Emitter { out, scratch: String::with_capacity(48), opts, pos: start, motion: None, feed: None, s: None, z: 0 };
     for c in &opts.comments {
-        e.out.push(ascii_comment(c));
+        e.out.push(&ascii_comment(c));
     }
-    e.out.push("G21".into());
+    e.out.push("G21");
     e.out.push(match opts.coord_mode {
-        CoordMode::Absolute => "G90".into(),
-        CoordMode::Relative => "G91".into(),
+        CoordMode::Absolute => "G90",
+        CoordMode::Relative => "G91",
     });
     let laser_on = |constant: bool| {
         let m = if opts.dynamic_power && !constant { "M4" } else { "M3" };
@@ -236,10 +246,10 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
             BlockKind::Raster => "Bild",
         };
         let name = opts.layer_names.get(block.layer).cloned().unwrap_or_else(|| format!("L{:02}", block.layer + 1));
-        e.out.push(ascii_comment(&format!("Ebene {name} - {kind} - Durchgang {}", block.pass + 1)));
+        e.out.push(&ascii_comment(&format!("Ebene {name} - {kind} - Durchgang {}", block.pass + 1)));
         let want_air = block.air && opts.air_supported;
         if want_air != air {
-            e.out.push(if want_air { opts.air_on.clone() } else { opts.air_off.clone() });
+            e.out.push(if want_air { &opts.air_on } else { &opts.air_off });
             air = want_air;
         }
         if opts.z_axis {
@@ -259,43 +269,41 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
         }
     }
     if opts.firmware != Firmware::Smoothieware {
-        e.out.push("M5".into());
+        e.out.push("M5");
     }
     if opts.z_axis {
         e.z_move(0.0);
     }
     if air {
-        e.out.push(opts.air_off.clone());
+        e.out.push(&opts.air_off);
     }
     if let Some(p) = opts.return_to {
         e.rapid(p);
     }
     if opts.coord_mode == CoordMode::Relative {
-        e.out.push("G90".into());
+        e.out.push("G90");
     }
-    e.out.push(ascii_comment("Ende"));
+    e.out.push(&ascii_comment("Ende"));
     e.out
 }
 
 /// Zeilen einer fremden G-Code-Datei zum Senden: ohne Kommentare, Leerzeilen, Programmklammern `%` und BOM.
-pub fn lines_from_file(text: &str) -> Vec<String> {
-    let lines: Vec<String> = text.trim_start_matches('\u{feff}').lines().map(str::to_string).collect();
-    strip_for_streaming(&lines).into_iter().filter(|l| l != "%").collect()
+pub fn lines_from_file(text: &str) -> LineBuf {
+    stripped(text.trim_start_matches('\u{feff}').lines()).filter(|l| *l != "%").collect()
+}
+
+fn stripped<'a>(lines: impl Iterator<Item = &'a str>) -> impl Iterator<Item = &'a str> {
+    lines.filter_map(|l| {
+        let code = l.find(';').map_or(l, |i| &l[..i]).trim();
+        (!code.is_empty()).then_some(code)
+    })
 }
 
 /// Bereitet Zeilen für das Senden an die Steuerung vor: Kommentare und Leerzeilen entfernen.
-pub fn strip_for_streaming(lines: &[String]) -> Vec<String> {
-    lines
-        .iter()
-        .filter_map(|l| {
-            let code = match l.find(';') {
-                Some(i) => &l[..i],
-                None => l.as_str(),
-            };
-            let code = code.trim();
-            (!code.is_empty()).then(|| code.to_string())
-        })
-        .collect()
+pub fn strip_for_streaming(lines: &LineBuf) -> LineBuf {
+    let mut out = LineBuf::with_capacity(lines.len(), lines.text().len());
+    out.extend(stripped(lines.iter()));
+    out
 }
 
 pub fn fmt_mm(v: f64) -> String {
@@ -363,7 +371,7 @@ mod tests {
         for mode in [CoordMode::Absolute, CoordMode::Relative] {
             let mut o = opts(mode);
             o.z_axis = true;
-            let code = strip_for_streaming(&emit(&tp, &|p| p, &o));
+            let code = strip_for_streaming(&emit(&tp, &|p| p, &o)).to_vec();
             let z: Vec<&String> = code.iter().filter(|l| l.starts_with("G0 Z")).collect();
             match mode {
                 CoordMode::Absolute => assert_eq!(z, ["G0 Z1", "G0 Z0.5", "G0 Z0"]),
@@ -379,12 +387,12 @@ mod tests {
     fn firmware_dialects() {
         let tp = square();
         let marlin = GcodeOptions { firmware: Firmware::Marlin, s_max: 255.0, ..opts(CoordMode::Absolute) };
-        let code = strip_for_streaming(&emit(&tp, &|p| p, &marlin));
+        let code = strip_for_streaming(&emit(&tp, &|p| p, &marlin)).to_vec();
         assert!(code.contains(&"M4 I S0".to_string()), "{code:?}");
         assert!(code.iter().any(|l| l.ends_with("S128")), "{code:?}");
         assert!(code.contains(&"M5".to_string()));
         let smoothie = GcodeOptions { firmware: Firmware::Smoothieware, s_max: 1.0, ..opts(CoordMode::Absolute) };
-        let code = strip_for_streaming(&emit(&tp, &|p| p, &smoothie));
+        let code = strip_for_streaming(&emit(&tp, &|p| p, &smoothie)).to_vec();
         assert!(!code.iter().any(|l| l.starts_with("M3") || l.starts_with("M4") || l == "M5"), "{code:?}");
         assert!(code.iter().any(|l| l.starts_with("G1") && l.ends_with("S0.5")), "{code:?}");
     }
@@ -396,7 +404,7 @@ mod tests {
         second.constant_power = true;
         tp.blocks.push(second);
         tp.blocks.push(tp.blocks[0].clone());
-        let code = strip_for_streaming(&emit(&tp, &|p| p, &opts(CoordMode::Absolute)));
+        let code = strip_for_streaming(&emit(&tp, &|p| p, &opts(CoordMode::Absolute))).to_vec();
         let modes: Vec<&String> = code.iter().filter(|l| l.starts_with("M3") || l.starts_with("M4")).collect();
         assert_eq!(modes, ["M4 S0", "M3 S0", "M4 S0"]);
         // nach dem Umschalten steht S wieder in der nächsten Bewegung
@@ -407,7 +415,7 @@ mod tests {
         );
         // Gerät arbeitet ohnehin mit M3: kein Umschalten
         let m3 = GcodeOptions { dynamic_power: false, ..opts(CoordMode::Absolute) };
-        let code = strip_for_streaming(&emit(&tp, &|p| p, &m3));
+        let code = strip_for_streaming(&emit(&tp, &|p| p, &m3)).to_vec();
         assert_eq!(code.iter().filter(|l| l.starts_with("M3") || l.starts_with("M4")).count(), 1);
     }
 
@@ -422,7 +430,7 @@ mod tests {
     #[test]
     fn absolute_square() {
         let g = emit(&square(), &|p| p, &opts(CoordMode::Absolute));
-        let code = strip_for_streaming(&g);
+        let code = strip_for_streaming(&g).to_vec();
         assert_eq!(
             code,
             vec![
@@ -446,7 +454,7 @@ mod tests {
     #[test]
     fn relative_moves_sum_to_absolute() {
         let g = emit(&square(), &|p| p, &opts(CoordMode::Relative));
-        let code = strip_for_streaming(&g);
+        let code = strip_for_streaming(&g).to_vec();
         assert_eq!(code[1], "G91");
         assert_eq!(code.last().unwrap(), "G90");
         // Alle relativen Bewegungen addiert ergeben die Rückkehr zum Start.

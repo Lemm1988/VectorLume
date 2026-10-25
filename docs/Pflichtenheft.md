@@ -234,7 +234,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (274):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (275):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
@@ -256,8 +256,11 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
   etwa 3 ms je Bild, alle ausgewählt etwa 8 ms (vorher 36 ms). Umrandungen werden exakt aus den Kurven berechnet
   (Endpunkte und Extremstellen, ohne Abflachen), Auswahlprüfungen laufen über Hash-Mengen statt Suche je Objekt.
   `perf_large_photo` (vl-cam) erzeugt den G-Code für ein 4000×4000-Pixel-Foto auf 400×400 mm mit 0,1 mm Zeilenabstand:
-  Jarvis-Raster 9,5 Mio. Zeilen in etwa 6 s (vorher 16 s), Graustufen 0,5 Mio. Zeilen in 1,5 s. Die G-Code-Ausgabe
-  schreibt Zahlen direkt in die Zeile, ohne Zwischen-Strings.
+  Jarvis-Raster 9,5 Mio. Zeilen in etwa 1,8 s (anfangs 16 s), Graustufen 0,5 Mio. Zeilen in 0,5 s; Speicherspitze
+  611 MB statt 967 MB. Die G-Code-Ausgabe schreibt Zahlen direkt in die Zeile, ohne Zwischen-Strings, und legt alle
+  Zeilen in einem **kompakten Zeilenpuffer** ab (ein Text plus Zeilenenden statt einer Speicheranforderung je Zeile).
+  Der Gerätetreiber arbeitet diesen Puffer beim Senden direkt ab, statt Millionen Einzelzeilen in seine Warteschlange
+  zu kopieren; „G-Code speichern“ schreibt den Text ohne Kopie.
 - **Statische Prüfung:** `cargo clippy --workspace --all-targets` ohne Warnungen, `cargo fmt`.
 - **Hardware-Test (durch den Auftraggeber):** zuerst Rahmen ohne Leistung, dann ein kleiner Testjob mit 5–10 % Leistung.
 
