@@ -1179,6 +1179,8 @@ pub static EN: &[(&str, &str)] = &[
     ("{} ausgewählt · {} × {}", "{} selected · {} × {}"),
     ("Millimeter", "Millimeters"),
     ("Zoll", "Inches"),
+    ("Konstante Leistung (M3)", "Constant power (M3)"),
+    ("Volle Leistung auch beim Abbremsen in Ecken und Kurven, für gleichmäßig tiefe Schnitte. Ecken können dabei stärker verbrennen. Ohne Wirkung, wenn das Gerät ohnehin M3 nutzt.", "Full power even while slowing down in corners and curves, for evenly deep cuts. Corners may burn more. No effect if the device uses M3 anyway."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

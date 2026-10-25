@@ -34,6 +34,8 @@ pub struct Block {
     pub pass: u32,
     pub feed: f64,
     pub air: bool,
+    /// M3 statt M4 für diesen Block (nur wirksam, wenn das Gerät sonst M4 nutzt).
+    pub constant_power: bool,
     pub ops: Vec<Op>,
     /// Index in `Toolpath::rasters` (nur bei Rasterblöcken).
     pub raster: Option<usize>,

@@ -395,6 +395,12 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
             });
             ui.end_row();
             ui.label("");
+            ui.checkbox(&mut s.constant_power, tr("Konstante Leistung (M3)")).on_hover_text(tr(
+                "Volle Leistung auch beim Abbremsen in Ecken und Kurven, für gleichmäßig tiefe Schnitte. Ecken können \
+                 dabei stärker verbrennen. Ohne Wirkung, wenn das Gerät ohnehin M3 nutzt.",
+            ));
+            ui.end_row();
+            ui.label("");
             ui.checkbox(&mut s.perforate, tr("Perforieren"))
                 .on_hover_text(tr("Abwechselnd schneiden und aussetzen, z. B. für Falz- und Abreißlinien"));
             ui.end_row();

@@ -86,6 +86,7 @@ mod tests {
                 pass: 0,
                 feed: 600.0,
                 air: false,
+                constant_power: false,
                 ops: vec![Op::Move { to: Point::new(100.0, 0.0), power: 1.0 }],
                 raster: None,
                 z: None,

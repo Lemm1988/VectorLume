@@ -197,6 +197,9 @@ pub struct CutSettings {
     pub lead_out: f64,
     /// Winkel von Ein- und Auslauf zur Kontur in Grad (90 = senkrecht, 0 = in Fahrtrichtung).
     pub lead_angle: f64,
+    /// Konstante Leistung (M3) für diese Bearbeitung, auch wenn das Gerät sonst dynamisch (M4) arbeitet:
+    /// beim Abbremsen in Ecken bleibt die Leistung voll.
+    pub constant_power: bool,
 }
 
 /// Wie mehrere Formen einer Füll-Ebene zeilenweise abgefahren werden.
@@ -272,6 +275,7 @@ impl CutSettings {
             lead_in: 0.0,
             lead_out: 0.0,
             lead_angle: 90.0,
+            constant_power: false,
         }
     }
 

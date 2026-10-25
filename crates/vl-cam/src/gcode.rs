@@ -189,15 +189,19 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
         CoordMode::Absolute => "G90".into(),
         CoordMode::Relative => "G91".into(),
     });
-    let laser_on = if opts.dynamic_power { "M4" } else { "M3" };
-    match opts.firmware {
-        Firmware::Grbl => e.out.push(format!("{laser_on} S0")),
-        // Inline-Modus: Leistung gilt nur für G1-Bewegungen, G0 bleibt dunkel.
-        Firmware::Marlin => e.out.push(format!("{laser_on} I S0")),
-        // Das Lasermodul feuert nur bei G1 mit S; kein Einschaltbefehl.
-        Firmware::Smoothieware => {}
-    }
-    e.s = (opts.firmware != Firmware::Smoothieware).then_some(0);
+    let laser_on = |constant: bool| {
+        let m = if opts.dynamic_power && !constant { "M4" } else { "M3" };
+        match opts.firmware {
+            Firmware::Grbl => Some(format!("{m} S0")),
+            // Inline-Modus: Leistung gilt nur für G1-Bewegungen, G0 bleibt dunkel.
+            Firmware::Marlin => Some(format!("{m} I S0")),
+            // Das Lasermodul feuert nur bei G1 mit S; kein Einschaltbefehl.
+            Firmware::Smoothieware => None,
+        }
+    };
+    let mut mode = laser_on(false);
+    e.out.extend(mode.clone());
+    e.s = mode.is_some().then_some(0);
 
     let mut air = false;
     for block in &tp.blocks {
@@ -218,6 +222,12 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
         }
         if opts.z_axis {
             e.z_move(block.z.unwrap_or(0.0));
+        }
+        let want = laser_on(block.constant_power);
+        if want != mode {
+            e.out.extend(want.clone());
+            e.s = Some(0);
+            mode = want;
         }
         for op in &block.ops {
             match *op {
@@ -311,6 +321,7 @@ mod tests {
                 pass: 0,
                 feed: 1200.0,
                 air: true,
+                constant_power: false,
                 ops,
                 raster: None,
                 z: None,
@@ -354,6 +365,28 @@ mod tests {
         let code = strip_for_streaming(&emit(&tp, &|p| p, &smoothie));
         assert!(!code.iter().any(|l| l.starts_with("M3") || l.starts_with("M4") || l == "M5"), "{code:?}");
         assert!(code.iter().any(|l| l.starts_with("G1") && l.ends_with("S0.5")), "{code:?}");
+    }
+
+    #[test]
+    fn constant_power_switches_to_m3_per_block() {
+        let mut tp = square();
+        let mut second = tp.blocks[0].clone();
+        second.constant_power = true;
+        tp.blocks.push(second);
+        tp.blocks.push(tp.blocks[0].clone());
+        let code = strip_for_streaming(&emit(&tp, &|p| p, &opts(CoordMode::Absolute)));
+        let modes: Vec<&String> = code.iter().filter(|l| l.starts_with("M3") || l.starts_with("M4")).collect();
+        assert_eq!(modes, ["M4 S0", "M3 S0", "M4 S0"]);
+        // nach dem Umschalten steht S wieder in der nächsten Bewegung
+        let i = code.iter().position(|l| l == "M3 S0").unwrap();
+        assert!(
+            code[i + 1..].iter().find(|l| l.contains('X') || l.contains('Y')).unwrap().ends_with("S500"),
+            "{code:?}"
+        );
+        // Gerät arbeitet ohnehin mit M3: kein Umschalten
+        let m3 = GcodeOptions { dynamic_power: false, ..opts(CoordMode::Absolute) };
+        let code = strip_for_streaming(&emit(&tp, &|p| p, &m3));
+        assert_eq!(code.iter().filter(|l| l.starts_with("M3") || l.starts_with("M4")).count(), 1);
     }
 
     #[test]
