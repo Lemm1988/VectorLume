@@ -41,6 +41,8 @@ pub struct ShapeDialogs {
     pub path_remove_template: bool,
     /// Pfad = zuerst statt zuletzt gewählte Einheit.
     pub path_swap: bool,
+    /// Höchster Abstand zwischen Enden, die beim Bereinigen verbunden werden (mm).
+    pub join_tolerance: f64,
 }
 
 impl Default for ShapeDialogs {
@@ -64,6 +66,7 @@ impl Default for ShapeDialogs {
             path_count: 10,
             path_rotate: true,
             path_remove_template: true,
+            join_tolerance: 0.1,
             path_swap: false,
         }
     }
@@ -155,6 +158,93 @@ impl VectorLumeApp {
         }
         let layer = self.unit_layer(&units[0]);
         self.replace_selection(tr(op.label()), layer, &result);
+    }
+
+    /// Reine Pfadobjekte der Auswahl (ohne Bilder und Texte), bei leerer Auswahl alle sichtbaren.
+    fn cleanup_targets(&self) -> Vec<ObjectId> {
+        let all = self.selection.is_empty();
+        self.doc
+            .objects
+            .iter()
+            .filter(|o| o.text.is_none() && matches!(o.shape, Shape::Path(_)))
+            .filter(|o| if all { self.doc.layers[o.layer].visible } else { self.selection.contains(&o.id) })
+            .map(|o| o.id)
+            .collect()
+    }
+
+    /// Verbindet offene Pfadstücke (je Ebene), deren Enden höchstens die Toleranz auseinanderliegen, und schließt
+    /// entstandene Ringe. Jeder Linienzug wird ein eigenes Objekt.
+    pub fn join_open_paths(&mut self) {
+        let tol = self.shape_dialogs.join_tolerance;
+        let mut by_layer: std::collections::BTreeMap<usize, (Vec<ObjectId>, Vec<vl_core::SubPath>)> =
+            Default::default();
+        for id in self.cleanup_targets() {
+            let Some(o) = self.doc.get(id) else { continue };
+            let Shape::Path(p) = &o.shape else { continue };
+            if p.subpaths.iter().all(|s| s.closed) {
+                continue;
+            }
+            let entry = by_layer.entry(o.layer).or_default();
+            entry.0.push(id);
+            entry.1.extend(p.transformed(&o.transform).subpaths);
+        }
+        let results: Vec<(usize, Vec<ObjectId>, vl_core::cleanup::JoinResult)> = by_layer
+            .into_iter()
+            .map(|(layer, (ids, subs))| (layer, ids, vl_core::cleanup::join_paths(subs, tol)))
+            .collect();
+        let (joined, closed): (usize, usize) =
+            results.iter().fold((0, 0), |(j, c), (_, _, r)| (j + r.joined, c + r.closed));
+        if joined == 0 && closed == 0 {
+            self.toast(ToastKind::Info, trs(&format!("Keine offenen Enden näher als {tol} mm gefunden.")));
+            return;
+        }
+        self.checkpoint();
+        let mut selection: Vec<ObjectId> = Vec::new();
+        for (layer, ids, r) in results {
+            self.doc.remove(&ids);
+            for s in r.subpaths {
+                selection.push(self.doc.add_path(tr("Pfad"), layer, VectorPath { subpaths: vec![s] }));
+            }
+        }
+        self.selection = selection;
+        self.mark_changed();
+        self.toast(ToastKind::Success, trs(&format!("{joined} Verbindungen, {closed} Pfade geschlossen.")));
+    }
+
+    /// Entfernt doppelte Linien (auch gegenläufige und solche in verschiedenen Objekten), damit nichts zweimal
+    /// geschnitten wird. Objekte ohne verbleibende Linien werden gelöscht.
+    pub fn delete_duplicate_lines(&mut self) {
+        let ids = self.cleanup_targets();
+        let paths: Vec<VectorPath> = ids
+            .iter()
+            .filter_map(|id| self.doc.get(*id))
+            .filter_map(|o| match &o.shape {
+                Shape::Path(p) => Some(p.transformed(&o.transform)),
+                Shape::Image(_) => None,
+            })
+            .collect();
+        let (cleaned, removed) = vl_core::cleanup::remove_duplicate_segments(&paths, 0.01);
+        if removed == 0 {
+            self.toast(ToastKind::Info, tr("Keine doppelten Linien gefunden."));
+            return;
+        }
+        self.checkpoint();
+        let mut empty = Vec::new();
+        for ((id, before), after) in ids.iter().zip(&paths).zip(cleaned) {
+            if after.is_empty() {
+                empty.push(*id);
+            } else if after != *before
+                && let Some(o) = self.doc.get_mut(*id)
+            {
+                o.shape = Shape::Path(after);
+                o.transform = Affine::IDENTITY;
+                self.geom.invalidate(*id);
+            }
+        }
+        self.doc.remove(&empty);
+        self.selection.retain(|id| !empty.contains(id));
+        self.mark_changed();
+        self.toast(ToastKind::Success, trs(&format!("{removed} doppelte Linien entfernt.")));
     }
 
     /// Vereinigt alle ausgewählten Objekte – auch überlappende Buchstaben – zu einer Kontur.

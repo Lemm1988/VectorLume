@@ -358,6 +358,29 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
             }
         });
     });
+    ui.menu_button(tr("Bereinigen"), |ui| {
+        ui.label(
+            RichText::new(if has { tr("Wirkt auf die Auswahl.") } else { tr("Wirkt auf alle sichtbaren Pfade.") })
+                .small()
+                .color(theme::of(ui).text_weak),
+        );
+        ui.horizontal(|ui| {
+            ui.label(tr("Toleranz"));
+            ui.add(
+                egui::DragValue::new(&mut app.shape_dialogs.join_tolerance)
+                    .speed(0.01)
+                    .range(0.001..=5.0)
+                    .max_decimals(3)
+                    .suffix(" mm"),
+            );
+        });
+        if menu_item(ui, tr("Offene Pfade verbinden und schließen"), "", true) {
+            app.join_open_paths();
+        }
+        if menu_item(ui, tr("Doppelte Linien löschen"), "", true) {
+            app.delete_duplicate_lines();
+        }
+    });
     if menu_item(ui, tr("Versatz…"), "", has) {
         app.shape_dialogs.offset_open = true;
     }

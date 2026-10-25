@@ -1,5 +1,6 @@
 //! Kernbibliothek von VectorLume: Geometrie, Pfade, Ebenen, Dokument und Projektdateien.
 
+pub mod cleanup;
 pub mod document;
 pub mod firmware;
 pub mod geom;
