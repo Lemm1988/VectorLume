@@ -163,6 +163,13 @@ fn render(db: &Database, spec: &TextSpec, on_path: Option<&TextOnPath>) -> Resul
             None => layout(g, spec),
         }
     }
+    let upper;
+    let spec = if spec.uppercase {
+        upper = TextSpec { text: spec.text.to_uppercase(), ..spec.clone() };
+        &upper
+    } else {
+        spec
+    };
     // Einlinienschrift: offene Striche, Verschweißen entfällt
     if let Some(font) = crate::hershey::font(&spec.family, spec.bold, spec.italic) {
         let spec = TextSpec { text: font.prepare(&spec.text), ..spec.clone() };
@@ -195,11 +202,13 @@ fn welded(path: &VectorPath) -> VectorPath {
 
 fn layout<G: Glyphs>(g: &G, spec: &TextSpec) -> Result<VectorPath, String> {
     let scale = spec.height_mm.max(0.1) / g.cap_height();
+    // waagrecht gestaucht bzw. gedehnt
+    let sx = scale * spec.width_factor();
     let line_height = g.line_height() * scale * spec.line_spacing;
     let ascent = spec.height_mm.max(0.1);
 
     let lines: Vec<&str> = spec.text.lines().collect();
-    let widths: Vec<f64> = lines.iter().map(|l| line_width(g, l, scale, spec.letter_spacing)).collect();
+    let widths: Vec<f64> = lines.iter().map(|l| line_width(g, l, sx, spec.letter_spacing)).collect();
     let max_width = widths.iter().cloned().fold(0.0, f64::max);
 
     let mut pb = PathBuilder::new();
@@ -214,12 +223,12 @@ fn layout<G: Glyphs>(g: &G, spec: &TextSpec) -> Result<VectorPath, String> {
         for ch in line.chars() {
             let Some(gid) = g.glyph(ch) else { continue };
             if let Some(p) = prev {
-                x += g.kerning(p, gid) * scale;
+                x += g.kerning(p, gid) * sx;
             }
             // Schrift: Y nach oben -> Dokument: Y nach unten
-            let t = Affine::scale(scale, -scale).then(&Affine::translate(x, baseline));
+            let t = Affine::scale(sx, -scale).then(&Affine::translate(x, baseline));
             g.outline(gid, &mut pb, t);
-            x += g.advance(gid) * scale + spec.letter_spacing;
+            x += g.advance(gid) * sx + spec.letter_spacing;
             prev = Some(gid);
         }
     }
@@ -234,6 +243,7 @@ fn layout<G: Glyphs>(g: &G, spec: &TextSpec) -> Result<VectorPath, String> {
 /// Geschlossene Pfade beginnen oben (bzw. unten bei umgekehrter Richtung); „Mitte“ zentriert dort.
 fn layout_on_path<G: Glyphs>(g: &G, spec: &TextSpec, on: &TextOnPath) -> Result<VectorPath, String> {
     let scale = spec.height_mm.max(0.1) / g.cap_height();
+    let sx = scale * spec.width_factor();
     let text = spec.text.lines().collect::<Vec<_>>().join(" ");
     let mut pts = on.points.clone();
     if on.reverse {
@@ -250,7 +260,7 @@ fn layout_on_path<G: Glyphs>(g: &G, spec: &TextSpec, on: &TextOnPath) -> Result<
     }
     let poly = Polyline::new(pts, on.closed);
     let total = polyline_length(&poly);
-    let width = line_width(g, &text, scale, spec.letter_spacing);
+    let width = line_width(g, &text, sx, spec.letter_spacing);
     let start = on.offset
         + match (spec.align, on.closed) {
             (TextAlign::Left, _) => 0.0,
@@ -265,11 +275,11 @@ fn layout_on_path<G: Glyphs>(g: &G, spec: &TextSpec, on: &TextOnPath) -> Result<
     for ch in text.chars() {
         let Some(gid) = g.glyph(ch) else { continue };
         if let Some(p) = prev {
-            x += g.kerning(p, gid) * scale;
+            x += g.kerning(p, gid) * sx;
         }
-        let adv = g.advance(gid) * scale;
+        let adv = g.advance(gid) * sx;
         if let Some((p, angle)) = position_at(&poly, start + x + adv / 2.0) {
-            let t = Affine::scale(scale, -scale)
+            let t = Affine::scale(sx, -scale)
                 .then(&Affine::translate(-adv / 2.0, -on.distance))
                 .then(&Affine::rotate(angle))
                 .then(&Affine::translate(p.x, p.y));
@@ -285,6 +295,7 @@ fn layout_on_path<G: Glyphs>(g: &G, spec: &TextSpec, on: &TextOnPath) -> Result<
     Ok(path)
 }
 
+/// Breite einer Zeile; `scale` ist der waagrechte Maßstab der Schrift.
 fn line_width<G: Glyphs>(g: &G, line: &str, scale: f64, spacing: f64) -> f64 {
     let mut w = 0.0;
     let mut prev = None;
@@ -353,6 +364,32 @@ mod tests {
         assert!(it.bounds(&Affine::IDENTITY).width() > b.width() + 1.0);
         assert!(font_families(&db).iter().any(|f| f == "Hershey Script"));
         assert!(is_single_line("Hershey Gothic") && !is_single_line("Arial"));
+    }
+
+    #[test]
+    fn uppercase_and_width() {
+        let db = system_fonts();
+        let Some(family) = any_family(&db) else { return };
+        let spec = TextSpec { text: "Abc".into(), family, height_mm: 10.0, ..Default::default() };
+        let b = |p: &VectorPath| p.bounds(&Affine::IDENTITY);
+        let plain = text_to_path(&db, &spec).unwrap();
+        let upper = text_to_path(&db, &TextSpec { uppercase: true, ..spec.clone() }).unwrap();
+        let typed = text_to_path(&db, &TextSpec { text: "ABC".into(), ..spec.clone() }).unwrap();
+        assert_eq!(upper, typed);
+        assert_ne!(upper, plain);
+        let half = text_to_path(&db, &TextSpec { width_pct: 50.0, ..spec.clone() }).unwrap();
+        assert!(
+            (b(&half).width() - b(&plain).width() / 2.0).abs() < 0.01,
+            "{} {}",
+            b(&half).width(),
+            b(&plain).width()
+        );
+        assert!((b(&half).height() - b(&plain).height()).abs() < 1e-9);
+        // Einlinienschrift ebenso
+        let hershey = TextSpec { family: "Hershey Sans".into(), ..spec };
+        let h1 = text_to_path(&db, &hershey).unwrap();
+        let h2 = text_to_path(&db, &TextSpec { width_pct: 200.0, ..hershey }).unwrap();
+        assert!((b(&h2).width() - 2.0 * b(&h1).width()).abs() < 0.01);
     }
 
     #[test]

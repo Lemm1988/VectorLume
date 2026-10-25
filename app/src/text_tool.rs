@@ -348,6 +348,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.horizontal(|ui| {
                     ui.toggle_value(&mut d.spec.bold, RichText::new("F").strong());
                     ui.toggle_value(&mut d.spec.italic, RichText::new("K").italics());
+                    ui.toggle_value(&mut d.spec.uppercase, "ABC").on_hover_text(tr("In Großbuchstaben setzen"));
                     ui.add_enabled(!single_line, egui::Checkbox::new(&mut d.spec.weld, tr("Verschweißen"))).on_hover_text(tr(
                         "Überlappende Buchstaben (z. B. Schreibschrift) zu einer Kontur vereinen, damit beim Schneiden \
                          und Füllen nichts doppelt gebrannt wird",
@@ -359,6 +360,10 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.end_row();
                 ui.label(tr("Zeichenabstand"));
                 ui.add(DragValue::new(&mut d.spec.letter_spacing).speed(0.05).range(-20.0..=100.0).mm());
+                ui.end_row();
+                ui.label(tr("Breite"));
+                ui.add(DragValue::new(&mut d.spec.width_pct).speed(0.5).range(10.0..=400.0).suffix(" %"))
+                    .on_hover_text(tr("Buchstaben schmaler (unter 100 %) oder breiter setzen, die Höhe bleibt"));
                 ui.end_row();
                 if d.on_path.is_none() {
                     ui.label(tr("Zeilenabstand"));

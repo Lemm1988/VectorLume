@@ -1207,6 +1207,9 @@ pub static EN: &[(&str, &str)] = &[
     ("{} Als Bild ins Projekt", "{} Add to project as image"),
     ("Wölbung ausgleichen", "Lens correction"),
     ("Gleicht die Tonnenverzerrung von Weitwinkel- und Fischaugen-Objektiven aus (negative Werte: Kissenverzerrung). So einstellen, dass gerade Kanten wie der Bettrand oder ein Lineal in der Anzeige gerade erscheinen; die Passpunkte bleiben gültig.", "Corrects the barrel distortion of wide-angle and fisheye lenses (negative values: pincushion distortion). Adjust until straight edges such as the bed border or a ruler look straight in the view; the alignment points stay valid."),
+    ("In Großbuchstaben setzen", "Set in capital letters"),
+    ("Breite", "Width"),
+    ("Buchstaben schmaler (unter 100 %) oder breiter setzen, die Höhe bleibt", "Make letters narrower (below 100 %) or wider; the height stays the same"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

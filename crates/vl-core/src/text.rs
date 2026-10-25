@@ -29,6 +29,17 @@ pub struct TextSpec {
     pub align: TextAlign,
     /// Überlappende Buchstaben zu einer Kontur verschweißen (z. B. Schreibschrift).
     pub weld: bool,
+    /// In Großbuchstaben setzen (der eingegebene Text bleibt erhalten).
+    pub uppercase: bool,
+    /// Buchstabenbreite in Prozent (stauchen bzw. dehnen, Höhe bleibt).
+    pub width_pct: f64,
+}
+
+impl TextSpec {
+    /// Waagrechter Faktor der Buchstabenbreite.
+    pub fn width_factor(&self) -> f64 {
+        (self.width_pct / 100.0).clamp(0.1, 10.0)
+    }
 }
 
 impl Default for TextSpec {
@@ -43,6 +54,8 @@ impl Default for TextSpec {
             line_spacing: 1.0,
             align: TextAlign::Left,
             weld: false,
+            uppercase: false,
+            width_pct: 100.0,
         }
     }
 }
