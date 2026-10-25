@@ -60,6 +60,11 @@ pub struct ShapeDialogs {
     /// Die größte ausgewählte geschlossene Form ist die Platte (z. B. ein Reststück) statt der Arbeitsfläche.
     pub nest_on_shape: bool,
     pub nest_job: Option<NestJob>,
+    pub slots_open: bool,
+    /// Bisherige Schlitzbreite (mm), neue Breite und Toleranz.
+    pub slots_from: f64,
+    pub slots_to: f64,
+    pub slots_tolerance: f64,
 }
 
 /// Verschachteln im Hintergrund: Einheiten, Projektstand beim Start und das Ergebnis.
@@ -101,6 +106,10 @@ impl Default for ShapeDialogs {
             nest: NestOptions::default(),
             nest_on_shape: false,
             nest_job: None,
+            slots_open: false,
+            slots_from: 3.0,
+            slots_to: 3.0,
+            slots_tolerance: 0.1,
             path_swap: false,
         }
     }
@@ -330,6 +339,37 @@ impl VectorLumeApp {
                 trs(&format!("{placed} Teile verschachtelt, {missing} passen nicht und bleiben, wo sie sind.")),
             );
         }
+    }
+
+    /// Bringt Steckschlitze der ausgewählten Pfade auf eine neue Breite (z. B. andere Materialstärke).
+    pub fn resize_slots_selection(&mut self) {
+        let d = &self.shape_dialogs;
+        let (from, to, tol) = (d.slots_from, d.slots_to, d.slots_tolerance);
+        let mut changed: Vec<(ObjectId, VectorPath)> = Vec::new();
+        let mut count = 0;
+        for o in self.selection.iter().filter_map(|id| self.doc.get(*id)).filter(|o| o.text.is_none()) {
+            if let Shape::Path(p) = &o.shape {
+                let mut p = p.clone();
+                let n = vl_core::slots::resize_slots(&mut p, &o.transform, from, to, tol);
+                if n > 0 {
+                    count += n;
+                    changed.push((o.id, p));
+                }
+            }
+        }
+        if changed.is_empty() {
+            self.toast(ToastKind::Info, trs(&format!("Keine Schlitze mit {from} mm Breite gefunden.")));
+            return;
+        }
+        self.checkpoint();
+        for (id, p) in changed {
+            if let Some(o) = self.doc.get_mut(id) {
+                o.shape = Shape::Path(p);
+                self.geom.invalidate(id);
+            }
+        }
+        self.mark_changed();
+        self.toast(ToastKind::Success, trs(&format!("{count} Schlitze angepasst.")));
     }
 
     /// Reduziert die Knoten der ausgewählten Pfade (Douglas-Peucker), wahlweise mit Glättung zu Kurven.
@@ -692,6 +732,64 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     simplify_window(app, ctx);
     app.poll_nesting();
     nest_window(app, ctx);
+    slots_window(app, ctx);
+}
+
+fn slots_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
+    if !app.shape_dialogs.slots_open {
+        return;
+    }
+    let mut open = true;
+    let mut apply = false;
+    let has = !app.selection.is_empty();
+    egui::Window::new(trs(&format!("{} Schlitze anpassen", icon::ARROWS_OUT_LINE_HORIZONTAL)))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            let pal = theme::of(ui);
+            let d = &mut app.shape_dialogs;
+            egui::Grid::new("slots").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
+                ui.label(tr("Breite jetzt"));
+                ui.add(DragValue::new(&mut d.slots_from).speed(0.05).range(0.1..=100.0).max_decimals(2).suffix(" mm"))
+                    .on_hover_text(tr("Breite der vorhandenen Schlitze, meist die alte Materialstärke"));
+                ui.end_row();
+                ui.label(tr("Neue Breite"));
+                ui.add(DragValue::new(&mut d.slots_to).speed(0.05).range(0.1..=100.0).max_decimals(2).suffix(" mm"))
+                    .on_hover_text(tr("Gemessene Stärke des neuen Materials, ggf. plus etwas Spiel"));
+                ui.end_row();
+                ui.label(tr("Toleranz"));
+                ui.add(
+                    DragValue::new(&mut d.slots_tolerance).speed(0.01).range(0.0..=2.0).max_decimals(2).suffix(" mm"),
+                );
+                ui.end_row();
+            });
+            ui.label(
+                RichText::new(tr(
+                    "Kerben und Langlöcher dieser Breite werden symmetrisch verbreitert oder verengt, Tiefe und \
+                     Lage bleiben. Gleich breite Zapfen bleiben unverändert.",
+                ))
+                .small()
+                .color(pal.text_weak),
+            );
+            ui.add_space(6.0);
+            if ui
+                .add_enabled(has, Button::new(RichText::new(tr("Anpassen")).color(Color32::WHITE)).fill(pal.accent))
+                .clicked()
+            {
+                apply = true;
+            }
+            if !has {
+                ui.label(RichText::new(tr("Nichts ausgewählt")).small().color(pal.text_weak));
+            }
+        });
+    if apply {
+        app.resize_slots_selection();
+    }
+    if !open {
+        app.shape_dialogs.slots_open = false;
+    }
 }
 
 fn nest_window(app: &mut VectorLumeApp, ctx: &egui::Context) {

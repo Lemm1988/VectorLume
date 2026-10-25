@@ -1051,6 +1051,16 @@ pub static EN: &[(&str, &str)] = &[
     ("Gruppen bleiben zusammen. Gepackt wird an der Nullpunkt-Ecke ({}), größte Teile zuerst.", "Groups stay together. Parts are packed at the origin corner ({}), largest first."),
     ("{} Teile ausgewählt", "{} parts selected"),
     ("Verschachteln…", "Nest parts…"),
+    ("Breite jetzt", "Current width"),
+    ("Breite der vorhandenen Schlitze, meist die alte Materialstärke", "Width of the existing slots, usually the old material thickness"),
+    ("Neue Breite", "New width"),
+    ("Gemessene Stärke des neuen Materials, ggf. plus etwas Spiel", "Measured thickness of the new material, plus a little clearance if needed"),
+    ("Kerben und Langlöcher dieser Breite werden symmetrisch verbreitert oder verengt, Tiefe und Lage bleiben. Gleich breite Zapfen bleiben unverändert.", "Notches and slot holes of this width are widened or narrowed symmetrically; depth and position stay. Tabs of the same width stay unchanged."),
+    ("Anpassen", "Adjust"),
+    ("Keine Schlitze mit {} mm Breite gefunden.", "No slots with {} mm width found."),
+    ("{} Schlitze angepasst.", "{} slots adjusted."),
+    ("{} Schlitze anpassen", "{} Resize slots"),
+    ("Schlitze anpassen…", "Resize slots…"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
