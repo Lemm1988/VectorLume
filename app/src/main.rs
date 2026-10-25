@@ -9,6 +9,7 @@ mod camera;
 mod canvas;
 mod center_finder;
 mod dialogs;
+mod gear_tool;
 mod hinge_tool;
 mod history;
 mod i18n;

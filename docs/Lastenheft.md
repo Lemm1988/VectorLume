@@ -84,6 +84,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 | LF-29e | Schablonenstege, damit Innenteile von Buchstaben nicht herausfallen | K |
 | LF-29f | Puzzle-Generator (z. B. für gravierte Fotos) | K |
 | LF-29g | Schnittbreite (Kerf) mit einem Testkamm ermitteln und übernehmen | K |
+| LF-29h | Zahnrad-Generator (Evolventenverzahnung, mit Gegenrad) | K |
 | LF-24 | QR-Codes und Strichcodes (EAN, Code 128 u. a.), auch mit fortlaufender Nummer | S |
 
 ### 5.3 Ebenen und Laser-Einstellungen

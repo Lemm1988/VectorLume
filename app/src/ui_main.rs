@@ -528,6 +528,9 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
         if menu_item(ui, tr("Puzzle…"), "", true) {
             app.open_puzzle();
         }
+        if menu_item(ui, tr("Zahnräder…"), "", true) {
+            app.gear.open = true;
+        }
         ui.separator();
         if menu_item(ui, tr("Schnittbreite ermitteln…"), "", true) {
             app.open_kerf_test();

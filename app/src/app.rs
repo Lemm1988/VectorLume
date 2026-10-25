@@ -255,6 +255,7 @@ pub struct VectorLumeApp {
     pub hinge: crate::hinge_tool::HingeTool,
     pub puzzle: crate::puzzle_tool::PuzzleTool,
     pub kerf: crate::kerf_tool::KerfTool,
+    pub gear: crate::gear_tool::GearTool,
     /// Laufendes Verzerren der Auswahl.
     pub warp: Option<crate::warp_tool::WarpSession>,
     pub library: crate::library::Library,
@@ -354,6 +355,7 @@ impl VectorLumeApp {
             hinge: Default::default(),
             puzzle: Default::default(),
             kerf: Default::default(),
+            gear: Default::default(),
             warp: None,
             library: Default::default(),
             measure: None,

@@ -540,6 +540,43 @@ fn stencil_bridges_for_text() {
     assert!(h.state_mut().history.can_undo());
 }
 
+/// Zahnräder: Paar erzeugen; die Räder liegen nebeneinander ohne Berührung und bilden eine Gruppe.
+fn gears_flow(render: bool) {
+    let mut h = harness(render);
+    h.state_mut().gear.open = true;
+    h.state_mut().gear.spec.teeth = 12;
+    h.state_mut().gear.teeth2 = 24;
+    h.run_ok();
+    if render {
+        save(&mut h, "zahnraeder");
+    }
+    h.get_by_label_contains("Zahnräder erzeugen").click();
+    h.run_ok();
+    let app = h.state();
+    assert!(!app.gear.open);
+    assert_eq!(app.selection.len(), 2);
+    let (a, b) = (app.doc.get(app.selection[0]).unwrap(), app.doc.get(app.selection[1]).unwrap());
+    assert!(a.group.is_some() && a.group == b.group);
+    // Modul 2: Kopfkreis-Ø 28 bzw. 52 mm (gedreht etwas schmaler), mindestens 4 mm Abstand
+    let (ba, bb) = (a.bounds(), b.bounds());
+    let near = |w: f64, d: f64| w <= d + 1e-6 && w > d - 1.0;
+    assert!(near(ba.width(), 28.0) && near(bb.width(), 52.0), "{ba:?} {bb:?}");
+    assert!(bb.min.x - ba.max.x > 3.9);
+    let Shape::Path(p) = &a.shape else { panic!() };
+    assert_eq!(p.subpaths.len(), 2, "Umriss und Bohrung");
+}
+
+#[test]
+fn gears_inserted_side_by_side() {
+    gears_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_gears() {
+    gears_flow(true);
+}
+
 /// Schnittbreite ermitteln: Testkamm erzeugen, Messwert eingeben, Ergebnis auf die Ebene übernehmen.
 fn kerf_test_flow(render: bool) {
     let mut h = harness(render);
