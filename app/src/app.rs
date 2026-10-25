@@ -704,6 +704,40 @@ impl VectorLumeApp {
         }
     }
 
+    /// Speichert das ausgewählte Bild so, wie es graviert wird (Zeilenabstand, Bildanpassung, Bildmodus, Negativ
+    /// der Ebene): schwarz = volle Leistung, ein Pixel je Rasterpunkt.
+    pub fn export_processed_image(&mut self) {
+        let Some(o) = self.selection.iter().filter_map(|id| self.doc.get(*id)).find(|o| o.is_image()) else { return };
+        let vl_core::Shape::Image(img) = &o.shape else { return };
+        let layer = &self.doc.layers[o.layer];
+        let Some(cs) = layer.operation(layer.image_operation()) else { return };
+        let r = match vl_raster::engrave_image(img, &o.transform, cs) {
+            Ok(r) => r,
+            Err(e) => {
+                self.toast(ToastKind::Error, e.to_string());
+                return;
+            }
+        };
+        let dpi = (25.4 / cs.interval.max(1e-3)).round();
+        let png = vl_core::RasterImage::new(r.cols as u32, r.rows as u32, r.preview_pixels()).to_png();
+        let name = format!("{}_{dpi}dpi.png", o.name.replace(['\\', '/', ':', '*', '?', '"', '<', '>', '|'], "_"));
+        let Some(path) = rfd::FileDialog::new()
+            .set_title(tr("Bearbeitetes Bild speichern"))
+            .set_file_name(name)
+            .add_filter("PNG", &["png"])
+            .save_file()
+        else {
+            return;
+        };
+        match png.and_then(|data| std::fs::write(&path, data).map_err(|e| e.to_string())) {
+            Ok(()) => self.toast(
+                ToastKind::Success,
+                trs(&format!("Gespeichert: {} ({} × {} Punkte, {dpi} dpi)", file_name(&path), r.cols, r.rows)),
+            ),
+            Err(e) => self.toast(ToastKind::Error, trs(&format!("Bild konnte nicht gespeichert werden: {e}"))),
+        }
+    }
+
     pub fn export_dxf_dialog(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
             .set_title(tr("Als DXF exportieren"))

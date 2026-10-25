@@ -1206,6 +1206,15 @@ impl VectorLumeApp {
                 self.open_trace();
                 ui.close();
             }
+            if self.selection.iter().any(|id| self.doc.get(*id).is_some_and(|o| o.is_image()))
+                && ui
+                    .button(trs(&format!("{} Bearbeitetes Bild speichern…", i::FLOPPY_DISK)))
+                    .on_hover_text(tr("Das Bild so speichern, wie es graviert wird – mit den Werten seiner Ebene"))
+                    .clicked()
+            {
+                self.export_processed_image();
+                ui.close();
+            }
             if self.can_clip_image() && ui.button(trs(&format!("{} Bild mit Form zuschneiden", i::CROP))).clicked() {
                 self.clip_image_to_shapes();
                 ui.close();

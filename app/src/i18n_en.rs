@@ -1064,6 +1064,11 @@ pub static EN: &[(&str, &str)] = &[
     ("Einlinienschrift: offene Striche – im Modus Linie gravieren oder ritzen", "Single-line font: open strokes – engrave or score in Line mode"),
     ("Einlinie", "single-line"),
     ("Einlinienschriften: The Hershey Fonts were originally created by Dr. A. V. Hershey while working at the U. S. National Bureau of Standards. The format of the font data was originally created by James Hurt, Cognition, Inc.", "Single-line fonts: The Hershey Fonts were originally created by Dr. A. V. Hershey while working at the U. S. National Bureau of Standards. The format of the font data was originally created by James Hurt, Cognition, Inc."),
+    ("Bearbeitetes Bild speichern", "Save processed image"),
+    ("Gespeichert: {} ({} × {} Punkte, {} dpi)", "Saved: {} ({} × {} dots, {} dpi)"),
+    ("Bild konnte nicht gespeichert werden: {}", "Image could not be saved: {}"),
+    ("Das Bild so speichern, wie es graviert wird – mit den Werten seiner Ebene", "Save the image as it will be engraved – with the values of its layer"),
+    ("{} Bearbeitetes Bild speichern…", "{} Save processed image…"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
