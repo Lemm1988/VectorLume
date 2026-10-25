@@ -370,6 +370,20 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
                 "Geschlossene Konturen laufen um diese Strecke über den Startpunkt hinaus, damit sich Anfang und Ende sicher überlappen und das Teil ganz herausfällt.",
             ));
             ui.end_row();
+            ui.label(tr("Ein-/Auslauf"));
+            ui.horizontal(|ui| {
+                let off = |v: f64, _| if v == 0.0 { tr("aus").into() } else { format!("{v:.1} mm") };
+                ui.add(DragValue::new(&mut s.lead_in).speed(0.05).range(0.0..=20.0).custom_formatter(off))
+                    .on_hover_text(tr("Einlauf: Der Laser setzt so weit im Abfall an (außen bei Teilen, innen bei Löchern) und fährt zur Kontur – die Einbrandstelle bleibt nicht am Werkstück."));
+                ui.label("/");
+                ui.add(DragValue::new(&mut s.lead_out).speed(0.05).range(0.0..=20.0).custom_formatter(off))
+                    .on_hover_text(tr("Auslauf: Nach der Kontur fährt der Laser so weit in den Abfall hinaus."));
+                if s.lead_in > 0.0 || s.lead_out > 0.0 {
+                    ui.add(DragValue::new(&mut s.lead_angle).speed(1.0).range(0.0..=90.0).suffix("°"))
+                        .on_hover_text(tr("Winkel zur Kontur: 90° = senkrecht, kleiner = flacher, in Fahrtrichtung"));
+                }
+            });
+            ui.end_row();
             ui.label("");
             ui.checkbox(&mut s.perforate, tr("Perforieren"))
                 .on_hover_text(tr("Abwechselnd schneiden und aussetzen, z. B. für Falz- und Abreißlinien"));

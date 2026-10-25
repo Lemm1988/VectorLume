@@ -169,6 +169,19 @@ pub fn islands(polys: &[Polyline]) -> Vec<Vec<Polyline>> {
     out
 }
 
+/// Verschachtelungstiefe je Linienzug (gerade = Außenkontur eines Teils, ungerade = Loch); offene zählen nicht
+/// als Hülle und haben Tiefe 0.
+pub fn nesting_depths(polys: &[Polyline]) -> Vec<usize> {
+    let idx: Vec<usize> = (0..polys.len()).filter(|&i| polys[i].closed && polys[i].points.len() >= 3).collect();
+    let rings: Vec<&Polyline> = idx.iter().map(|&i| &polys[i]).collect();
+    let (depth, _) = nesting(&rings);
+    let mut out = vec![0; polys.len()];
+    for (k, &i) in idx.iter().enumerate() {
+        out[i] = depth[k];
+    }
+    out
+}
+
 /// Äußerste geschlossene Konturen (in keiner anderen enthalten).
 pub fn outermost(polys: &[Polyline]) -> Vec<Polyline> {
     let rings: Vec<&Polyline> = polys.iter().filter(|p| p.closed && p.points.len() >= 3).collect();

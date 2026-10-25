@@ -1003,6 +1003,10 @@ pub static EN: &[(&str, &str)] = &[
     ("Umbenennen fehlgeschlagen: {}", "Renaming failed: {}"),
     ("Löschen fehlgeschlagen: {}", "Deleting failed: {}"),
     ("Bibliothek", "Library"),
+    ("Ein-/Auslauf", "Lead-in/out"),
+    ("Einlauf: Der Laser setzt so weit im Abfall an (außen bei Teilen, innen bei Löchern) und fährt zur Kontur – die Einbrandstelle bleibt nicht am Werkstück.", "Lead-in: the laser starts this far out in the waste (outside for parts, inside for holes) and travels to the contour – the burn-in mark does not stay on the workpiece."),
+    ("Auslauf: Nach der Kontur fährt der Laser so weit in den Abfall hinaus.", "Lead-out: after the contour the laser travels this far out into the waste."),
+    ("Winkel zur Kontur: 90° = senkrecht, kleiner = flacher, in Fahrtrichtung", "Angle to the contour: 90° = perpendicular, smaller = flatter, in the direction of travel"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

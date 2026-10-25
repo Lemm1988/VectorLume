@@ -178,6 +178,12 @@ pub struct CutSettings {
     pub ramp_length: f64,
     /// Rampe nur an der äußersten Kontur, nicht an Löchern und inneren Formen.
     pub ramp_outer_only: bool,
+    /// Linie: Einlauf vor geschlossenen Konturen (mm, 0 = aus) – beginnt im Abfall statt am Werkstück.
+    pub lead_in: f64,
+    /// Linie: Auslauf nach geschlossenen Konturen (mm, 0 = aus).
+    pub lead_out: f64,
+    /// Winkel von Ein- und Auslauf zur Kontur in Grad (90 = senkrecht, 0 = in Fahrtrichtung).
+    pub lead_angle: f64,
 }
 
 /// Wie mehrere Formen einer Füll-Ebene zeilenweise abgefahren werden.
@@ -249,6 +255,9 @@ impl CutSettings {
             dot_width: 0.0,
             ramp_length: 0.0,
             ramp_outer_only: false,
+            lead_in: 0.0,
+            lead_out: 0.0,
+            lead_angle: 90.0,
         }
     }
 

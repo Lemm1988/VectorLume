@@ -5,8 +5,8 @@ use crate::gcode::{CoordMode, GcodeOptions, emit, fmt_mm};
 use crate::machine::{JobSettings, MachineProfile, RotaryKind, StartFrom};
 use crate::optimize::order_polylines;
 use crate::toolpath::{
-    Block, BlockKind, Op, RasterPreview, Toolpath, apply_ramp, cut_ops, hatch_ops, hatch_ops_on_grid, line_ops,
-    raster_ops,
+    Block, BlockKind, Leads, Op, RasterPreview, Toolpath, apply_ramp, cut_ops_with_leads, hatch_ops, hatch_ops_on_grid,
+    line_ops, raster_ops,
 };
 use vl_core::{CutSettings, Document, FillGrouping, LayerMode, Object, ObjectId, Point, Polyline, Rect, Shape};
 
@@ -371,7 +371,12 @@ fn layer_blocks(
             if cs.tab_count > 0 && cs.tab_width > 0.0 {
                 ordered = apply_tabs(ordered, cs.tab_count as usize, cs.tab_width, cs.tabs_outer_only);
             }
-            (BlockKind::Line, cut_ops(&ordered, power, cs.overcut, cs.perforation()))
+            let leads = (cs.lead_in > 0.0 || cs.lead_out > 0.0).then_some(Leads {
+                lead_in: cs.lead_in,
+                lead_out: cs.lead_out,
+                angle_deg: cs.lead_angle,
+            });
+            (BlockKind::Line, cut_ops_with_leads(&ordered, power, cs.overcut, cs.perforation(), leads))
         }
         LayerMode::OffsetFill => {
             let rings = vl_core::ops::offset_fill(&polys, cs.interval, MAX_OFFSET_RINGS);

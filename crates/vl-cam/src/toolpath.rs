@@ -87,8 +87,38 @@ pub fn line_ops(polys: &[Polyline], power: f32) -> Vec<Op> {
 /// Startpunkt hinaus, höchstens eine Runde) und Perforation (abwechselnd `cut` mm schneiden und `gap` mm im Vorschub
 /// mit ausgeschaltetem Laser; jede Kontur beginnt mit einem Schnitt).
 pub fn cut_ops(polys: &[Polyline], power: f32, overcut: f64, perforation: Option<(f64, f64)>) -> Vec<Op> {
+    cut_ops_with_leads(polys, power, overcut, perforation, None)
+}
+
+/// Ein- und Auslauf an geschlossenen Konturen: Länge in mm und Winkel zur Kontur in Grad.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Leads {
+    pub lead_in: f64,
+    pub lead_out: f64,
+    pub angle_deg: f64,
+}
+
+/// Einheitsnormale der Strecke `a`→`b`, die zum Abfall zeigt: bei Außenkonturen nach außen, bei Löchern nach
+/// innen. Geprüft wird neben der Streckenmitte, damit Ecken nicht stören.
+fn waste_normal(ring: &Polyline, a: Point, b: Point, outside: bool) -> Point {
+    let d = b - a;
+    let n = Point::new(d.y, -d.x) * (1.0 / d.length().max(1e-12));
+    let probe = a.lerp(b, 0.5) + n * 1e-3;
+    let inside = vl_core::path::point_in_polylines(probe, std::slice::from_ref(ring));
+    if inside == outside { -n } else { n }
+}
+
+/// Wie [`cut_ops`], dazu wahlweise Ein- und Auslauf an geschlossenen Konturen.
+pub fn cut_ops_with_leads(
+    polys: &[Polyline],
+    power: f32,
+    overcut: f64,
+    perforation: Option<(f64, f64)>,
+    leads: Option<Leads>,
+) -> Vec<Op> {
+    let depths = if leads.is_some() { vl_core::ops::nesting_depths(polys) } else { Vec::new() };
     let mut ops = Vec::new();
-    for poly in polys {
+    for (index, poly) in polys.iter().enumerate() {
         let Some(&first) = poly.points.first() else { continue };
         let mut pts = poly.points.clone();
         if poly.closed {
@@ -108,8 +138,28 @@ pub fn cut_ops(polys: &[Polyline], power: f32, overcut: f64, perforation: Option
                     left -= len;
                 }
             }
+            if let Some(l) = leads {
+                let outside = depths[index].is_multiple_of(2);
+                let (s, c) = l.angle_deg.to_radians().sin_cos();
+                let segment = |w: &[Point]| (w[0].distance(w[1]) > 1e-9).then_some((w[0], w[1]));
+                if l.lead_out > 0.0
+                    && let Some((a, b)) = pts.windows(2).rev().find_map(segment)
+                {
+                    let dir = (b - a) * (1.0 / a.distance(b));
+                    let n = waste_normal(poly, a, b, outside);
+                    let end = pts[pts.len() - 1];
+                    pts.push(end + dir * (l.lead_out * c) + n * (l.lead_out * s));
+                }
+                if l.lead_in > 0.0
+                    && let Some((a, b)) = pts.windows(2).find_map(segment)
+                {
+                    let dir = (b - a) * (1.0 / a.distance(b));
+                    let n = waste_normal(poly, a, b, outside);
+                    pts.insert(0, first - dir * (l.lead_in * c) + n * (l.lead_in * s));
+                }
+            }
         }
-        ops.push(Op::Rapid(first));
+        ops.push(Op::Rapid(pts[0]));
         let Some((cut, gap)) = perforation else {
             ops.extend(pts[1..].iter().map(|&p| Op::Move { to: p, power }));
             continue;
@@ -471,6 +521,40 @@ mod tests {
             cur = op.target();
         }
         sum
+    }
+
+    #[test]
+    fn leads_start_and_end_in_the_waste() {
+        // Teil 0…20 mit Loch 5…15
+        let mut p = VectorPath::rect(0.0, 0.0, 20.0, 20.0, 0.0);
+        p.append(VectorPath::rect(5.0, 5.0, 10.0, 10.0, 0.0));
+        let polys = p.flatten(&Affine::IDENTITY, 0.01);
+        let leads = Leads { lead_in: 2.0, lead_out: 1.5, angle_deg: 90.0 };
+        let ops = cut_ops_with_leads(&polys, 1.0, 0.0, None, Some(leads));
+        let plain = cut_ops(&polys, 1.0, 0.0, None);
+        assert!((burned_length(&ops) - burned_length(&plain) - 2.0 * 3.5).abs() < 1e-6);
+        let inside = |p: Point, ring: &Polyline| vl_core::path::point_in_polylines(p, std::slice::from_ref(ring));
+        let rapids: Vec<Point> = ops
+            .iter()
+            .filter_map(|o| match o {
+                Op::Rapid(p) => Some(*p),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(rapids.len(), 2);
+        for (ring, start) in polys.iter().zip(&rapids) {
+            let first = ring.points[0];
+            assert!((start.distance(first) - 2.0).abs() < 1e-9);
+            let hole = ring.bounds().width() < 15.0;
+            // Außenkontur: Einlauf außen; Loch: Einlauf im Loch
+            assert_eq!(inside(*start, ring), hole, "{start:?}");
+        }
+        // Auslauf endet ebenfalls im Abfall
+        let end = ops.last().unwrap().target();
+        let last_ring = &polys[1];
+        assert!(inside(end, last_ring));
+        // ohne Ein-/Auslauf unverändert
+        assert_eq!(cut_ops_with_leads(&polys, 1.0, 0.0, None, None), plain);
     }
 
     #[test]
