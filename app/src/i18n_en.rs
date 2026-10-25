@@ -1346,6 +1346,11 @@ pub static EN: &[(&str, &str)] = &[
     ("Der Fehlerbericht enthält Version, System, Fehlermeldung und Programmstelle, aber keine Zeichnungen. Bitte bei einer Fehlermeldung mitschicken.", "The error report contains the version, system, error message and program location, but no drawings. Please include it when reporting a bug."),
     ("{} Programmfehler", "{} Program error"),
     ("{} Bericht öffnen", "{} Open report"),
+    ("Keine ineinanderliegenden Formen gefunden.", "No nested shapes found."),
+    ("1 Gruppe gebildet.", "1 group created."),
+    ("{} Gruppen gebildet.", "{} groups created."),
+    ("Automatisch gruppieren", "Auto-group"),
+    ("An Arbeitsfläche schieben", "Move to bed position"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

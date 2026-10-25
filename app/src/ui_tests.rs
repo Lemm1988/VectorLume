@@ -541,6 +541,51 @@ fn stencil_bridges_for_text() {
     assert!(h.state_mut().history.can_undo());
 }
 
+/// Automatisch gruppieren über das Menü; „An Arbeitsfläche schieben“ legt die Auswahl in die Ecke unten rechts.
+fn auto_group_flow(render: bool) {
+    let mut h = harness(render);
+    let part = add(&mut h, VectorPath::rect(20.0, 20.0, 40.0, 30.0, 0.0));
+    let hole = add(&mut h, VectorPath::rect(30.0, 30.0, 10.0, 10.0, 0.0));
+    let other = add(&mut h, VectorPath::rect(100.0, 20.0, 10.0, 10.0, 0.0));
+    // ohne Auswahl: alle Objekte
+    h.state_mut().selection.clear();
+    h.get_by_label("Anordnen").click();
+    h.run_ok();
+    h.get_by_label("Automatisch gruppieren").click();
+    h.run_ok();
+    {
+        let app = h.state();
+        let g = |id| app.doc.get(id).unwrap().group;
+        assert!(g(part).is_some() && g(part) == g(hole) && g(other).is_none());
+    }
+    h.state_mut().selection = vec![part, hole];
+    h.get_by_label("Anordnen").click();
+    h.run_ok();
+    h.get_by_label_contains("An Arbeitsfläche schieben").hover();
+    h.run_ok();
+    if render {
+        save(&mut h, "an_arbeitsflaeche");
+    }
+    h.get_by_label(egui_phosphor::regular::ARROW_DOWN_RIGHT).click();
+    h.run_ok();
+    let app = h.state();
+    let bed = app.settings.profile.bed_rect();
+    let b = app.doc.bounds_of(&[part, hole]);
+    assert!(b.max.distance(bed.max) < 1e-9, "{b:?} {bed:?}");
+    assert!((b.width() - 40.0).abs() < 1e-9);
+}
+
+#[test]
+fn auto_group_and_move_to_bed_corner() {
+    auto_group_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_auto_group() {
+    auto_group_flow(true);
+}
+
 /// Fehlerbericht aus der letzten Sitzung: Hinweis erscheint, sobald kein anderer offen ist, und lässt sich schließen.
 fn crash_notice_flow(render: bool) {
     let mut h = harness(render);

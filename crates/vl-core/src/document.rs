@@ -623,6 +623,59 @@ impl Document {
         }
     }
 
+    /// Automatisch gruppieren: Jede äußerste Form bildet mit allem, was in einer ihrer geschlossenen Konturen liegt,
+    /// eine Gruppe (z. B. ein Teil mit seinen Löchern nach dem DXF-Import). Bestehende Gruppen zählen als Einheit;
+    /// Formen ohne Inhalt und ohne Umgebung bleiben, wie sie sind. Liefert die Zahl der gebildeten Gruppen.
+    pub fn auto_group(&mut self, ids: &[ObjectId]) -> usize {
+        // Einheiten: einzelne Objekte oder ganze bestehende Gruppen
+        let mut units: Vec<Vec<ObjectId>> = Vec::new();
+        let mut by_group: Vec<(GroupId, usize)> = Vec::new();
+        for id in self.expand_groups(ids) {
+            let Some(o) = self.get(id) else { continue };
+            match o.group.and_then(|g| by_group.iter().find(|(h, _)| *h == g).map(|(_, i)| *i)) {
+                Some(i) => units[i].push(id),
+                None => {
+                    if let Some(g) = o.group {
+                        by_group.push((g, units.len()));
+                    }
+                    units.push(vec![id]);
+                }
+            }
+        }
+        let polys: Vec<Vec<Polyline>> = units
+            .iter()
+            .map(|u| u.iter().filter_map(|id| self.get(*id)).flat_map(|o| o.polylines(0.05)).collect())
+            .collect();
+        let bounds: Vec<Rect> = polys.iter().map(|p| crate::path::bounds_of(p)).collect();
+        let area = |r: &Rect| r.width() * r.height();
+        let contains = |a: usize, b: usize| {
+            let (ra, rb) = (&bounds[a], &bounds[b]);
+            let Some(probe) = polys[b].first().and_then(|p| p.points.first()) else { return false };
+            a != b
+                && ra.contains_rect(rb)
+                && (area(ra) > area(rb) || (area(ra) == area(rb) && a < b))
+                && polys[a].iter().any(|p| crate::path::point_in_polylines(*probe, std::slice::from_ref(p)))
+        };
+        // Jede Einheit gehört zur größten Einheit, die sie umschließt (das ist zugleich die äußerste).
+        let n = units.len();
+        let mut members: Vec<Vec<usize>> = vec![Vec::new(); n];
+        for b in 0..n {
+            let outer =
+                (0..n).filter(|&a| contains(a, b)).max_by(|&x, &y| area(&bounds[x]).total_cmp(&area(&bounds[y])));
+            if let Some(a) = outer {
+                members[a].push(b);
+            }
+        }
+        let mut count = 0;
+        for (a, inner) in members.iter().enumerate().filter(|(_, m)| !m.is_empty()) {
+            let ids: Vec<ObjectId> =
+                std::iter::once(a).chain(inner.iter().copied()).flat_map(|u| units[u].clone()).collect();
+            self.group(&ids);
+            count += 1;
+        }
+        count
+    }
+
     /// Verschiebt eine Ebene in der Ausgabereihenfolge um `delta` Plätze innerhalb der benutzten Ebenen.
     pub fn move_layer(&mut self, layer: usize, delta: i32) {
         let used = self.used_layers();
@@ -697,6 +750,32 @@ impl Document {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn auto_group_collects_parts_with_their_holes() {
+        let mut doc = Document::new();
+        let part1 = doc.add_path("Teil", 0, VectorPath::rect(0.0, 0.0, 50.0, 30.0, 0.0));
+        let hole1 = doc.add_path("Loch", 0, VectorPath::rect(10.0, 10.0, 5.0, 5.0, 0.0));
+        let hole2 = doc.add_path("Loch", 0, VectorPath::ellipse(Point::new(35.0, 15.0), 4.0, 4.0));
+        // Punkt im Loch gehört trotzdem zum Teil
+        let dot = doc.add_path("Punkt", 0, VectorPath::ellipse(Point::new(12.5, 12.5), 1.0, 1.0));
+        let part2 = doc.add_path("Teil", 0, VectorPath::rect(60.0, 0.0, 20.0, 20.0, 0.0));
+        let hole3 = doc.add_path("Loch", 0, VectorPath::rect(65.0, 5.0, 5.0, 5.0, 0.0));
+        let lone = doc.add_path("Allein", 0, VectorPath::rect(100.0, 0.0, 10.0, 10.0, 0.0));
+        // eine bestehende Gruppe zählt als Einheit und landet als Ganzes in Teil 2
+        let a = doc.add_path("A", 0, VectorPath::ellipse(Point::new(75.0, 15.0), 1.0, 1.0));
+        let b = doc.add_path("B", 0, VectorPath::ellipse(Point::new(75.0, 5.0), 1.0, 1.0));
+        doc.group(&[a, b]);
+        let all = [part1, hole1, hole2, dot, part2, hole3, lone, a, b];
+        assert_eq!(doc.auto_group(&all), 2);
+        let g = |id| doc.get(id).unwrap().group;
+        assert!(g(part1).is_some() && [hole1, hole2, dot].iter().all(|&i| g(i) == g(part1)));
+        assert!(g(part2).is_some() && [hole3, a, b].iter().all(|&i| g(i) == g(part2)));
+        assert_ne!(g(part1), g(part2));
+        assert_eq!(g(lone), None);
+        // nochmal: nichts Neues (jede Gruppe ist eine Einheit ohne Umgebung)
+        assert_eq!(doc.auto_group(&all), 0);
+    }
 
     #[test]
     fn image_clip_mask() {

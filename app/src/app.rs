@@ -1028,6 +1028,25 @@ impl VectorLumeApp {
         self.mark_changed();
     }
 
+    /// Formen, die ineinander liegen, gruppieren (Auswahl; ohne Auswahl alle auswählbaren Objekte).
+    pub fn auto_group(&mut self) {
+        let ids: Vec<ObjectId> = if self.selection.is_empty() {
+            self.doc.objects.iter().filter(|o| self.doc.layers[o.layer].selectable()).map(|o| o.id).collect()
+        } else {
+            self.selection.clone()
+        };
+        self.checkpoint();
+        let n = self.doc.auto_group(&ids);
+        if n == 0 {
+            self.history.discard_if_unchanged(&self.doc);
+            self.toast(ToastKind::Info, tr("Keine ineinanderliegenden Formen gefunden."));
+            return;
+        }
+        self.mark_changed();
+        let msg = if n == 1 { tr("1 Gruppe gebildet.").to_string() } else { trs(&format!("{n} Gruppen gebildet.")) };
+        self.toast(ToastKind::Success, msg);
+    }
+
     pub fn selection_bounds(&self) -> Rect {
         self.doc.bounds_of(&self.selection)
     }
@@ -1150,12 +1169,19 @@ impl VectorLumeApp {
     }
 
     pub fn center_on_bed(&mut self) {
+        self.move_to_bed(0.5, 0.5);
+    }
+
+    /// Schiebt die Auswahl an eine Stelle der Arbeitsfläche: `ax`/`ay` 0 = links/oben, 0,5 = Mitte, 1 = rechts/unten.
+    pub fn move_to_bed(&mut self, ax: f64, ay: f64) {
         let b = self.selection_bounds();
         if b.is_empty() {
             return;
         }
-        let c = self.settings.profile.bed_rect().center();
-        let d = c - b.center();
+        let bed = self.settings.profile.bed_rect();
+        let target =
+            Point::new(bed.min.x + (bed.width() - b.width()) * ax, bed.min.y + (bed.height() - b.height()) * ay);
+        let d = target - b.min;
         self.transform_selection(&Affine::translate(d.x, d.y));
     }
 

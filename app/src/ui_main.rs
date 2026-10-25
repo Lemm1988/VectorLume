@@ -329,6 +329,19 @@ fn edit_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     }
 }
 
+/// Ziele von „An Arbeitsfläche schieben“, zeilenweise von oben links nach unten rechts.
+const BED_POSITIONS: [(&str, &str); 9] = [
+    (icon::ARROW_UP_LEFT, "Oben links"),
+    (icon::ARROW_UP, "Oben Mitte"),
+    (icon::ARROW_UP_RIGHT, "Oben rechts"),
+    (icon::ARROW_LEFT, "Links Mitte"),
+    (icon::CROSSHAIR, "Mitte"),
+    (icon::ARROW_RIGHT, "Rechts Mitte"),
+    (icon::ARROW_DOWN_LEFT, "Unten links"),
+    (icon::ARROW_DOWN, "Unten Mitte"),
+    (icon::ARROW_DOWN_RIGHT, "Unten rechts"),
+];
+
 fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     let has = !app.selection.is_empty();
     let multi = app.selection.len() > 1;
@@ -340,6 +353,9 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     }
     if menu_item(ui, tr("Zerlegen"), "", has) {
         app.break_apart();
+    }
+    if menu_item(ui, tr("Automatisch gruppieren"), "", !app.doc.objects.is_empty()) {
+        app.auto_group();
     }
     ui.separator();
     ui.add_enabled_ui(multi, |ui| {
@@ -444,6 +460,26 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Auf Arbeitsfläche zentrieren"), "", has) {
         app.center_on_bed();
     }
+    ui.add_enabled_ui(has, |ui| {
+        ui.menu_button(tr("An Arbeitsfläche schieben"), |ui| {
+            egui::Grid::new("bed_positions").spacing(egui::vec2(4.0, 4.0)).show(ui, |ui| {
+                for (row, ay) in [0.0, 0.5, 1.0].into_iter().enumerate() {
+                    for (col, ax) in [0.0, 0.5, 1.0].into_iter().enumerate() {
+                        let (glyph, label) = BED_POSITIONS[row * 3 + col];
+                        if ui
+                            .add(Button::new(RichText::new(glyph).size(16.0)).min_size(egui::vec2(32.0, 32.0)))
+                            .on_hover_text(tr(label))
+                            .clicked()
+                        {
+                            app.move_to_bed(ax, ay);
+                            ui.close();
+                        }
+                    }
+                    ui.end_row();
+                }
+            });
+        });
+    });
     ui.separator();
     ui.add_enabled_ui(has, |ui| {
         ui.menu_button(tr("Boolesche Operationen"), |ui| {
