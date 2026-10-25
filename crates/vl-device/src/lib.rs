@@ -71,6 +71,78 @@ mod tests {
         })
     }
 
+    fn moves(n: usize, x0: usize) -> Vec<String> {
+        (0..n).map(|i| format!("G1 X{} Y{} F3000 S100", x0 + i, i % 3)).collect()
+    }
+
+    fn console_has(evs: &[Event], needle: &str) -> bool {
+        evs.iter().any(|e| matches!(e, Event::Console { text, .. } if text.contains(needle)))
+    }
+
+    /// Nach einem Störfall muss die Verbindung weiter funktionieren: Entsperren und ein neuer Job laufen durch.
+    fn still_usable(dev: &mut Probe) {
+        dev.send(Command::Line("$X".into()));
+        dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Console { text, .. } if text.contains("Unlocked")));
+        dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Status(s) if s.state == MachineState::Idle));
+        dev.send(Command::StartJob { name: "Danach".into(), lines: moves(20, 0).into() });
+        let evs = dev.wait_for(Duration::from_secs(20), |e| matches!(e, Event::JobFinished { .. }));
+        assert_eq!(finished(&evs).map(|f| f.0), Some(true), "{evs:?}");
+    }
+
+    /// Stromausfall mitten im Job: kein weiteres Nachschieben (Laser-Modus und Position wären verloren).
+    #[test]
+    fn controller_reboot_aborts_job() {
+        let mut dev = connect_sim();
+        let mut lines = moves(30, 0);
+        lines.push("$SIM=REBOOT".into());
+        lines.extend(moves(200, 100));
+        dev.send(Command::StartJob { name: "Neustart".into(), lines: lines.into() });
+        let evs = dev.wait_for(Duration::from_secs(20), |e| matches!(e, Event::JobFinished { .. }));
+        let (ok, message) = finished(&evs).unwrap();
+        assert!(!ok && message.contains("neu gestartet"), "{message}");
+        // die Steuerung verlangt nach dem Neustart Referenzfahrt; danach geht alles wie vorher
+        let evs =
+            dev.wait_for(Duration::from_secs(5), |e| matches!(e, Event::Status(s) if s.state == MachineState::Alarm));
+        assert!(!evs.iter().any(|e| matches!(e, Event::JobProgress { acked, .. } if *acked > 31)));
+        still_usable(&mut dev);
+    }
+
+    /// Endschalter mitten im Job: GRBL nimmt bis zum Zurücksetzen nichts an, auch kein `$X`.
+    #[test]
+    fn hard_limit_alarm_resets_and_unlocks() {
+        let mut dev = connect_sim();
+        let mut lines = moves(30, 0);
+        lines.push("$SIM=LIMIT".into());
+        lines.extend(moves(200, 100));
+        dev.send(Command::StartJob { name: "Endschalter".into(), lines: lines.into() });
+        let evs = dev.wait_for(Duration::from_secs(20), |e| matches!(e, Event::JobFinished { .. }));
+        let (ok, message) = finished(&evs).unwrap();
+        assert!(!ok && message.starts_with("Alarm 1"), "{message}");
+        let evs = dev.wait_for(
+            Duration::from_secs(5),
+            |e| matches!(e, Event::Console { text, .. } if text.contains("zurückgesetzt")),
+        );
+        assert!(console_has(&evs, "Reset to continue"));
+        still_usable(&mut dev);
+    }
+
+    /// Eingefrorene Steuerung: nach einigen Sekunden ohne Antwort wird gewarnt, danach Entwarnung.
+    #[test]
+    fn silent_controller_is_reported() {
+        let mut dev = connect_sim();
+        dev.send(Command::Line("$SIM=HANG=5000".into()));
+        let evs = dev.wait_for(Duration::from_secs(8), |e| matches!(e, Event::Warning(_)));
+        let Some(Event::Warning(text)) = evs.last() else { unreachable!() };
+        assert!(text.contains("antwortet seit"), "{text}");
+        dev.wait_for(
+            Duration::from_secs(5),
+            |e| matches!(e, Event::Console { text, .. } if text.contains("antwortet wieder")),
+        );
+        dev.send(Command::StartJob { name: "Danach".into(), lines: moves(10, 0).into() });
+        let evs = dev.wait_for(Duration::from_secs(20), |e| matches!(e, Event::JobFinished { .. }));
+        assert_eq!(finished(&evs).map(|f| f.0), Some(true), "{evs:?}");
+    }
+
     /// Netzwerkverbindung: ein lokaler TCP-Server reicht die Bytes an den Simulator weiter.
     #[test]
     fn streams_over_tcp() {

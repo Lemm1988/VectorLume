@@ -2,6 +2,10 @@
 //! Planerpuffer, damit Streaming und Oberfläche ohne Laser getestet werden können. Für Marlin und
 //! Smoothieware bildet er deren Abweichungen nach (keine Echtzeitbefehle bzw. nur `?`, `M114`, `M400`,
 //! `M410`, `M112`/`M999`).
+//!
+//! Störfälle für Tests (nur GRBL, als Zeile gesendet, auch mitten in einem Job): `$SIM=REBOOT` startet die
+//! Steuerung neu wie nach einem Stromausfall, `$SIM=LIMIT` löst einen Endschalter-Alarm aus (danach wird bis zum
+//! Zurücksetzen nichts mehr ausgeführt), `$SIM=HANG=<ms>` lässt die Steuerung so lange verstummen.
 
 use crate::protocol::MachineState;
 use crate::transport::Transport;
@@ -40,6 +44,10 @@ pub struct SimTransport {
     settings: Vec<(u32, String)>,
     last_tick: Instant,
     speedup: f64,
+    /// Nach einem kritischen Alarm (Endschalter): Zeilen werden erst nach dem Zurücksetzen wieder ausgeführt.
+    critical: bool,
+    /// Bis dahin keine Antworten und keine Verarbeitung (eingefrorene Steuerung).
+    silent_until: Option<Instant>,
 }
 
 impl SimTransport {
@@ -88,6 +96,8 @@ impl SimTransport {
             .collect(),
             last_tick: Instant::now(),
             speedup: speedup.max(0.01),
+            critical: false,
+            silent_until: None,
         };
         s.reset();
         s
@@ -100,6 +110,47 @@ impl SimTransport {
     fn send(&mut self, text: &str) {
         self.out.extend(text.as_bytes());
         self.out.extend(b"\r\n");
+    }
+
+    fn silent(&mut self) -> bool {
+        match self.silent_until {
+            Some(t) if Instant::now() < t => true,
+            Some(_) => {
+                self.silent_until = None;
+                false
+            }
+            None => false,
+        }
+    }
+
+    fn homing_enabled(&self) -> bool {
+        self.settings.iter().any(|(k, v)| *k == 22 && v.trim() == "1")
+    }
+
+    /// Neustart wie nach einem Stromausfall: alles Empfangene ist verloren, die Position zählt ab null.
+    fn reboot(&mut self) {
+        self.planner.clear();
+        self.rx_lines.clear();
+        self.rx_bytes = 0;
+        self.line.clear();
+        self.elapsed_in_move = 0.0;
+        self.pos = [0.0, 0.0];
+        self.critical = false;
+        self.state = if self.homing_enabled() { MachineState::Alarm } else { MachineState::Idle };
+        self.reset();
+    }
+
+    /// Endschalter ausgelöst: sofort anhalten, Laser aus, Alarm bis zum Zurücksetzen.
+    fn hard_limit(&mut self) {
+        self.planner.clear();
+        self.rx_lines.clear();
+        self.rx_bytes = 0;
+        self.elapsed_in_move = 0.0;
+        self.laser_on = false;
+        self.state = MachineState::Alarm;
+        self.critical = true;
+        self.send("ALARM:1");
+        self.send("[MSG:Reset to continue]");
     }
 
     fn reset(&mut self) {
@@ -115,6 +166,7 @@ impl SimTransport {
         self.laser_on = false;
         self.jogging = false;
         self.spindle = 0.0;
+        self.critical = false;
         match self.fw {
             Firmware::Grbl => {
                 self.send("");
@@ -134,7 +186,9 @@ impl SimTransport {
             self.state = MachineState::Alarm;
             self.send("ALARM:3");
             self.send("[MSG:Reset to continue]");
-        } else if self.state != MachineState::Alarm {
+        } else if self.state == MachineState::Alarm {
+            self.send("[MSG:'$H'|'$X' to unlock]");
+        } else {
             self.state = MachineState::Idle;
         }
     }
@@ -193,7 +247,7 @@ impl SimTransport {
     }
 
     fn process_lines(&mut self) {
-        while self.planner.len() < PLANNER_SIZE {
+        while self.planner.len() < PLANNER_SIZE && !self.critical {
             let Some(line) = self.rx_lines.front() else { break };
             // M400 wartet, bis alle Bewegungen ausgeführt sind.
             if !self.fw.is_grbl() && line.trim().eq_ignore_ascii_case("M400") && !self.planner.is_empty() {
@@ -205,7 +259,10 @@ impl SimTransport {
                 Firmware::Grbl => self.execute(&line),
                 _ => self.execute_other(&line),
             };
-            self.send(&reply);
+            // Störfälle antworten nicht selbst
+            if !reply.is_empty() {
+                self.send(&reply);
+            }
         }
     }
 
@@ -365,12 +422,24 @@ impl SimTransport {
                 self.state = MachineState::Idle;
                 "ok".into()
             }
+            "SIM=REBOOT" => {
+                self.reboot();
+                String::new()
+            }
+            "SIM=LIMIT" => {
+                self.hard_limit();
+                String::new()
+            }
             "X" => {
                 self.state = MachineState::Idle;
                 self.send("[MSG:Caution: Unlocked]");
                 "ok".into()
             }
             _ => {
+                if let Some(ms) = cmd.strip_prefix("SIM=HANG=").and_then(|v| v.parse::<u64>().ok()) {
+                    self.silent_until = Some(Instant::now() + std::time::Duration::from_millis(ms));
+                    return String::new();
+                }
                 if let Some(jog) = cmd.strip_prefix("J=") {
                     if self.state == MachineState::Alarm {
                         return "error:9".into();
@@ -475,6 +544,10 @@ impl SimTransport {
 
 impl Transport for SimTransport {
     fn write_all(&mut self, data: &[u8]) -> io::Result<()> {
+        if self.silent() {
+            // eingefroren: alles geht verloren
+            return Ok(());
+        }
         self.tick();
         for &b in data {
             match b {
@@ -498,6 +571,9 @@ impl Transport for SimTransport {
     }
 
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if self.silent() {
+            return Ok(0);
+        }
         self.tick();
         let n = buf.len().min(self.out.len());
         for (slot, b) in buf.iter_mut().zip(self.out.drain(..n)) {

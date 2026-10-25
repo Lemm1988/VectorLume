@@ -1813,6 +1813,10 @@ impl VectorLumeApp {
                     self.toast(if ok { ToastKind::Success } else { ToastKind::Error }, text);
                 }
                 Event::Alarm(code, text) => self.toast(ToastKind::Error, trs(&format!("Alarm {code}: {text}"))),
+                Event::Warning(text) => {
+                    self.console_push(Direction::Info, text.clone());
+                    self.toast(ToastKind::Error, text);
+                }
             }
         }
     }

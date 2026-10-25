@@ -1523,6 +1523,16 @@ pub static EN: &[(&str, &str)] = &[
     ("S-Max: {}", "S-Max: {}"),
     ("{} Fertig", "{} Done"),
     ("Gerät einrichten…", "Set up device…"),
+    ("„{}“ reicht über 100 m hinaus – das kann kein Laser ausgeben (beschädigte Datei?).", "\"{}\" extends beyond 100 m – no laser can output that (damaged file?)."),
+    ("Die Steuerung antwortet wieder.", "The controller responds again."),
+    ("Steuerung nach dem Alarm zurückgesetzt. Weiter mit Referenzfahrt oder Entsperren.", "Controller reset after the alarm. Continue with homing or unlock."),
+    ("Die Steuerung antwortet seit {} s nicht mehr (USB-Kabel, Stromversorgung des Lasers?).", "The controller has not responded for {} s (USB cable, laser power supply?)."),
+    ("Die Steuerung hat während „{}“ neu gestartet (Stromausfall oder Störung?) – Job abgebrochen. Position prüfen, ggf. Referenzfahrt.", "The controller restarted during \"{}\" (power loss or interference?) – job aborted. Check the position, home if needed."),
+    ("Die Blockverweise ergeben mehr als {} Elemente – der Rest wurde nicht übernommen.", "The block references produce more than {} elements – the rest was not imported."),
+    ("SVG enthält eine unsinnig große Zahl ({}) – die Datei ist vermutlich beschädigt.", "The SVG contains an absurdly large number ({}) – the file is probably damaged."),
+    ("Der Inhalt kann nicht als Code 128 kodiert werden.", "The content cannot be encoded as Code 128."),
+    ("Die Seite ist leer.", "The page is empty."),
+    ("Leeres Bild.", "Empty image."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

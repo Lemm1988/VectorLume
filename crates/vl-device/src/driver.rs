@@ -21,6 +21,10 @@ const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 /// Senden und Warten: bleibt außerhalb eines Jobs so lange jede Antwort aus, gilt die Zeile als beantwortet
 /// (z. B. nach einem Stopp verschluckte `ok`), damit die Verbindung nicht hängen bleibt.
 const STALE_REPLY_TIMEOUT: Duration = Duration::from_secs(3);
+/// So lange ohne jede Antwort auf die Statusabfrage, dann wird gewarnt (GRBL antwortet sonst sofort).
+const SILENCE_WARNING: Duration = Duration::from_secs(4);
+/// Mindestabstand automatischer Resets nach „Reset to continue“ (falls der Endschalter noch ausgelöst ist).
+const AUTO_RESET_INTERVAL: Duration = Duration::from_secs(3);
 
 pub const RT_STATUS: u8 = b'?';
 pub const RT_HOLD: u8 = b'!';
@@ -59,15 +63,34 @@ pub enum Direction {
 
 #[derive(Clone, Debug)]
 pub enum Event {
-    Connected { port: String },
-    Disconnected { reason: Option<String> },
-    Console { dir: Direction, text: String },
+    Connected {
+        port: String,
+    },
+    Disconnected {
+        reason: Option<String>,
+    },
+    Console {
+        dir: Direction,
+        text: String,
+    },
     Status(Status),
     Setting(u32, String),
-    JobStarted { name: String, total: usize },
-    JobProgress { acked: usize, total: usize },
-    JobFinished { ok: bool, message: String, seconds: f64 },
+    JobStarted {
+        name: String,
+        total: usize,
+    },
+    JobProgress {
+        acked: usize,
+        total: usize,
+    },
+    JobFinished {
+        ok: bool,
+        message: String,
+        seconds: f64,
+    },
     Alarm(u32, String),
+    /// Wichtiger Hinweis, der auffallen soll (z. B. Steuerung antwortet nicht mehr).
+    Warning(String),
 }
 
 /// Herkunft einer gesendeten Zeile – entscheidet, was mit ihrer Antwort geschieht.
@@ -167,6 +190,10 @@ struct Connection {
     last_pos: Option<[f64; 3]>,
     last_reply: Instant,
     last_send: Instant,
+    /// Zuletzt irgendetwas empfangen (Überwachung, ob die Steuerung noch antwortet).
+    last_rx: Instant,
+    silence_warned: bool,
+    last_auto_reset: Option<Instant>,
 }
 
 impl Connection {
@@ -299,6 +326,9 @@ impl Driver {
                             last_pos: None,
                             last_reply: Instant::now(),
                             last_send: Instant::now(),
+                            last_rx: Instant::now(),
+                            silence_warned: false,
+                            last_auto_reset: None,
                         });
                         self.emit(Event::Connected { port });
                         if firmware.is_grbl() {
@@ -479,6 +509,7 @@ impl Driver {
                 break;
             }
             c.rx_buf.extend_from_slice(&buf[..n]);
+            c.last_rx = Instant::now();
             if n < buf.len() {
                 break;
             }
@@ -500,7 +531,23 @@ impl Driver {
             c.ready = true;
         }
         let grbl = c.firmware.is_grbl();
-        if !grbl
+        let polled = c.firmware != Firmware::Marlin;
+        let mut silence = None;
+        if polled && c.ready && c.last_rx.elapsed() >= SILENCE_WARNING && !c.silence_warned {
+            c.silence_warned = true;
+            silence = Some(c.last_rx.elapsed().as_secs());
+        } else if c.silence_warned && c.last_rx.elapsed() < SILENCE_WARNING {
+            c.silence_warned = false;
+            silence = Some(0);
+            if c.job.is_none() {
+                // Was während der Funkstille unterwegs war, ist vermutlich verloren; sonst wartete jede weitere
+                // Zeile auf ein `ok`, das nie kommt (und Jobs würden um eine Bestätigung verschoben gezählt).
+                c.inflight.clear();
+                c.inflight_bytes = 0;
+            }
+        }
+        // Im Alarm führt auch GRBL nichts mehr aus: unbeantwortete Zeilen nicht ewig als unterwegs zählen.
+        if (!grbl || c.last_state == MachineState::Alarm)
             && c.job.is_none()
             && !c.inflight.is_empty()
             && c.last_reply.elapsed() >= STALE_REPLY_TIMEOUT
@@ -562,6 +609,13 @@ impl Driver {
         }
         for line in sent {
             self.emit(Event::Console { dir: Direction::Sent, text: line });
+        }
+        match silence {
+            Some(0) => self.info("Die Steuerung antwortet wieder."),
+            Some(s) => self.emit(Event::Warning(format!(
+                "Die Steuerung antwortet seit {s} s nicht mehr (USB-Kabel, Stromversorgung des Lasers?)."
+            ))),
+            None => {}
         }
         if let Some(st) = synthetic {
             self.emit(Event::Status(st));
@@ -665,19 +719,51 @@ impl Driver {
                 self.emit(Event::Alarm(code, text));
             }
             Response::Welcome(_) => {
+                let mut rebooted = false;
                 if let Some(c) = &mut self.conn {
                     // Nach einem Reset ist der Empfangspuffer der Steuerung leer.
                     c.inflight.clear();
                     c.inflight_bytes = 0;
                     c.ready = true;
+                    if c.job.is_some() {
+                        // Neustart mitten im Job (Stromausfall, Störung): Laser-Modus und Position sind verloren.
+                        // Nichts mehr nachschieben und bereits Unterwegs-Befindliches per Reset verwerfen.
+                        rebooted = true;
+                        c.queue.drop_job();
+                        let _ = c.transport.write_all(&[RT_RESET]);
+                    }
                 }
                 self.emit(Event::Console { dir: Direction::Received, text: line });
+                if rebooted {
+                    self.finish_job(false, |name| {
+                        format!(
+                            "Die Steuerung hat während „{name}“ neu gestartet (Stromausfall oder Störung?) – Job \
+                             abgebrochen. Position prüfen, ggf. Referenzfahrt."
+                        )
+                    });
+                }
             }
             Response::Setting(n, v) => {
                 self.emit(Event::Setting(n, v));
                 self.emit(Event::Console { dir: Direction::Received, text: line });
             }
             Response::Feedback(_) | Response::Other(_) => {
+                if firmware.is_grbl() && line.contains("Reset to continue") {
+                    // Nach einem kritischen Alarm (z. B. Endschalter) nimmt GRBL nichts mehr an, auch kein `$X`,
+                    // bis zurückgesetzt wird. Der Laser steht ohnehin: gleich zurücksetzen, damit Entsperren geht.
+                    self.emit(Event::Console { dir: Direction::Received, text: line });
+                    let Some(c) = &mut self.conn else { return };
+                    if c.last_auto_reset.is_none_or(|t| t.elapsed() >= AUTO_RESET_INTERVAL) {
+                        c.last_auto_reset = Some(Instant::now());
+                        c.queue.drop_job();
+                        if let Err(e) = c.transport.write_all(&[RT_RESET]) {
+                            self.drop_connection(Some(e.to_string()));
+                            return;
+                        }
+                        self.info("Steuerung nach dem Alarm zurückgesetzt. Weiter mit Referenzfahrt oder Entsperren.");
+                    }
+                    return;
+                }
                 if !firmware.is_grbl() {
                     if line == "start" {
                         // Marlin nach dem Neustart (Öffnen des Anschlusses): bereit, nichts mehr unterwegs.
