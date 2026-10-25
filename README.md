@@ -14,7 +14,7 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
   Auswählen, Verschieben, Skalieren, Drehen, Spiegeln, Ausrichten, Verteilen, Gruppieren, Rückgängig/Wiederholen
 - **Bearbeiten:** Knotenwerkzeug, Boolesche Operationen und Verschweißen, Bereinigen (offene Pfade verbinden,
   doppelte Linien löschen), Zerlegen, Gummiband-Umriss, gleiche Breite/Höhe, Versatz, Reihen-Kopien (Raster, Kreis,
-  entlang Pfad), Messwerkzeug, In Bitmap umwandeln, Bild nachzeichnen, Objektfang mit Ausrichtungslinien, Ebenen sperren
+  entlang Pfad), Messwerkzeug, In Bitmap umwandeln, Motiv-Bibliothek, Bild nachzeichnen, Objektfang mit Ausrichtungslinien, Ebenen sperren
 - **Import/Export:** SVG (inkl. Text), DXF (inkl. Blöcke, Bögen, Splines), PDF/AI, EPS (mit installiertem
   Ghostscript), HPGL/PLT,
   PNG/JPG/BMP/GIF/WEBP/TIFF; LightBurn-Projekte (`.lbrn2`) öffnen; Export als G-Code, SVG (mit eingebetteten Bildern) und DXF; eigenes

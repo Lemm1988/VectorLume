@@ -240,6 +240,7 @@ pub struct VectorLumeApp {
     pub show_device_settings: bool,
     pub show_rotary: bool,
     pub print_cut: crate::print_cut::PrintCut,
+    pub library: crate::library::Library,
     /// Letzte Messung des Messwerkzeugs (Start, Ende).
     pub measure: Option<(Point, Point)>,
     pub camera: crate::camera::CameraState,
@@ -324,6 +325,7 @@ impl VectorLumeApp {
             show_device_settings: false,
             show_rotary: false,
             print_cut: Default::default(),
+            library: Default::default(),
             measure: None,
             camera: Default::default(),
             show_about: false,

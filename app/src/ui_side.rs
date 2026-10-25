@@ -14,6 +14,7 @@ pub enum RightTab {
     Laser,
     Jog,
     Console,
+    Library,
 }
 
 pub(crate) fn card<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
@@ -62,6 +63,7 @@ pub fn right_panel(app: &mut VectorLumeApp, ui: &mut Ui) {
                             (RightTab::Laser, icon::LIGHTNING, tr("Laser")),
                             (RightTab::Jog, icon::ARROWS_OUT, tr("Bewegen")),
                             (RightTab::Console, icon::TERMINAL, tr("Konsole")),
+                            (RightTab::Library, icon::BOOKS, tr("Bibliothek")),
                         ] {
                             let selected = app.right_tab == tab;
                             let text = RichText::new(format!("{glyph} {label}")).color(if selected {
@@ -80,6 +82,7 @@ pub fn right_panel(app: &mut VectorLumeApp, ui: &mut Ui) {
                             RightTab::Laser => laser_ui(app, ui),
                             RightTab::Jog => jog_ui(app, ui),
                             RightTab::Console => console_ui(app, ui),
+                            RightTab::Library => crate::library::library_ui(app, ui),
                         }
                     });
                 });

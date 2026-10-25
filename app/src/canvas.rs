@@ -30,6 +30,8 @@ pub struct View {
     initialized: bool,
     /// Mausposition im Dokument (für die Statusleiste).
     pub cursor: Option<Point>,
+    /// Sichtbarer Ausschnitt im Dokument (z. B. zum Einfügen in der Mitte der Ansicht).
+    pub visible: Option<DRect>,
     /// Zoom aus Menü/Tastatur, wird im nächsten Frame um die Bildmitte angewendet.
     pending_zoom: f32,
     /// Solange der Benutzer die Ansicht nicht verändert hat, wird bei Größenänderung neu eingepasst.
@@ -45,6 +47,7 @@ impl Default for View {
             fit_request: Some(None),
             initialized: false,
             cursor: None,
+            visible: None,
             pending_zoom: 1.0,
             user_moved: false,
             last_size: Vec2::ZERO,
@@ -510,6 +513,7 @@ impl VectorLumeApp {
 
         let tf = ViewTf { origin: work.min + self.view.pan, zoom: self.view.zoom };
         let vt = tf.affine();
+        self.view.visible = Some(DRect::from_points(tf.to_doc(work.min), tf.to_doc(work.max)));
         let clip = painter.with_clip_rect(work);
         self.view.cursor = resp.hover_pos().filter(|p| work.contains(*p)).map(|p| tf.to_doc(p));
 

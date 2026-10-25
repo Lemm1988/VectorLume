@@ -11,6 +11,7 @@ mod history;
 mod i18n;
 mod i18n_en;
 mod icon_art;
+mod library;
 mod materials;
 mod node_tool;
 mod print_cut;
