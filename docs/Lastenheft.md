@@ -50,6 +50,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 | LF-01 | Projekt neu anlegen, öffnen, speichern, „speichern unter“ (eigenes Projektformat) | M |
 | LF-02 | Import von SVG, DXF, PNG, JPG, BMP, GIF, WEBP, TIFF | M |
 | LF-03 | Import von PDF, AI, EPS, HPGL | S |
+| LF-03a | Import von Leiterplattendaten (Gerber, Excellon-Bohrdateien), Lagen deckungsgleich | K |
 | LF-04 | Import von LightBurn-Projekten (`.lbrn`/`.lbrn2`) zur Kompatibilität | S |
 | LF-04a | 3D-Modelle (STL, OBJ) als Tiefenbild für Reliefgravuren einfügen | K |
 | LF-05 | Export als G-Code, SVG, DXF und PDF (Druckvorlage 1:1) | M (G-Code) / S |

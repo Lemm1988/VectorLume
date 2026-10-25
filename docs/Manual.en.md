@@ -150,6 +150,7 @@ Send finished G-code files from other programs with *Laser â†’ Send G-code fileâ
 ## Files
 
 - **Open and import**: VectorLume projects (`.vlume`), LightBurn projects (`.lbrn2`), SVG, DXF, PDF/AI, EPS (with Ghostscript installed), HPGL/PLT and images (PNG, JPG, BMP, GIF, WEBP, TIFF). You can also simply drag files onto the window.
+- **Circuit boards**: Gerber files (copper, solder mask, silkscreen) become filled areas, the board outline becomes a cut line. Excellon drill files provide the holes as circles. If you import several files of the same board one after another, they stay aligned on top of each other. Mirror the bottom side yourself before lasering.
 - **Export**: G-code, SVG, DXF and PDF (1:1 for printing).
 - **Autosave**: unsaved work is backed up regularly and offered after a crash at the next start.
 

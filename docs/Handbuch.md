@@ -150,6 +150,7 @@ Fertige G-Code-Dateien anderer Programme sendest du mit *Laser → G-Code-Datei 
 ## Dateien
 
 - **Öffnen und Importieren**: VectorLume-Projekte (`.vlume`), LightBurn-Projekte (`.lbrn2`), SVG, DXF, PDF/AI, EPS (mit installiertem Ghostscript), HPGL/PLT sowie Bilder (PNG, JPG, BMP, GIF, WEBP, TIFF). Dateien lassen sich auch einfach auf das Fenster ziehen.
+- **Leiterplatten**: Gerber-Dateien (Kupfer, Lötstopp, Bestückungsdruck) werden zu gefüllten Flächen, der Platinenumriss zur Schneidlinie. Excellon-Bohrdateien liefern die Bohrungen als Kreise. Importierst du mehrere Dateien desselben Boards nacheinander, liegen sie deckungsgleich übereinander. Die Unterseite musst du zum Lasern selbst spiegeln.
 - **Exportieren**: G-Code, SVG, DXF und PDF (1:1 zum Drucken).
 - **Autosicherung**: Ungespeicherte Arbeit wird regelmäßig gesichert und nach einem Absturz beim nächsten Start angeboten.
 

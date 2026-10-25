@@ -4,6 +4,8 @@ pub mod barcode;
 pub mod csv;
 pub mod dxf;
 pub mod eps;
+pub mod excellon;
+pub mod gerber;
 pub mod hershey;
 pub mod hpgl;
 pub mod image;
@@ -27,6 +29,15 @@ pub const VECTOR_EXTENSIONS: &[&str] = &["svg", "svgz", "dxf", "pdf", "ai", "eps
 pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff"];
 /// 3D-Modelle, die als Tiefenbild eingefügt werden (eigener Dialog statt direktem Import).
 pub const MODEL_EXTENSIONS: &[&str] = &["stl", "obj"];
+
+/// Leiterplatten-Fertigungsdaten (Gerber und Excellon).
+pub fn is_pcb_extension(ext: &str) -> bool {
+    gerber::GERBER_EXTENSIONS.contains(&ext) || excellon::DRILL_EXTENSIONS.contains(&ext)
+}
+
+pub fn pcb_extensions() -> Vec<&'static str> {
+    gerber::GERBER_EXTENSIONS.iter().chain(excellon::DRILL_EXTENSIONS).copied().collect()
+}
 
 #[derive(Clone, Debug)]
 pub enum ImportedItem {
@@ -57,6 +68,10 @@ pub fn import_file(path: &Path, fonts: Option<Arc<usvg::fontdb::Database>>) -> R
         "eps" | "epsf" => eps::import_eps(&data),
         "plt" | "hpgl" | "hgl" => hpgl::import_hpgl(&data),
         e if IMAGE_EXTENSIONS.contains(&e) => image::import_image(&data, &name),
+        e if gerber::GERBER_EXTENSIONS.contains(&e) => {
+            gerber::import_gerber(&data, &name, gerber::PROFILE_EXTENSIONS.contains(&e))
+        }
+        e if excellon::DRILL_EXTENSIONS.contains(&e) => excellon::import_excellon(&data, &name),
         _ => Err(format!("Dateiformat „.{ext}“ wird nicht unterstützt.")),
     }
 }

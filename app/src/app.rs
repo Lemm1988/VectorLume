@@ -290,6 +290,8 @@ pub struct VectorLumeApp {
     /// Zuletzt für den Start erzeugter Dokument-Job (Zeigeradresse zum Wiedererkennen in `send_job`).
     pub document_job: Option<usize>,
     last_edit: Option<(&'static str, Instant)>,
+    /// Verschiebung der ersten importierten Leiterplattendatei; weitere Lagen desselben Boards folgen ihr.
+    pcb_offset: Option<Point>,
     last_title: String,
     close_confirmed: bool,
 }
@@ -390,6 +392,7 @@ impl VectorLumeApp {
             trace: Default::default(),
             document_job: None,
             last_edit: None,
+            pcb_offset: None,
             last_title: String::new(),
             close_confirmed: false,
         };
@@ -530,6 +533,7 @@ impl VectorLumeApp {
         self.history.clear();
         self.selection.clear();
         self.geom.clear();
+        self.pcb_offset = None;
         self.file_path = path;
         self.name_hint = None;
         self.dirty = false;
@@ -663,12 +667,15 @@ impl VectorLumeApp {
         let mut all: Vec<&str> = vl_io::VECTOR_EXTENSIONS.to_vec();
         all.extend_from_slice(vl_io::IMAGE_EXTENSIONS);
         all.extend_from_slice(vl_io::MODEL_EXTENSIONS);
+        let pcb = vl_io::pcb_extensions();
+        all.extend_from_slice(&pcb);
         if let Some(files) = rfd::FileDialog::new()
             .set_title(tr("Importieren"))
             .add_filter(tr("Alle unterstützten Dateien"), &all)
             .add_filter(tr("Vektorgrafik (SVG, DXF, PDF, AI, EPS, HPGL)"), vl_io::VECTOR_EXTENSIONS)
             .add_filter(tr("Bilder"), vl_io::IMAGE_EXTENSIONS)
             .add_filter(tr("3D-Modelle (STL, OBJ) als Tiefenbild"), vl_io::MODEL_EXTENSIONS)
+            .add_filter(tr("Leiterplatten (Gerber, Excellon-Bohrdateien)"), &pcb)
             .pick_files()
         {
             for f in files {
@@ -696,7 +703,11 @@ impl VectorLumeApp {
                 if ids.is_empty() {
                     self.history.discard_if_unchanged(&self.doc);
                 } else {
-                    self.place_imported(&ids);
+                    if vl_io::is_pcb_extension(&ext) {
+                        self.place_pcb(&ids);
+                    } else {
+                        self.place_imported(&ids);
+                    }
                     self.selection = ids;
                     self.mark_changed();
                     self.toast(ToastKind::Success, trs(&format!("„{}“ importiert.", file_name(path))));
@@ -707,6 +718,17 @@ impl VectorLumeApp {
             }
             Err(e) => self.toast(ToastKind::Error, e),
         }
+    }
+
+    /// Leiterplattendateien desselben Boards (Kupfer, Bohrungen, Umriss) um denselben Betrag verschieben, damit sie
+    /// deckungsgleich bleiben: die erste mit 10 mm Rand in die linke obere Ecke, alle weiteren genauso.
+    fn place_pcb(&mut self, ids: &[ObjectId]) {
+        let offset = *self.pcb_offset.get_or_insert_with(|| {
+            let b = self.doc.bounds_of(ids);
+            let bed = self.settings.profile.bed_rect();
+            Point::new(bed.min.x + 10.0 - b.min.x, bed.min.y + 10.0 - b.min.y)
+        });
+        self.doc.transform_objects(ids, &Affine::translate(offset.x, offset.y));
     }
 
     /// Importiertes in die Arbeitsfläche legen, falls es (teilweise) außerhalb liegt.

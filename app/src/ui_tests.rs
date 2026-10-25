@@ -1055,6 +1055,30 @@ fn model_flow(render: bool) {
     assert!(app.settings.profile.bed_rect().contains_rect(&app.doc.bounds()));
 }
 
+/// Leiterplatte: Kupferlage und Bohrdatei landen deckungsgleich in der Arbeitsfläche.
+#[test]
+fn pcb_layers_stay_aligned() {
+    let mut h = harness(false);
+    let dir = std::env::temp_dir().join("vectorlume-ui-tests");
+    // Zwei Pads Ø 2 bei (100|50) und (110|50) – weit außerhalb der Fläche, Y nach oben
+    let gbr = "%FSLAX46Y46*%%MOMM*%%ADD10C,2*%D10*X100000000Y-50000000D03*X110000000Y-50000000D03*M02*";
+    let drl = "M48\nMETRIC\nT1C0.8\n%\nT1\nX100.0Y-50.0\nX110.0Y-50.0\nM30\n";
+    std::fs::write(dir.join("platine.gtl"), gbr).unwrap();
+    std::fs::write(dir.join("platine.drl"), drl).unwrap();
+    h.state_mut().import_path(&dir.join("platine.drl"));
+    h.state_mut().import_path(&dir.join("platine.gtl"));
+    h.run_ok();
+    let app = h.state();
+    assert_eq!(app.doc.objects.len(), 2);
+    let centers: Vec<Point> = app.doc.objects.iter().map(|o| app.doc.bounds_of(&[o.id]).center()).collect();
+    assert!(centers[0].distance(centers[1]) < 1e-6, "{centers:?}");
+    let bed = app.settings.profile.bed_rect();
+    assert!(bed.contains_rect(&app.doc.bounds()));
+    // Bohrdatei zuerst: deren linker oberer Rand liegt 10 mm vom Rand der Fläche
+    let drill = app.doc.bounds_of(&[app.doc.objects[0].id]);
+    assert!((drill.min.x - bed.min.x - 10.0).abs() < 1e-6 && (drill.min.y - bed.min.y - 10.0).abs() < 1e-6);
+}
+
 #[test]
 fn model_import_inserts_depth_map() {
     model_flow(false);
