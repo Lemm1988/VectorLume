@@ -6,7 +6,9 @@ use crate::theme;
 use egui::{Align2, Button, Color32, DragValue, RichText, vec2};
 use egui_phosphor::regular as icon;
 use vl_core::ops::{BoolOp, Corner};
-use vl_core::{Affine, ObjectId, Point, Polyline, Shape, VectorPath};
+use vl_core::{Affine, ImageAdjust, ImageObject, Object, ObjectId, Point, Polyline, Shape, VectorPath};
+use vl_raster::RasterError;
+use vl_raster::render::{RenderOptions, render_bounds, render_objects, render_size};
 
 /// Toleranz beim Abflachen von Kurven für Formoperationen (mm).
 const TOLERANCE: f64 = 0.01;
@@ -43,6 +45,9 @@ pub struct ShapeDialogs {
     pub path_swap: bool,
     /// Höchster Abstand zwischen Enden, die beim Bereinigen verbunden werden (mm).
     pub join_tolerance: f64,
+    pub bitmap_open: bool,
+    pub bitmap: RenderOptions,
+    pub bitmap_keep_original: bool,
 }
 
 impl Default for ShapeDialogs {
@@ -67,6 +72,9 @@ impl Default for ShapeDialogs {
             path_rotate: true,
             path_remove_template: true,
             join_tolerance: 0.1,
+            bitmap_open: false,
+            bitmap: RenderOptions::default(),
+            bitmap_keep_original: false,
             path_swap: false,
         }
     }
@@ -214,6 +222,43 @@ impl VectorLumeApp {
             let (sx, sy) = if width { (k, 1.0) } else { (1.0, k) };
             self.doc.transform_objects(u, &Affine::scale_about(sx, sy, b.center()));
         }
+        self.mark_changed();
+    }
+
+    /// Rechnet die Auswahl in ein Graustufenbild um, z. B. um Text und Foto gemeinsam zu rastern.
+    pub fn convert_to_bitmap(&mut self) {
+        let opts = self.shape_dialogs.bitmap;
+        let objs: Vec<&Object> = self.selection.iter().filter_map(|id| self.doc.get(*id)).collect();
+        let (image, rect) = match render_objects(&objs, &opts) {
+            Ok(r) => r,
+            Err(RasterError::Empty) => {
+                self.toast(ToastKind::Info, tr("Nichts zum Umwandeln ausgewählt."));
+                return;
+            }
+            Err(RasterError::TooLarge { cols, rows }) => {
+                self.toast(
+                    ToastKind::Error,
+                    trs(&format!("Das Ergebnis wäre {cols} × {rows} Pixel – bitte die Auflösung verringern.")),
+                );
+                return;
+            }
+        };
+        self.checkpoint();
+        if !self.shape_dialogs.bitmap_keep_original {
+            let ids = std::mem::take(&mut self.selection);
+            self.doc.remove(&ids);
+        }
+        let layer = vl_io::image_layer(&self.doc);
+        let img = ImageObject {
+            image: std::sync::Arc::new(image),
+            width_mm: rect.width(),
+            height_mm: rect.height(),
+            adjust: ImageAdjust::default(),
+            clip: Vec::new(),
+        };
+        let id = self.doc.add_image(tr("Bitmap"), layer, img, rect.min);
+        self.selection = vec![id];
+        self.current_layer = layer;
         self.mark_changed();
     }
 
@@ -497,6 +542,86 @@ impl VectorLumeApp {
 pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     offset_window(app, ctx);
     array_window(app, ctx);
+    bitmap_window(app, ctx);
+}
+
+fn bitmap_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
+    if !app.shape_dialogs.bitmap_open {
+        return;
+    }
+    let mut open = true;
+    let mut apply = false;
+    let objs: Vec<&Object> = app.selection.iter().filter_map(|id| app.doc.get(*id)).collect();
+    let bounds = render_bounds(&objs, &app.shape_dialogs.bitmap);
+    let size = (!bounds.is_empty()).then(|| render_size(&bounds, &app.shape_dialogs.bitmap));
+    egui::Window::new(trs(&format!("{} In Bitmap umwandeln", icon::IMAGE)))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            let pal = theme::of(ui);
+            let d = &mut app.shape_dialogs;
+            let o = &mut d.bitmap;
+            egui::Grid::new("bitmap").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
+                ui.label(tr("Auflösung"));
+                ui.horizontal(|ui| {
+                    ui.add(DragValue::new(&mut o.dpi).speed(1.0).range(25.0..=1200.0).max_decimals(0).suffix(" dpi"));
+                    ui.label(
+                        RichText::new(trs(&format!("{:.3} mm je Pixel", o.pixel_mm()))).small().color(pal.text_weak),
+                    );
+                });
+                ui.end_row();
+                ui.label(tr("Formen"));
+                ui.horizontal(|ui| {
+                    ui.radio_value(&mut o.outline, false, tr("Gefüllt"));
+                    ui.radio_value(&mut o.outline, true, tr("Nur Konturen"));
+                });
+                ui.end_row();
+                ui.label(tr("Strichbreite"));
+                ui.add(DragValue::new(&mut o.line_width).speed(0.01).range(0.01..=10.0).suffix(" mm"))
+                    .on_hover_text(tr("Für Konturen und offene Pfade"));
+                ui.end_row();
+                ui.label("");
+                ui.checkbox(&mut d.bitmap_keep_original, tr("Originale behalten"));
+                ui.end_row();
+            });
+            ui.label(
+                RichText::new(tr(
+                    "Bilder in der Auswahl werden mit eingerechnet, die dunklere Stelle gewinnt. Das Ergebnis \
+                     kommt auf eine Bildebene und lässt sich wie ein Foto rastern oder dithern.",
+                ))
+                .small()
+                .color(pal.text_weak),
+            );
+            ui.add_space(4.0);
+            match size {
+                Some((c, r)) => {
+                    let too_large = c.saturating_mul(r) > vl_raster::render::MAX_PIXELS;
+                    let color = if too_large { pal.danger } else { pal.text };
+                    ui.label(RichText::new(trs(&format!("Ergebnis: {c} × {r} Pixel"))).color(color));
+                }
+                None => {
+                    ui.label(RichText::new(tr("Nichts ausgewählt")).small().color(pal.text_weak));
+                }
+            }
+            ui.add_space(6.0);
+            if ui
+                .add_enabled(
+                    size.is_some(),
+                    Button::new(RichText::new(tr("Umwandeln")).color(Color32::WHITE)).fill(pal.accent),
+                )
+                .clicked()
+            {
+                apply = true;
+            }
+        });
+    if apply {
+        app.convert_to_bitmap();
+    }
+    if !open {
+        app.shape_dialogs.bitmap_open = false;
+    }
 }
 
 fn offset_window(app: &mut VectorLumeApp, ctx: &egui::Context) {

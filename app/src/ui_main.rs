@@ -425,6 +425,9 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Zuschnitt aufheben"), "", app.selected_clipped_image().is_some()) {
         app.remove_image_clip();
     }
+    if menu_item(ui, tr("In Bitmap umwandeln…"), "", has) {
+        app.shape_dialogs.bitmap_open = true;
+    }
     let path = app.selection.iter().any(|id| app.doc.get(*id).is_some_and(|o| !o.is_image() && o.text.is_none()));
     if menu_item(ui, tr("Text auf Pfad…"), "", path) {
         app.open_text_on_path();

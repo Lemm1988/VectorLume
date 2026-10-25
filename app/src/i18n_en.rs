@@ -943,6 +943,22 @@ pub static EN: &[(&str, &str)] = &[
     ("Alles auf Ebene „{}“ auswählen", "Select all on layer “{}”"),
     ("Messen (M)", "Measure (M)"),
     ("Ziehen zum Messen · fängt an Knoten und Mitten", "Drag to measure · snaps to nodes and centres"),
+    ("Nichts zum Umwandeln ausgewählt.", "Nothing selected to convert."),
+    ("Bitmap", "Bitmap"),
+    ("Auflösung", "Resolution"),
+    ("Formen", "Shapes"),
+    ("Gefüllt", "Filled"),
+    ("Nur Konturen", "Outlines only"),
+    ("Strichbreite", "Line width"),
+    ("Für Konturen und offene Pfade", "For outlines and open paths"),
+    ("Originale behalten", "Keep originals"),
+    ("Bilder in der Auswahl werden mit eingerechnet, die dunklere Stelle gewinnt. Das Ergebnis kommt auf eine Bildebene und lässt sich wie ein Foto rastern oder dithern.", "Images in the selection are included; the darker spot wins. The result goes onto an image layer and can be rastered or dithered like a photo."),
+    ("Umwandeln", "Convert"),
+    ("Das Ergebnis wäre {} × {} Pixel – bitte die Auflösung verringern.", "The result would be {} × {} pixels – please lower the resolution."),
+    ("{} In Bitmap umwandeln", "{} Convert to bitmap"),
+    ("{} mm je Pixel", "{} mm per pixel"),
+    ("Ergebnis: {} × {} Pixel", "Result: {} × {} pixels"),
+    ("In Bitmap umwandeln…", "Convert to bitmap…"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

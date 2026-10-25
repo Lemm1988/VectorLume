@@ -73,6 +73,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 | LF-22 | Fangen/Einrasten am Raster und an Objekten, Hilfslinien | S |
 | LF-23 | Laschen/Stege (Tabs) für Schneidteile | S |
 | LF-25 | Bereinigen importierter Zeichnungen: offene Pfade verbinden/schließen, doppelte Linien löschen | S |
+| LF-26 | Vektoren, Texte und Bilder in ein Bild umwandeln (zum gemeinsamen Rastern) | K |
 | LF-24 | QR-Codes und Strichcodes (EAN, Code 128 u. a.), auch mit fortlaufender Nummer | S |
 
 ### 5.3 Ebenen und Laser-Einstellungen

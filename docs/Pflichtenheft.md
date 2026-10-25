@@ -100,6 +100,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-23 | Laschen/Stege | Anzahl und Breite je Kontur, optional nur Außenkonturen | ✅ |
 | LF-24 | QR- und Strichcodes | Werkzeug *QR-/Barcode* (Q): QR-Code (Fehlerkorrektur L/M/Q/H, WLAN-Vorlage), Data Matrix, Code 128 (Zeichensatz B/C automatisch), Code 39, EAN-13, EAN-8, UPC-A (Prüfziffer ergänzt bzw. geprüft); Modulgröße, Strichhöhe, Klartext unter 1D-Codes; Module werden zu Umrissen zusammengefasst (lückenlose Füllung); **zusätzlich:** Strichbreiten-Ausgleich für den Laserpunkt und Invertieren mit Ruhezone für Material, das hell graviert (eloxiertes Aluminium, Schiefer); Inhalt mit denselben Platzhaltern wie variabler Text (Seriennummern, Datenliste), bleibt bearbeitbar; Größe und Fehler werden im Dialog sofort angezeigt | ✅ |
 | LF-25 | Bereinigen | *Anordnen → Bereinigen* (Auswahl oder alle sichtbaren Pfade): offene Pfadstücke je Ebene verbinden (Enden innerhalb einer Toleranz, Richtung wird angepasst, Kurven bleiben erhalten) und entstandene Ringe schließen; doppelte Linien löschen (auch gegenläufig und über Objekte hinweg, Pfade werden an entfernten Stellen aufgetrennt, leere Objekte gelöscht) | ✅ |
+| LF-26 | In Bitmap umwandeln | *Anordnen → In Bitmap umwandeln…*: Auswahl mit wählbarer Auflösung (dpi) in ein Graustufenbild rechnen – Formen gefüllt (Gerade-Ungerade je Objekt, Objekte vereinigt, Kanten geglättet über 4 Unterzeilen und anteilige Randpixel) oder als Kontur, offene Pfade mit Strichbreite, Bilder (samt Anpassung und Zuschnitt) abdunkelnd überlagert; Ergebnis auf einer Bildebene, Originale wahlweise behalten, Größenanzeige und Grenze 60 Mio. Pixel | ✅ |
 
 ### 4.3 Ebenen und Laser-Einstellungen
 | LF | Funktion | Umsetzung | Stand |
@@ -217,7 +218,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (135):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (138):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
