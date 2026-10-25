@@ -3,7 +3,7 @@
 use crate::{Imported, ImportedItem, layer_for_color};
 use std::sync::Arc;
 use usvg::tiny_skia_path::PathSegment;
-use vl_core::{Affine, Document, PathBuilder, Point, Shape, VectorPath};
+use vl_core::{Affine, Document, ImageAdjust, ImageObject, PathBuilder, Point, RasterImage, Shape, VectorPath};
 
 /// usvg rechnet in CSS-Pixeln (96 dpi).
 const PX_TO_MM: f64 = 25.4 / 96.0;
@@ -46,9 +46,41 @@ fn collect_group(group: &usvg::Group, out: &mut Imported, skipped_images: &mut u
                 out.items.push(ImportedItem::Path { name, layer: color.and_then(layer_for_color), path });
             }
             usvg::Node::Text(t) => collect_group(t.flattened(), out, skipped_images),
-            usvg::Node::Image(_) => *skipped_images += 1,
+            usvg::Node::Image(img) => match convert_image(img) {
+                Some(item) if img.is_visible() => out.items.push(item),
+                Some(_) => {}
+                None => *skipped_images += 1,
+            },
         }
     }
+}
+
+/// Eingebettetes Rasterbild (PNG, JPEG, GIF, WebP) mit seiner Lage; verschachtelte SVG-Bilder werden übersprungen.
+fn convert_image(img: &usvg::Image) -> Option<ImportedItem> {
+    let data = match img.kind() {
+        usvg::ImageKind::PNG(d) | usvg::ImageKind::JPEG(d) | usvg::ImageKind::GIF(d) | usvg::ImageKind::WEBP(d) => d,
+        usvg::ImageKind::SVG(_) => return None,
+    };
+    let raster = RasterImage::from_encoded(data).ok()?;
+    let size = img.size();
+    let (w, h) = (size.width() as f64, size.height() as f64);
+    // Bild-mm → Bildpixel → SVG-Pixel (absolute Transformation) → mm
+    let t = img.abs_transform();
+    let transform = Affine::scale(1.0 / PX_TO_MM, 1.0 / PX_TO_MM)
+        .then(&Affine([t.sx as f64, t.ky as f64, t.kx as f64, t.sy as f64, t.tx as f64, t.ty as f64]))
+        .then(&Affine::scale(PX_TO_MM, PX_TO_MM));
+    let name = if img.id().is_empty() { "SVG-Bild".to_string() } else { img.id().to_string() };
+    Some(ImportedItem::Image {
+        name,
+        image: ImageObject {
+            image: Arc::new(raster),
+            width_mm: w * PX_TO_MM,
+            height_mm: h * PX_TO_MM,
+            adjust: ImageAdjust::default(),
+            clip: Vec::new(),
+        },
+        transform,
+    })
 }
 
 fn paint_color(p: &usvg::Paint) -> Option<[u8; 3]> {
@@ -76,14 +108,19 @@ fn convert_path(data: &usvg::tiny_skia_path::Path, t: usvg::Transform) -> Vector
     pb.finish()
 }
 
-/// Exportiert alle Vektorobjekte als SVG in Millimetern (Bilder werden als Umriss ausgegeben).
+/// Exportiert alle Objekte als SVG in Millimetern. Bilder werden samt Bildanpassung und Zuschnitt als PNG
+/// eingebettet, damit sich die Datei z. B. als Druckvorlage für „Drucken & Schneiden“ eignet.
 pub fn export_svg(doc: &Document, width_mm: f64, height_mm: f64) -> String {
     let mut s = format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}mm\" height=\"{h}mm\" viewBox=\"0 0 {w} {h}\">\n",
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"{w}mm\" height=\"{h}mm\" viewBox=\"0 0 {w} {h}\">\n",
         w = width_mm,
         h = height_mm
     );
     for o in &doc.objects {
+        if let Shape::Image(img) = &o.shape {
+            s.push_str(&image_element(o.id, &o.name, img, &o.transform));
+            continue;
+        }
         let [r, g, b] = doc.layers[o.layer].color;
         let mut d = String::new();
         match &o.shape {
@@ -107,14 +144,7 @@ pub fn export_svg(doc: &Document, width_mm: f64, height_mm: f64) -> String {
                     }
                 }
             }
-            Shape::Image(_) => {
-                for poly in o.polylines(0.01) {
-                    for (i, p) in poly.points.iter().enumerate() {
-                        d.push_str(&format!("{}{:.4} {:.4} ", if i == 0 { "M" } else { "L" }, p.x, p.y));
-                    }
-                    d.push('Z');
-                }
-            }
+            Shape::Image(_) => continue,
         }
         s.push_str(&format!(
             "  <path d=\"{d}\" fill=\"none\" stroke=\"rgb({r},{g},{b})\" stroke-width=\"0.1\"><title>{}</title></path>\n",
@@ -123,6 +153,42 @@ pub fn export_svg(doc: &Document, width_mm: f64, height_mm: f64) -> String {
     }
     s.push_str("</svg>\n");
     s
+}
+
+/// `<image>` mit eingebettetem PNG; Bildanpassungen sind eingerechnet, ein Zuschnitt wird zum `clipPath`.
+fn image_element(id: u64, name: &str, img: &ImageObject, t: &Affine) -> String {
+    use base64::Engine as _;
+    let src = &img.image;
+    let pixels: Vec<u8> = if img.adjust.is_identity() {
+        src.pixels.clone()
+    } else {
+        src.pixels.iter().map(|v| (img.adjust.apply(*v as f32 / 255.0) * 255.0).round() as u8).collect()
+    };
+    let Ok(png) = RasterImage::new(src.width, src.height, pixels).to_png() else { return String::new() };
+    let data = base64::engine::general_purpose::STANDARD.encode(png);
+    let mut out = String::new();
+    let mut clip_attr = String::new();
+    if !img.clip.is_empty() {
+        let mut d = String::new();
+        for ring in &img.clip {
+            for (i, p) in ring.iter().enumerate() {
+                d.push_str(&format!("{}{:.4} {:.4} ", if i == 0 { "M" } else { "L" }, p.x, p.y));
+            }
+            d.push('Z');
+        }
+        out.push_str(&format!("  <clipPath id=\"zuschnitt{id}\"><path d=\"{d}\" clip-rule=\"evenodd\"/></clipPath>\n"));
+        clip_attr = format!(" clip-path=\"url(#zuschnitt{id})\"");
+    }
+    let [a, b, c, dd, e, f] = t.0;
+    out.push_str(&format!(
+        "  <image x=\"0\" y=\"0\" width=\"{w:.4}\" height=\"{h:.4}\" preserveAspectRatio=\"none\" \
+         transform=\"matrix({a:.6} {b:.6} {c:.6} {dd:.6} {e:.4} {f:.4})\"{clip_attr} \
+         xlink:href=\"data:image/png;base64,{data}\"><title>{}</title></image>\n",
+        xml_escape(name),
+        w = img.width_mm,
+        h = img.height_mm,
+    ));
+    out
 }
 
 fn xml_escape(s: &str) -> String {
@@ -159,5 +225,51 @@ mod tests {
         let ImportedItem::Path { path, .. } = &imp.items[0] else { panic!() };
         let b = path.bounds(&Affine::IDENTITY);
         assert!((b.min.x - 5.0).abs() < 1e-3 && (b.max.y - 15.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn images_are_embedded_and_read_back() {
+        let mut doc = Document::new();
+        let image = ImageObject {
+            image: Arc::new(RasterImage::new(4, 2, vec![0, 50, 100, 150, 200, 250, 255, 255])),
+            width_mm: 40.0,
+            height_mm: 20.0,
+            adjust: ImageAdjust { brightness: 10.0, ..Default::default() },
+            clip: Vec::new(),
+        };
+        let id = doc.add_image("Foto", 1, image, Point::new(10.0, 5.0));
+        doc.transform_objects(&[id], &Affine::rotate_about(0.5, Point::new(30.0, 15.0)));
+        let svg = export_svg(&doc, 400.0, 400.0);
+        assert!(svg.contains("data:image/png;base64,"));
+        let imp = import_svg(svg.as_bytes(), None).unwrap();
+        assert!(imp.warnings.is_empty(), "{:?}", imp.warnings);
+        let ImportedItem::Image { image, transform, .. } = &imp.items[0] else { panic!() };
+        assert_eq!((image.image.width, image.image.height), (4, 2));
+        // Helligkeit ist eingerechnet
+        assert_eq!(image.image.pixels[0], 26);
+        let orig = doc.get(id).unwrap();
+        for p in [Point::ZERO, Point::new(40.0, 0.0), Point::new(40.0, 20.0)] {
+            let local = Point::new(p.x / 40.0 * image.width_mm, p.y / 20.0 * image.height_mm);
+            let (a, b) = (transform.apply(local), orig.transform.apply(p));
+            assert!(a.distance(b) < 1e-3, "{a:?} {b:?}");
+        }
+    }
+
+    #[test]
+    fn clipped_image_exports_clip_path() {
+        let mut doc = Document::new();
+        let sq = vec![Point::new(1.0, 1.0), Point::new(9.0, 1.0), Point::new(9.0, 9.0), Point::new(1.0, 9.0)];
+        let image = ImageObject {
+            image: Arc::new(RasterImage::new(1, 1, vec![0])),
+            width_mm: 10.0,
+            height_mm: 10.0,
+            adjust: ImageAdjust::default(),
+            clip: vec![sq],
+        };
+        doc.add_image("Foto", 1, image, Point::ZERO);
+        let svg = export_svg(&doc, 100.0, 100.0);
+        assert!(svg.contains("<clipPath") && svg.contains("clip-path=\"url(#zuschnitt"));
+        // usvg liest die Datei ohne Fehler
+        assert!(import_svg(svg.as_bytes(), None).is_ok());
     }
 }

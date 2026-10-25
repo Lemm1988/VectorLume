@@ -13,7 +13,7 @@ pub mod text;
 
 use std::path::Path;
 use std::sync::Arc;
-use vl_core::{Document, ImageObject, LAYER_COUNT, LayerMode, ObjectId, PALETTE, Point, VectorPath};
+use vl_core::{Affine, Document, ImageObject, LAYER_COUNT, LayerMode, ObjectId, PALETTE, Point, VectorPath};
 
 pub use barcode::{BarcodeInfo, barcode_info};
 pub use csv::parse_csv;
@@ -26,15 +26,12 @@ pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "bmp", "gif", "web
 #[derive(Clone, Debug)]
 pub enum ImportedItem {
     /// `layer = None` bedeutet: aktuelle Ebene verwenden.
-    Path {
-        name: String,
-        layer: Option<usize>,
-        path: VectorPath,
-    },
+    Path { name: String, layer: Option<usize>, path: VectorPath },
     Image {
         name: String,
         image: ImageObject,
-        at: Point,
+        /// Lage des Bildes (Bildkoordinaten in mm → Dokument).
+        transform: Affine,
     },
 }
 
@@ -111,9 +108,13 @@ pub fn add_to_document(doc: &mut Document, imported: Imported, default_layer: us
             ImportedItem::Path { name, layer, path } => {
                 ids.push(doc.add_path(name, layer.unwrap_or(default_layer), path))
             }
-            ImportedItem::Image { name, image, at } => {
+            ImportedItem::Image { name, image, transform } => {
                 let layer = image_layer(doc);
-                ids.push(doc.add_image(name, layer, image, at));
+                let id = doc.add_image(name, layer, image, Point::ZERO);
+                if let Some(o) = doc.get_mut(id) {
+                    o.transform = transform;
+                }
+                ids.push(id);
             }
         }
     }

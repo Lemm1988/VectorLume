@@ -2,7 +2,7 @@
 
 use crate::{Imported, ImportedItem};
 use std::sync::Arc;
-use vl_core::{ImageAdjust, ImageObject, Point, RasterImage};
+use vl_core::{Affine, ImageAdjust, ImageObject, RasterImage};
 
 /// Standardauflösung, wenn die Datei keine verwertbare Angabe enthält: 254 dpi = 0,1 mm pro Pixel.
 const DEFAULT_MM_PER_PX: f64 = 0.1;
@@ -38,7 +38,7 @@ pub fn import_image(data: &[u8], name: &str) -> Result<Imported, String> {
             adjust: ImageAdjust::default(),
             clip: Vec::new(),
         },
-        at: Point::ZERO,
+        transform: Affine::IDENTITY,
     });
     Ok(out)
 }

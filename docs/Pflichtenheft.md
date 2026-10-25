@@ -74,10 +74,10 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF | Funktion | Umsetzung | Stand |
 |---|---|---|---|
 | LF-01 | Neu/Öffnen/Speichern/Speichern unter | Projektformat `.vlume` (JSON, Bilder als PNG eingebettet), sicheres Speichern über Temp-Datei, Nachfrage bei ungespeicherten Änderungen | ✅ |
-| LF-02 | Import SVG/DXF/Bilder | SVG über `usvg` (Einheiten, Transformationen, Text → Pfade, Farbe → Ebene), DXF (Linie, Kreis, Bogen, Ellipse, LW-/Polylinie mit Bulge, Spline, Blockreferenzen, Einheiten), PNG/JPG/BMP/GIF/WEBP/TIFF; Drag & Drop; Befehlszeile | ✅ |
+| LF-02 | Import SVG/DXF/Bilder | SVG über `usvg` (Einheiten, Transformationen, Text → Pfade, Farbe → Ebene, eingebettete PNG/JPEG/GIF/WebP-Bilder mit Lage), DXF (Linie, Kreis, Bogen, Ellipse, LW-/Polylinie mit Bulge, Spline, Blockreferenzen, Einheiten), PNG/JPG/BMP/GIF/WEBP/TIFF; Drag & Drop; Befehlszeile | ✅ |
 | LF-03 | PDF/AI/EPS/HPGL | PDF und PDF-kompatible AI (erste Seite, Formular-XObjekte, Farben → Ebenen; Text/Bilder mit Hinweis übersprungen), HPGL/PLT (PU/PD/PA/PR, CI, AA/AR, Stift → Ebene); EPS (auch mit DOS-Binärkopf) über ein installiertes Ghostscript (Suchpfad, `Programme\gs`, PDF24 oder `VECTORLUME_GHOSTSCRIPT`; wird nur als Programm aufgerufen): Umwandlung in PDF mit Texten als Umrissen, ohne Ghostscript ein klarer Hinweis | ✅ |
 | LF-04 | LightBurn-Projekte lesen | `.lbrn2` über „Öffnen“ oder Ziehen auf das Fenster: Ebenen (Modus Linie/Füllen/Versatz-Füllen/Bild, Geschwindigkeit mm/s → mm/min, Leistung max./min., Durchgänge, Zeilenabstand/dpi, Winkel, Kreuzschraffur, bidirektional, Luft, Ausgabe, ausgeblendet, eigener Name, Priorität → Reihenfolge, Dithering), Rechteck mit Eckenradius, Ellipse, Pfade (Linien und Bézier, gemeinsame Punktlisten), Gruppen (auch verschachtelt, mit Transformation), Texte über die mitgespeicherten Umrisse, eingebettete Bilder samt Kopien und Helligkeit/Kontrast/Gamma, Leistung je Objekt; Werkzeugebenen T1/T2 auf freie Ebenen ohne Ausgabe; getrennte Bild-Einstellungen einer Ebene auf eigene Ebene; Y nach oben → Y nach unten über die Betthöhe. Ergebnis ist ein neues, ungespeichertes Projekt; nicht Übernommenes wird gemeldet. Mit 19 echten Projekten geprüft. Älteres `.lbrn` ⏳ | 🟡 |
-| LF-05 | Export | G-Code, SVG, DXF (R12, Ebenen mit ACI-Farben) | ✅ |
+| LF-05 | Export | G-Code, SVG (Bilder als PNG eingebettet mit Lage, Bildanpassung und Zuschnitt als `clipPath` – z. B. als Druckvorlage), DXF (R12, Ebenen mit ACI-Farben) | ✅ |
 | LF-06 | Rückgängig, Zwischenablage | 200 Schritte, Ausschneiden/Kopieren/Einfügen/Duplizieren | ✅ |
 | LF-07 | Zuletzt geöffnet, Autosicherung | Liste der letzten 10 Dateien; Autosicherung alle 90 s im Hintergrund, Wiederherstellen nach Absturz (die Sicherung wird beim Start beiseitegelegt, damit eine per „Öffnen mit …“ übergebene Datei sie nicht ersetzt) | ✅ |
 
@@ -218,7 +218,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (138):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (140):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
