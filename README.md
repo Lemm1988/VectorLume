@@ -23,7 +23,8 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
   *Versatz-Füllen* und *Bild* (8 Dithering-Verfahren, Halbton und Linienraster mit Rasterweite/-winkel oder Graustufen,
   Helligkeit/Kontrast/Gamma, Zuschnitt auf eine beliebige Form)
 - **Material:** Materialtest-Generator und Materialbibliothek; Z-Versatz je Durchgang für Geräte mit Z-Achse;
-  Scan-Versatz-Ausgleich für saubere Kanten beim beidseitigen Gravieren (*Maschineneinstellungen*)
+  Scan-Versatz-Ausgleich für saubere Kanten beim beidseitigen Gravieren (*Maschineneinstellungen*); mehrere Geräte
+  mit Umschalten, Import und Export (`.vldevice`)
 - **Kamera:** Webcam oder Foto der Arbeitsfläche, über vier Passpunkte entzerrt und halbtransparent unter dem
   Entwurf angezeigt (*Laser → Kamera…*)
 - **Drucken & Schneiden:** Entwurf über zwei mitgedruckte Passermarken auf bedrucktes Material ausrichten

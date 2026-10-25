@@ -481,6 +481,31 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     card(ui, |ui| {
         section_title(ui, icon::PLUGS, tr("Verbindung"));
         ui.add_space(4.0);
+        let names = app.settings.device_names();
+        if names.len() > 1 {
+            let current = app.settings.device_index;
+            let mut switch = None;
+            ui.horizontal(|ui| {
+                ui.label(tr("Gerät"));
+                ui.add_enabled_ui(!connected, |ui| {
+                    egui::ComboBox::from_id_salt("device_side")
+                        .width(170.0)
+                        .selected_text(names.get(current).cloned().unwrap_or_default())
+                        .show_ui(ui, |ui| {
+                            for (i, n) in names.iter().enumerate() {
+                                if ui.selectable_label(i == current, n).clicked() {
+                                    switch = Some(i);
+                                }
+                            }
+                        });
+                })
+                .response
+                .on_disabled_hover_text(tr("Zum Wechseln erst die Verbindung trennen"));
+            });
+            if let Some(i) = switch {
+                app.switch_device(i);
+            }
+        }
         ui.horizontal(|ui| {
             let current = app.ports.iter().find(|p| p.name == app.selected_port);
             let label = current.map(|p| p.name.clone()).unwrap_or_else(|| tr("Anschluss wählen").into());

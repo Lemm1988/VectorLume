@@ -1388,6 +1388,60 @@ impl VectorLumeApp {
         }
     }
 
+    /// Wechselt das aktive Gerät (nur getrennt und ohne laufenden Job).
+    pub fn switch_device(&mut self, index: usize) {
+        if self.machine.connected || index == self.settings.device_index {
+            return;
+        }
+        self.settings.switch_device(index);
+        self.after_device_change();
+    }
+
+    pub fn after_device_change(&mut self) {
+        self.settings.save();
+        self.revision += 1;
+        self.view.request_fit(None);
+        self.toast(ToastKind::Info, trs(&format!("Gerät „{}“ ist aktiv.", self.settings.profile.name)));
+    }
+
+    pub fn export_device_dialog(&mut self) {
+        let p = &self.settings.profile;
+        if let Some(path) = rfd::FileDialog::new()
+            .set_title(tr("Gerät exportieren"))
+            .add_filter(tr("VectorLume-Gerät"), &["vldevice"])
+            .set_file_name(format!("{}.vldevice", p.name))
+            .save_file()
+        {
+            let result = serde_json::to_string_pretty(p)
+                .map_err(|e| e.to_string())
+                .and_then(|text| std::fs::write(&path, text).map_err(|e| e.to_string()));
+            match result {
+                Ok(()) => self.toast(ToastKind::Success, tr("Gerät exportiert.")),
+                Err(e) => self.toast(ToastKind::Error, trs(&format!("Export fehlgeschlagen: {e}"))),
+            }
+        }
+    }
+
+    pub fn import_device_dialog(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .set_title(tr("Gerät importieren"))
+            .add_filter(tr("VectorLume-Gerät"), &["vldevice", "json"])
+            .pick_file()
+        else {
+            return;
+        };
+        let profile = std::fs::read_to_string(&path)
+            .map_err(|e| e.to_string())
+            .and_then(|text| serde_json::from_str::<vl_cam::MachineProfile>(&text).map_err(|e| e.to_string()));
+        match profile {
+            Ok(p) => {
+                self.settings.add_device(p);
+                self.after_device_change();
+            }
+            Err(e) => self.toast(ToastKind::Error, trs(&format!("Gerät konnte nicht gelesen werden: {e}"))),
+        }
+    }
+
     /// Übernimmt Werte aus `$$` ins Maschinenprofil.
     pub fn apply_device_settings(&mut self) {
         let m = &self.machine;

@@ -27,6 +27,7 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
     let mut p = app.settings.profile.clone();
     let have_device_values = !app.machine.settings.is_empty();
     let mut apply_device = false;
+    let mut device_action: Option<DeviceAction> = None;
     egui::Window::new(trs(&format!("{} Maschineneinstellungen", icon::GEAR)))
         .open(&mut open)
         .collapsible(false)
@@ -35,6 +36,8 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
         .pivot(Align2::CENTER_CENTER)
         .default_pos(ctx.content_rect().center())
         .show(ctx, |ui| {
+            device_row(app, ui, &mut device_action);
+            ui.separator();
             egui::Grid::new("profile").num_columns(2).spacing(vec2(12.0, 6.0)).show(ui, |ui| {
                 ui.label(tr("Name"));
                 ui.text_edit_singleline(&mut p.name);
@@ -184,9 +187,94 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
     if apply_device {
         app.apply_device_settings();
     }
+    match device_action {
+        Some(DeviceAction::Switch(i)) => app.switch_device(i),
+        Some(DeviceAction::New) => {
+            app.settings.add_device(MachineProfile { name: tr("Neues Gerät").into(), ..Default::default() });
+            app.after_device_change();
+        }
+        Some(DeviceAction::Duplicate) => {
+            let mut copy = app.settings.profile.clone();
+            copy.name = trs(&format!("{} (Kopie)", copy.name));
+            app.settings.add_device(copy);
+            app.after_device_change();
+        }
+        Some(DeviceAction::Delete) => {
+            if app.settings.remove_device() {
+                app.after_device_change();
+            }
+        }
+        Some(DeviceAction::Import) => app.import_device_dialog(),
+        Some(DeviceAction::Export) => app.export_device_dialog(),
+        None => {}
+    }
     if !open {
         app.show_device_settings = false;
     }
+}
+
+enum DeviceAction {
+    Switch(usize),
+    New,
+    Duplicate,
+    Delete,
+    Import,
+    Export,
+}
+
+/// Geräteauswahl mit Neu, Duplizieren, Löschen (mit Rückfrage), Import und Export.
+fn device_row(app: &VectorLumeApp, ui: &mut egui::Ui, action: &mut Option<DeviceAction>) {
+    let names = app.settings.device_names();
+    let current = app.settings.device_index;
+    let can_switch = !app.machine.connected;
+    ui.horizontal(|ui| {
+        ui.label(tr("Gerät"));
+        ui.add_enabled_ui(can_switch, |ui| {
+            egui::ComboBox::from_id_salt("device")
+                .width(170.0)
+                .selected_text(names.get(current).cloned().unwrap_or_default())
+                .show_ui(ui, |ui| {
+                    for (i, n) in names.iter().enumerate() {
+                        if ui.selectable_label(i == current, n).clicked() && i != current {
+                            *action = Some(DeviceAction::Switch(i));
+                        }
+                    }
+                });
+        })
+        .response
+        .on_disabled_hover_text(tr("Zum Wechseln erst die Verbindung trennen"));
+        if ui.button(icon::PLUS).on_hover_text(tr("Neues Gerät")).clicked() {
+            *action = Some(DeviceAction::New);
+        }
+        if ui.button(icon::COPY).on_hover_text(tr("Gerät duplizieren")).clicked() {
+            *action = Some(DeviceAction::Duplicate);
+        }
+        let confirm_id = ui.id().with("delete_device");
+        let confirming = ui.data(|d| d.get_temp::<bool>(confirm_id).unwrap_or(false));
+        let delete = if confirming {
+            Button::new(RichText::new(tr("Wirklich löschen?")).color(Color32::WHITE)).fill(theme::of(ui).danger)
+        } else {
+            Button::new(icon::TRASH)
+        };
+        let resp = ui
+            .add_enabled(names.len() > 1 && can_switch, delete)
+            .on_hover_text(tr("Gerät löschen"))
+            .on_disabled_hover_text(tr("Das letzte Gerät kann nicht gelöscht werden"));
+        if resp.clicked() {
+            if confirming {
+                *action = Some(DeviceAction::Delete);
+            }
+            ui.data_mut(|d| d.insert_temp(confirm_id, !confirming));
+        } else if confirming && resp.clicked_elsewhere() {
+            ui.data_mut(|d| d.insert_temp(confirm_id, false));
+        }
+        if ui.button(icon::DOWNLOAD_SIMPLE).on_hover_text(tr("Gerät aus Datei importieren")).clicked() {
+            *action = Some(DeviceAction::Import);
+        }
+        if ui.button(icon::UPLOAD_SIMPLE).on_hover_text(tr("Gerät in Datei exportieren (zum Weitergeben)")).clicked() {
+            *action = Some(DeviceAction::Export);
+        }
+    });
 }
 
 fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
