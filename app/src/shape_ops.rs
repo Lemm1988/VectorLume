@@ -48,6 +48,11 @@ pub struct ShapeDialogs {
     pub bitmap_open: bool,
     pub bitmap: RenderOptions,
     pub bitmap_keep_original: bool,
+    pub simplify_open: bool,
+    /// Erlaubte Abweichung beim Vereinfachen (mm).
+    pub simplify_tolerance: f64,
+    /// 0 = eckig, 1 = rund (Kurven).
+    pub simplify_smoothing: f64,
 }
 
 impl Default for ShapeDialogs {
@@ -75,6 +80,9 @@ impl Default for ShapeDialogs {
             bitmap_open: false,
             bitmap: RenderOptions::default(),
             bitmap_keep_original: false,
+            simplify_open: false,
+            simplify_tolerance: 0.05,
+            simplify_smoothing: 0.0,
             path_swap: false,
         }
     }
@@ -223,6 +231,45 @@ impl VectorLumeApp {
             self.doc.transform_objects(u, &Affine::scale_about(sx, sy, b.center()));
         }
         self.mark_changed();
+    }
+
+    /// Reduziert die Knoten der ausgewählten Pfade (Douglas-Peucker), wahlweise mit Glättung zu Kurven.
+    pub fn simplify_selection(&mut self) {
+        let (tol, smoothing) = (self.shape_dialogs.simplify_tolerance, self.shape_dialogs.simplify_smoothing);
+        let targets: Vec<(ObjectId, usize, VectorPath)> = self
+            .selection
+            .iter()
+            .filter_map(|id| self.doc.get(*id))
+            .filter(|o| o.text.is_none())
+            .filter_map(|o| match &o.shape {
+                Shape::Path(p) => {
+                    let mut out = VectorPath::default();
+                    for poly in p.flatten(&o.transform, TOLERANCE) {
+                        let pts = vl_core::ops::simplify_points(&poly.points, poly.closed, tol);
+                        out.append(vl_core::ops::smooth_points(&pts, poly.closed, smoothing, 65.0));
+                    }
+                    Some((o.id, p.segment_count(), out))
+                }
+                Shape::Image(_) => None,
+            })
+            .collect();
+        if targets.is_empty() {
+            self.toast(ToastKind::Info, tr("Keine Pfade ausgewählt (Texte zuerst in Kurven umwandeln)."));
+            return;
+        }
+        self.checkpoint();
+        let (mut before, mut after) = (0, 0);
+        for (id, count, path) in targets {
+            before += count;
+            after += path.segment_count();
+            if let Some(o) = self.doc.get_mut(id) {
+                o.shape = Shape::Path(path);
+                o.transform = Affine::IDENTITY;
+                self.geom.invalidate(id);
+            }
+        }
+        self.mark_changed();
+        self.toast(ToastKind::Success, trs(&format!("{before} → {after} Knoten.")));
     }
 
     /// Rechnet die Auswahl in ein Graustufenbild um, z. B. um Text und Foto gemeinsam zu rastern.
@@ -543,6 +590,65 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     offset_window(app, ctx);
     array_window(app, ctx);
     bitmap_window(app, ctx);
+    simplify_window(app, ctx);
+}
+
+fn simplify_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
+    if !app.shape_dialogs.simplify_open {
+        return;
+    }
+    let mut open = true;
+    let mut apply = false;
+    let has = !app.selection.is_empty();
+    egui::Window::new(trs(&format!("{} Formen vereinfachen", icon::BEZIER_CURVE)))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            let pal = theme::of(ui);
+            let d = &mut app.shape_dialogs;
+            egui::Grid::new("simplify").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
+                ui.label(tr("Toleranz"));
+                ui.add(
+                    DragValue::new(&mut d.simplify_tolerance)
+                        .speed(0.005)
+                        .range(0.001..=5.0)
+                        .max_decimals(3)
+                        .suffix(" mm"),
+                )
+                .on_hover_text(tr("So weit dürfen die neuen Linien von der alten Form abweichen"));
+                ui.end_row();
+                ui.label(tr("Glätten"));
+                ui.add(egui::Slider::new(&mut d.simplify_smoothing, 0.0..=1.0).fixed_decimals(2))
+                    .on_hover_text(tr("0 = gerade Linien, höher = flache Knicke werden zu Kurven, Ecken bleiben"));
+                ui.end_row();
+            });
+            ui.label(
+                RichText::new(tr(
+                    "Für nachgezeichnete oder importierte Formen mit sehr vielen Knoten: weniger Knoten laufen \
+                     ruhiger und schneller. Texte vorher in Kurven umwandeln.",
+                ))
+                .small()
+                .color(pal.text_weak),
+            );
+            ui.add_space(6.0);
+            if ui
+                .add_enabled(has, Button::new(RichText::new(tr("Anwenden")).color(Color32::WHITE)).fill(pal.accent))
+                .clicked()
+            {
+                apply = true;
+            }
+            if !has {
+                ui.label(RichText::new(tr("Nichts ausgewählt")).small().color(pal.text_weak));
+            }
+        });
+    if apply {
+        app.simplify_selection();
+    }
+    if !open {
+        app.shape_dialogs.simplify_open = false;
+    }
 }
 
 fn bitmap_window(app: &mut VectorLumeApp, ctx: &egui::Context) {

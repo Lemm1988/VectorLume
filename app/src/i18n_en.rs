@@ -1008,6 +1008,13 @@ pub static EN: &[(&str, &str)] = &[
     ("Auslauf: Nach der Kontur fährt der Laser so weit in den Abfall hinaus.", "Lead-out: after the contour the laser travels this far out into the waste."),
     ("Winkel zur Kontur: 90° = senkrecht, kleiner = flacher, in Fahrtrichtung", "Angle to the contour: 90° = perpendicular, smaller = flatter, in the direction of travel"),
     ("Überlappende Buchstaben (z. B. Schreibschrift) zu einer Kontur vereinen, damit beim Schneiden und Füllen nichts doppelt gebrannt wird", "Merge overlapping letters (e.g. script fonts) into one outline so nothing is burned twice when cutting or filling"),
+    ("Keine Pfade ausgewählt (Texte zuerst in Kurven umwandeln).", "No paths selected (convert texts to curves first)."),
+    ("So weit dürfen die neuen Linien von der alten Form abweichen", "How far the new lines may deviate from the original shape"),
+    ("0 = gerade Linien, höher = flache Knicke werden zu Kurven, Ecken bleiben", "0 = straight lines, higher = shallow bends become curves, corners stay"),
+    ("Für nachgezeichnete oder importierte Formen mit sehr vielen Knoten: weniger Knoten laufen ruhiger und schneller. Texte vorher in Kurven umwandeln.", "For traced or imported shapes with very many nodes: fewer nodes run smoother and faster. Convert texts to curves first."),
+    ("{} → {} Knoten.", "{} → {} nodes."),
+    ("{} Formen vereinfachen", "{} Simplify shapes"),
+    ("Formen vereinfachen…", "Simplify shapes…"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

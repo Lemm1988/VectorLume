@@ -176,6 +176,97 @@ pub fn islands(polys: &[Polyline]) -> Vec<Vec<Polyline>> {
     out
 }
 
+/// Douglas-Peucker ohne Rekursion: Punkte, die höchstens `tol` von der Verbindung ihrer Nachbarn abweichen,
+/// entfallen. Bei geschlossenen Polygonen dient der vom Start am weitesten entfernte Punkt als zweiter Anker.
+pub fn simplify_points(pts: &[Point], closed: bool, tol: f64) -> Vec<Point> {
+    let n = pts.len();
+    if n < if closed { 4 } else { 3 } || tol <= 0.0 {
+        return pts.to_vec();
+    }
+    let at = |i: usize| pts[i % n];
+    let mut keep = vec![false; n + 1];
+    let mut stack = Vec::new();
+    keep[0] = true;
+    if closed {
+        let far =
+            (1..n).max_by(|&a, &b| pts[0].distance_sq(pts[a]).total_cmp(&pts[0].distance_sq(pts[b]))).unwrap_or(n / 2);
+        keep[far] = true;
+        keep[n] = true;
+        stack.extend([(0usize, far), (far, n)]);
+    } else {
+        keep[n - 1] = true;
+        stack.push((0usize, n - 1));
+    }
+    while let Some((a, b)) = stack.pop() {
+        if b <= a + 1 {
+            continue;
+        }
+        let (pa, pb) = (at(a), at(b));
+        let mut best = (0.0, a);
+        for i in a + 1..b {
+            let d = crate::path::distance_to_segment(at(i), pa, pb);
+            if d > best.0 {
+                best = (d, i);
+            }
+        }
+        if best.0 > tol {
+            keep[best.1] = true;
+            stack.push((a, best.1));
+            stack.push((best.1, b));
+        }
+    }
+    (0..n).filter(|&i| keep[i]).map(|i| pts[i]).collect()
+}
+
+/// Punktfolge → Pfad. Mit `smoothing` (0…1) werden flache Knicke zu Catmull-Rom-Kurven; Knicke über
+/// `corner_deg` bleiben Ecken, ebenso die Enden offener Linienzüge.
+pub fn smooth_points(pts: &[Point], closed: bool, smoothing: f64, corner_deg: f64) -> crate::path::VectorPath {
+    let n = pts.len();
+    let mut pb = crate::path::PathBuilder::new();
+    if n == 0 {
+        return pb.finish();
+    }
+    pb.move_to(pts[0]);
+    let k = smoothing.clamp(0.0, 1.0);
+    if k <= 0.0 || n < 3 {
+        for p in &pts[1..] {
+            pb.line_to(*p);
+        }
+        if closed {
+            pb.close();
+        }
+        return pb.finish();
+    }
+    let limit = corner_deg.to_radians();
+    let corner = |i: usize| {
+        if !closed && (i == 0 || i == n - 1) {
+            return true;
+        }
+        let (a, b, c) = (pts[(i + n - 1) % n], pts[i], pts[(i + 1) % n]);
+        let (u, v) = (b - a, c - b);
+        u.cross(v).atan2(u.dot(v)).abs() > limit
+    };
+    let corners: Vec<bool> = (0..n).map(corner).collect();
+    // Tangente je Knoten (null an Ecken)
+    let tangent = |i: usize| {
+        if corners[i] { Point::ZERO } else { (pts[(i + 1) % n] - pts[(i + n - 1) % n]) * (k / 6.0) }
+    };
+    let segments = if closed { n } else { n - 1 };
+    for i in 0..segments {
+        let j = (i + 1) % n;
+        let (p0, p1) = (pts[i], pts[j]);
+        if corners[i] && corners[j] {
+            pb.line_to(p1);
+        } else {
+            pb.cubic_to(p0 + tangent(i), p1 - tangent(j), p1);
+        }
+    }
+    if closed {
+        pb.close();
+    }
+    pb.finish()
+}
+
 /// Verschachtelungstiefe je Linienzug (gerade = Außenkontur eines Teils, ungerade = Loch); offene zählen nicht
 /// als Hülle und haben Tiefe 0.
 pub fn nesting_depths(polys: &[Polyline]) -> Vec<usize> {
@@ -403,6 +494,28 @@ pub fn position_at(poly: &Polyline, s: f64) -> Option<(Point, f64)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn simplify_keeps_shape_within_tolerance() {
+        // Kreis mit 400 Punkten, offene Zickzacklinie
+        let circle: Vec<Point> =
+            (0..400).map(|i| Point::new(10.0, 0.0).rotated(i as f64 / 400.0 * std::f64::consts::TAU)).collect();
+        let s = simplify_points(&circle, true, 0.05);
+        assert!(s.len() < 60 && s.len() > 8, "{}", s.len());
+        for p in &circle {
+            let poly = Polyline::new(s.clone(), true);
+            assert!(poly.distance_to(*p) <= 0.05 + 1e-9);
+        }
+        let line: Vec<Point> = (0..=10).map(|i| Point::new(i as f64, if i % 2 == 0 { 0.0 } else { 0.01 })).collect();
+        assert_eq!(simplify_points(&line, false, 0.05), [line[0], line[10]]);
+        assert_eq!(simplify_points(&line, false, 0.001).len(), 11);
+        // Glätten: offene Enden bleiben, geschlossene Form wird zu Kurven
+        let smooth = smooth_points(&s, true, 1.0, 65.0);
+        assert!(smooth.subpaths[0].closed);
+        let open = smooth_points(&line, false, 1.0, 65.0);
+        assert_eq!(open.subpaths[0].start, line[0]);
+        assert_eq!(open.subpaths[0].end(), line[10]);
+    }
 
     #[test]
     fn islands_pair_outlines_with_holes() {
