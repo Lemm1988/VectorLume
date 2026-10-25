@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use vl_core::{Document, LayerMode, Point, VectorPath};
-use vl_raster::warp::{Homography, warp_to_area};
+use vl_raster::warp::{Homography, Lens, warp_to_area};
 
 /// Längere Seite des entzerrten Bildes in Pixeln.
 const OVERLAY_PX: usize = 1200;
@@ -46,6 +46,8 @@ pub struct CameraSettings {
     /// Leistung (%) und Geschwindigkeit (mm/min) der Ausrichtmarken.
     pub mark_power: f64,
     pub mark_speed: f64,
+    /// Ausgleich der Tonnenverzerrung des Objektivs (0 = keiner, siehe [`Lens`]).
+    pub lens: f64,
 }
 
 impl Default for CameraSettings {
@@ -57,6 +59,7 @@ impl Default for CameraSettings {
             opacity: 0.7,
             mark_power: 20.0,
             mark_speed: 1500.0,
+            lens: 0.0,
         }
     }
 }
@@ -219,17 +222,20 @@ pub fn tick(app: &mut VectorLumeApp, ctx: &egui::Context) {
     let profile = &app.settings.profile;
     let doc_points: Vec<Point> =
         cs.points.iter().map(|p| profile.machine_to_doc(Point::new(p.bed[0], p.bed[1]))).collect();
-    let key =
-        format!("{} {:?} {:?} {} {}", cam.frame_gen, cs.points, doc_points, profile.bed_width, profile.bed_height);
+    let key = format!(
+        "{} {:?} {:?} {} {} {}",
+        cam.frame_gen, cs.points, doc_points, profile.bed_width, profile.bed_height, cs.lens
+    );
     if key == cam.overlay_key {
         return;
     }
     cam.overlay_key = key;
-    let Some(to_image) = homography(cs, profile).and_then(|h| h.inverse()) else {
+    let lens = Lens::new(cs.lens, frame.width, frame.height);
+    let Some(to_image) = homography(cs, profile, &lens).and_then(|h| h.inverse()) else {
         cam.overlay = None;
         return;
     };
-    let w = warp_to_area(&frame.rgb, frame.width, frame.height, &to_image, profile.bed_rect(), OVERLAY_PX);
+    let w = warp_to_area(&frame.rgb, frame.width, frame.height, &to_image, &lens, profile.bed_rect(), OVERLAY_PX);
     let image = egui::ColorImage::from_rgba_unmultiplied([w.width, w.height], &w.rgba);
     match &mut cam.overlay {
         Some(t) => t.set(image, TextureOptions::LINEAR),
@@ -237,16 +243,25 @@ pub fn tick(app: &mut VectorLumeApp, ctx: &egui::Context) {
     }
 }
 
-/// Abbildung Kamerabild (0…1) → Dokumentkoordinaten (mm).
-fn homography(cs: &CameraSettings, profile: &vl_cam::MachineProfile) -> Option<Homography> {
+/// Abbildung ideale (entzerrte) Kamerabildkoordinaten (0…1) → Dokumentkoordinaten (mm); die angeklickten
+/// Passpunkte werden dafür zuerst mit `lens` entzerrt.
+fn homography(cs: &CameraSettings, profile: &vl_cam::MachineProfile, lens: &Lens) -> Option<Homography> {
     let mut from = [Point::ZERO; 4];
     let mut to = [Point::ZERO; 4];
     for (i, p) in cs.points.iter().enumerate() {
         let [u, v] = p.image?;
-        from[i] = Point::new(u, v);
+        from[i] = lens.undistort(Point::new(u, v));
         to[i] = profile.machine_to_doc(Point::new(p.bed[0], p.bed[1]));
     }
     Homography::from_points(&from, &to)
+}
+
+/// Objektivkorrektur passend zum aktuellen Bild (ohne Bild nur zur Prüfung der Ausrichtung).
+fn frame_lens(app: &VectorLumeApp) -> Lens {
+    match &app.camera.frame {
+        Some(f) => Lens::new(app.settings.camera.lens, f.width, f.height),
+        None => Lens::NONE,
+    }
 }
 
 /// Entzerrtes Kamerabild unter Raster und Objekten zeichnen.
@@ -435,7 +450,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
             let status = if !cs.calibrated() {
                 let missing = cs.points.iter().filter(|p| p.image.is_none()).count();
                 RichText::new(trs(&format!("Noch {missing} Punkt(e) im Bild setzen."))).color(pal.text_weak)
-            } else if homography(cs, &app.settings.profile).is_none() {
+            } else if homography(cs, &app.settings.profile, &frame_lens(app)).is_none() {
                 RichText::new(tr("Die Punkte ergeben keine gültige Ausrichtung (liegen drei auf einer Linie?).")).color(pal.danger)
             } else {
                 RichText::new(trs(&format!("{} Ausgerichtet", icon::CHECK))).color(pal.success)
@@ -447,7 +462,8 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.label(tr("Deckkraft"));
                 ui.add(egui::Slider::new(&mut app.settings.camera.opacity, 0.1..=1.0).show_value(false));
             });
-            let can_insert = app.camera.frame.is_some() && homography(&app.settings.camera, &app.settings.profile).is_some();
+            let can_insert = app.camera.frame.is_some()
+                && homography(&app.settings.camera, &app.settings.profile, &frame_lens(app)).is_some();
             if ui
                 .add_enabled(can_insert, Button::new(trs(&format!("{} Als Bild ins Projekt", icon::IMAGE_SQUARE))))
                 .on_hover_text(tr("Legt das entzerrte Kamerabild als Graustufenbild ins Projekt – den Bereich der Auswahl, sonst die ganze Arbeitsfläche –, z. B. um eine aufgelegte Skizze nachzuzeichnen. Es kommt auf eine eigene Ebene ohne Ausgabe."))
@@ -456,11 +472,11 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
             {
                 action = Some("insert");
             }
-            ui.label(
-                RichText::new(tr("Hinweis: Eine starke Objektivverzerrung (Fischauge) wird nicht ausgeglichen – am besten eine Kamera mit normalem Objektiv senkrecht über dem Bett verwenden."))
-                    .small()
-                    .color(pal.text_weak),
-            );
+            ui.horizontal(|ui| {
+                ui.label(tr("Wölbung ausgleichen"));
+                ui.add(egui::Slider::new(&mut app.settings.camera.lens, -0.3..=0.6).fixed_decimals(2))
+                    .on_hover_text(tr("Gleicht die Tonnenverzerrung von Weitwinkel- und Fischaugen-Objektiven aus (negative Werte: Kissenverzerrung). So einstellen, dass gerade Kanten wie der Bettrand oder ein Lineal in der Anzeige gerade erscheinen; die Passpunkte bleiben gültig."));
+            });
         });
 
     match action {
@@ -498,7 +514,8 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
 pub(crate) fn insert_image(app: &mut VectorLumeApp) {
     let Some(frame) = app.camera.frame.clone() else { return };
     let profile = &app.settings.profile;
-    let Some(to_image) = homography(&app.settings.camera, profile).and_then(|h| h.inverse()) else {
+    let lens = Lens::new(app.settings.camera.lens, frame.width, frame.height);
+    let Some(to_image) = homography(&app.settings.camera, profile, &lens).and_then(|h| h.inverse()) else {
         app.toast(ToastKind::Error, tr("Die Kamera ist nicht gültig ausgerichtet."));
         return;
     };
@@ -517,7 +534,7 @@ pub(crate) fn insert_image(app: &mut VectorLumeApp) {
         return;
     }
     let max_px = ((area.width().max(area.height()) * INSERT_PX_PER_MM).round() as usize).clamp(16, INSERT_MAX_PX);
-    let w = warp_to_area(&frame.rgb, frame.width, frame.height, &to_image, area, max_px);
+    let w = warp_to_area(&frame.rgb, frame.width, frame.height, &to_image, &lens, area, max_px);
     // Graustufen; außerhalb des Kamerabilds weiß
     let gray: Vec<u8> = w
         .rgba

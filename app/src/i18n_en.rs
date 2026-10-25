@@ -99,7 +99,6 @@ pub static EN: &[(&str, &str)] = &[
     ("Die Punkte ergeben keine gültige Ausrichtung (liegen drei auf einer Linie?).", "The points do not give a valid alignment (are three of them on one line?)."),
     ("Auf der Arbeitsfläche anzeigen", "Show on work area"),
     ("Deckkraft", "Opacity"),
-    ("Hinweis: Eine starke Objektivverzerrung (Fischauge) wird nicht ausgeglichen – am besten eine Kamera mit normalem Objektiv senkrecht über dem Bett verwenden.", "Note: strong lens distortion (fisheye) is not corrected – ideally use a camera with a normal lens mounted straight above the bed."),
     ("Für die Ausrichtmarken bitte zuerst die Drehachse ausschalten.", "Please turn off the rotary first to laser the alignment marks."),
     ("Kamera konnte nicht geöffnet werden: {}", "Could not open camera: {}"),
     ("Kamera konnte nicht gestartet werden (wird sie von einem anderen Programm benutzt?): {}", "Could not start camera (is another program using it?): {}"),
@@ -1206,6 +1205,8 @@ pub static EN: &[(&str, &str)] = &[
     ("Kamerabild", "Camera image"),
     ("Kamerabild übernommen (Ebene ohne Ausgabe) – z. B. mit Anordnen → Bild nachzeichnen weiterverarbeiten.", "Camera image added (layer without output) – e.g. continue with Arrange → Trace image."),
     ("{} Als Bild ins Projekt", "{} Add to project as image"),
+    ("Wölbung ausgleichen", "Lens correction"),
+    ("Gleicht die Tonnenverzerrung von Weitwinkel- und Fischaugen-Objektiven aus (negative Werte: Kissenverzerrung). So einstellen, dass gerade Kanten wie der Bettrand oder ein Lineal in der Anzeige gerade erscheinen; die Passpunkte bleiben gültig.", "Corrects the barrel distortion of wide-angle and fisheye lenses (negative values: pincushion distortion). Adjust until straight edges such as the bed border or a ruler look straight in the view; the alignment points stay valid."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
