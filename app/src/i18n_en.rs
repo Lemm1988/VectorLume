@@ -1115,6 +1115,8 @@ pub static EN: &[(&str, &str)] = &[
     ("1 Teil ausgewählt", "1 part selected"),
     ("Gruppen nacheinander fertigstellen", "Finish groups one after another"),
     ("Jede Gruppe mit allen ihren Ebenen bearbeiten, bevor die nächste beginnt – z. B. mehrere Untersetzer: gravieren und ausschneiden, dann der nächste. Ungruppiertes zählt als eine Einheit.", "Process each group with all its layers before the next one starts – e.g. several coasters: engrave and cut, then the next one. Ungrouped objects count as one unit."),
+    ("je Durchgang +", "per pass +"),
+    ("Füllwinkel bei jedem weiteren Durchgang so weit drehen – vermeidet Rillen bei tiefen Gravuren (z. B. 45° oder 90°).", "Turn the fill angle by this much on every further pass – avoids grooves in deep engravings (e.g. 45° or 90°)."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

@@ -434,12 +434,12 @@ fn layer_blocks(
                 lead_out: cs.lead_out,
                 angle_deg: cs.lead_angle,
             });
-            (BlockKind::Line, cut_ops_with_leads(&ordered, power, cs.overcut, cs.perforation(), leads))
+            (BlockKind::Line, vec![cut_ops_with_leads(&ordered, power, cs.overcut, cs.perforation(), leads)])
         }
         LayerMode::OffsetFill => {
             let rings = vl_core::ops::offset_fill(&polys, cs.interval, MAX_OFFSET_RINGS);
             let ordered = if settings.optimize_order { order_polylines(rings, *cur, false) } else { rings };
-            (BlockKind::Fill, line_ops(&ordered, power))
+            (BlockKind::Fill, vec![line_ops(&ordered, power)])
         }
         LayerMode::Fill | LayerMode::Image => {
             let parts = match cs.fill_grouping {
@@ -447,28 +447,40 @@ fn layer_blocks(
                 FillGrouping::Groups => units.into_iter().map(|u| u.1).collect(),
                 FillGrouping::Shapes => vl_core::ops::islands(&polys),
             };
-            let ops = if parts.is_empty() {
-                let mut ops =
-                    hatch_ops(&polys, cs.interval, cs.fill_angle, cs.bidirectional, cs.overscan, shift, power);
-                if cs.crosshatch {
-                    let angle = cs.fill_angle + 90.0;
-                    ops.extend(hatch_ops(&polys, cs.interval, angle, cs.bidirectional, cs.overscan, shift, power));
+            let fill = |cs: &CutSettings| {
+                let ops = if parts.is_empty() {
+                    let mut ops =
+                        hatch_ops(&polys, cs.interval, cs.fill_angle, cs.bidirectional, cs.overscan, shift, power);
+                    if cs.crosshatch {
+                        let angle = cs.fill_angle + 90.0;
+                        ops.extend(hatch_ops(&polys, cs.interval, angle, cs.bidirectional, cs.overscan, shift, power));
+                    }
+                    ops
+                } else {
+                    fill_parts(&parts, cs, shift, power, *cur)
+                };
+                if cs.mode == LayerMode::Fill && cs.ramp_length > 0.0 {
+                    let edges = if cs.ramp_outer_only { vl_core::ops::outermost(&polys) } else { polys.clone() };
+                    let min = (cs.power_min / 100.0).clamp(0.0, 1.0) as f32;
+                    apply_ramp(ops, &edges, cs.ramp_length, min.min(power), power)
+                } else {
+                    ops
                 }
-                ops
-            } else {
-                fill_parts(&parts, cs, shift, power, *cur)
             };
-            let ops = if cs.mode == LayerMode::Fill && cs.ramp_length > 0.0 {
-                let edges = if cs.ramp_outer_only { vl_core::ops::outermost(&polys) } else { polys.clone() };
-                let min = (cs.power_min / 100.0).clamp(0.0, 1.0) as f32;
-                apply_ramp(ops, &edges, cs.ramp_length, min.min(power), power)
+            // Winkelschritt: jeder Durchgang mit eigenem, weitergedrehtem Füllwinkel
+            let per_pass = if cs.mode == LayerMode::Fill && cs.fill_angle_step != 0.0 && cs.passes > 1 {
+                (0..cs.passes)
+                    .map(|k| {
+                        fill(&CutSettings { fill_angle: cs.fill_angle + k as f64 * cs.fill_angle_step, ..cs.clone() })
+                    })
+                    .collect()
             } else {
-                ops
+                vec![fill(cs)]
             };
-            (BlockKind::Fill, ops)
+            (BlockKind::Fill, per_pass)
         }
     };
-    if let Some(last) = vector_ops.last() {
+    if let Some(last) = vector_ops.iter().rev().find_map(|ops| ops.last()) {
         *cur = last.target();
     }
 
@@ -489,14 +501,15 @@ fn layer_blocks(
                 z: cs.z_for_pass(pass),
             });
         }
-        if !vector_ops.is_empty() {
+        let ops = &vector_ops[(pass as usize).min(vector_ops.len() - 1)];
+        if !ops.is_empty() {
             tp.blocks.push(Block {
                 layer,
                 kind: vector_kind,
                 pass,
                 feed: cs.speed,
                 air: cs.air_assist,
-                ops: vector_ops.clone(),
+                ops: ops.clone(),
                 raster: None,
                 z: cs.z_for_pass(pass),
             });
@@ -653,6 +666,34 @@ mod tests {
         // alle Ecken der Hülle liegen auf dem Kreis
         let pts = vl_core::ops::convex_hull(&burn_points(&job.toolpath));
         assert!(pts.iter().all(|p| (p.distance(Point::new(50.0, 50.0)) - 20.0).abs() < 0.1));
+    }
+
+    #[test]
+    fn fill_angle_turns_each_pass() {
+        let mut doc = Document::new();
+        doc.add_path("Fläche", 0, VectorPath::rect(0.0, 0.0, 10.0, 10.0, 0.0));
+        let mut cs = vl_core::CutSettings::default_for(LayerMode::Fill);
+        cs.passes = 3;
+        cs.fill_angle_step = 90.0;
+        cs.interval = 1.0;
+        doc.layers[0].settings = cs;
+        let objs: Vec<&Object> = doc.objects.iter().collect();
+        let tp = generate(&doc, &objs, &MachineProfile::default(), &JobSettings::default(), Point::ZERO).unwrap();
+        assert_eq!(tp.blocks.len(), 3);
+        // Richtung der ersten Brennstrecke je Durchgang: waagerecht, senkrecht, waagerecht
+        let horizontal = |b: &Block| {
+            let mut prev = Point::ZERO;
+            for op in &b.ops {
+                if let Op::Move { to, power } = *op
+                    && power > 0.0
+                {
+                    return (to.y - prev.y).abs() < 1e-9;
+                }
+                prev = op.target();
+            }
+            panic!("keine Brennstrecke");
+        };
+        assert_eq!(tp.blocks.iter().map(horizontal).collect::<Vec<_>>(), [true, false, true]);
     }
 
     #[test]

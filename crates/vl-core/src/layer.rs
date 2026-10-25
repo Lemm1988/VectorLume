@@ -149,6 +149,9 @@ pub struct CutSettings {
     pub interval: f64,
     /// Füllwinkel in Grad.
     pub fill_angle: f64,
+    /// Drehung des Füllwinkels je Durchgang in Grad (0 = jeder Durchgang gleich); vermeidet Rillen bei tiefen
+    /// Gravuren mit mehreren Durchgängen.
+    pub fill_angle_step: f64,
     pub crosshatch: bool,
     pub bidirectional: bool,
     /// Überlauf am Zeilenende in mm (Laser aus).
@@ -244,6 +247,7 @@ impl CutSettings {
             output: true,
             interval: 0.1,
             fill_angle: 0.0,
+            fill_angle_step: 0.0,
             crosshatch: false,
             bidirectional: true,
             overscan: 2.5,

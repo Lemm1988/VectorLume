@@ -409,7 +409,22 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
         }
         if s.mode == LayerMode::Fill {
             ui.label(tr("Winkel"));
-            ui.add(DragValue::new(&mut s.fill_angle).speed(1.0).range(-180.0..=180.0).suffix("°"));
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut s.fill_angle).speed(1.0).range(-180.0..=180.0).suffix("°"));
+                if s.passes > 1 {
+                    ui.add(
+                        DragValue::new(&mut s.fill_angle_step)
+                            .speed(1.0)
+                            .range(-180.0..=180.0)
+                            .prefix(tr("je Durchgang +"))
+                            .suffix("°"),
+                    )
+                    .on_hover_text(tr(
+                        "Füllwinkel bei jedem weiteren Durchgang so weit drehen – vermeidet Rillen bei tiefen \
+                         Gravuren (z. B. 45° oder 90°).",
+                    ));
+                }
+            });
             ui.end_row();
             ui.label("");
             ui.checkbox(&mut s.crosshatch, tr("Kreuzschraffur"));
