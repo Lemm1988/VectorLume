@@ -1245,6 +1245,8 @@ pub static EN: &[(&str, &str)] = &[
     ("Materialstärke und Maße müssen größer als 0 sein.", "Material thickness and dimensions must be greater than 0."),
     ("Die Box ist für diese Materialstärke zu klein (jede Seite mindestens 4 × Materialstärke).", "The box is too small for this material thickness (each side at least 4 × thickness)."),
     ("Die Zinken sind zu schmal – Zinkenbreite mindestens etwa 1,5 × Materialstärke.", "The fingers are too narrow – finger width at least about 1.5 × material thickness."),
+    ("An Ecken beginnen", "Start at corners"),
+    ("Geschlossene Konturen starten an einer Ecke statt am nächstgelegenen Punkt – Anfang und Ende (Naht, Überschnitt, Einlauf) fallen dort weniger auf.", "Closed outlines start at a corner instead of the nearest point – start and end (seam, overcut, lead-in) are less visible there."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

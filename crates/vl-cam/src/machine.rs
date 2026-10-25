@@ -368,6 +368,8 @@ pub struct JobSettings {
     pub remove_overlaps: bool,
     /// Höchster Abstand in mm, bis zu dem zwei Linien als deckungsgleich gelten.
     pub overlap_tolerance: f64,
+    /// Geschlossene Konturen nach Möglichkeit an einer Ecke beginnen (Naht weniger sichtbar).
+    pub start_at_corners: bool,
 }
 
 impl Default for JobSettings {
@@ -383,6 +385,7 @@ impl Default for JobSettings {
             order_by_group: false,
             remove_overlaps: false,
             overlap_tolerance: 0.05,
+            start_at_corners: false,
         }
     }
 }

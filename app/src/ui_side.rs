@@ -843,6 +843,10 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
         ));
         ui.checkbox(&mut js.optimize_order, tr("Schnittreihenfolge optimieren"));
         ui.add_enabled(js.optimize_order, egui::Checkbox::new(&mut js.inner_first, tr("Innen vor außen schneiden")));
+        ui.add_enabled(js.optimize_order, egui::Checkbox::new(&mut js.start_at_corners, tr("An Ecken beginnen")))
+            .on_hover_text(tr(
+                "Geschlossene Konturen starten an einer Ecke statt am nächstgelegenen Punkt – Anfang und Ende (Naht, Überschnitt, Einlauf) fallen dort weniger auf.",
+            ));
         ui.horizontal(|ui| {
             ui.checkbox(&mut js.remove_overlaps, tr("Überlappende Linien entfernen")).on_hover_text(tr(
                 "Gemeinsame Kanten aneinanderliegender Teile und doppelte Linien einer Linienebene nur einmal schneiden. \

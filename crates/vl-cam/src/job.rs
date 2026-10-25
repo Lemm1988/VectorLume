@@ -3,7 +3,7 @@
 use crate::estimate::{Estimate, estimate};
 use crate::gcode::{CoordMode, GcodeOptions, emit, fmt_mm};
 use crate::machine::{JobSettings, MachineProfile, RotaryKind, StartFrom};
-use crate::optimize::order_polylines;
+use crate::optimize::{order_polylines, order_polylines_at};
 use crate::toolpath::{
     Block, BlockKind, Leads, Op, RasterPreview, Toolpath, apply_ramp, cut_ops_with_leads, hatch_ops, hatch_ops_on_grid,
     line_ops, raster_ops,
@@ -432,8 +432,11 @@ fn layer_blocks(
             if settings.remove_overlaps {
                 polys = crate::optimize::remove_overlaps(polys, settings.overlap_tolerance);
             }
-            let mut ordered =
-                if settings.optimize_order { order_polylines(polys, *cur, settings.inner_first) } else { polys };
+            let mut ordered = if settings.optimize_order {
+                order_polylines_at(polys, *cur, settings.inner_first, settings.start_at_corners)
+            } else {
+                polys
+            };
             if cs.tab_width > 0.0 && (cs.tab_count > 0 || !manual_tabs.is_empty()) {
                 ordered = apply_tabs(ordered, cs, &manual_tabs);
             }

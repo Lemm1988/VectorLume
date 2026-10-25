@@ -9,6 +9,15 @@ const NESTING_LIMIT: usize = 4000;
 /// Sortiert Polylinien nach dem Prinzip „nächster Nachbar“. Mit `inner_first` wird eine geschlossene
 /// Kontur erst geschnitten, wenn alle in ihr liegenden Konturen fertig sind (Teile fallen nicht vorher heraus).
 pub fn order_polylines(polys: Vec<Polyline>, start: Point, inner_first: bool) -> Vec<Polyline> {
+    order_polylines_at(polys, start, inner_first, false)
+}
+
+/// Ab dieser Richtungsänderung (Bogenmaß, 30°) gilt ein Knoten als Ecke.
+const CORNER_ANGLE: f64 = 0.52;
+
+/// Wie [`order_polylines`]; mit `corners` beginnen geschlossene Konturen nach Möglichkeit an einer Ecke, damit die
+/// Nahtstelle (Anfang/Ende, Überschnitt, Einlauf) dort weniger auffällt.
+pub fn order_polylines_at(polys: Vec<Polyline>, start: Point, inner_first: bool, corners: bool) -> Vec<Polyline> {
     let n = polys.len();
     if n == 0 {
         return polys;
@@ -56,7 +65,7 @@ pub fn order_polylines(polys: Vec<Polyline>, start: Point, inner_first: bool) ->
             {
                 continue;
             }
-            let (d, idx, rev) = best_entry(p, cur);
+            let (d, idx, rev) = best_entry(p, cur, corners);
             if best.is_none_or(|(_, bd, ..)| d < bd) {
                 best = Some((i, d, idx, rev));
             }
@@ -78,22 +87,40 @@ pub fn order_polylines(polys: Vec<Polyline>, start: Point, inner_first: bool) ->
     out
 }
 
-/// Günstigster Einstieg: bei geschlossenen Konturen jeder Punkt, bei offenen Anfang oder Ende.
-fn best_entry(p: &Polyline, cur: Point) -> (f64, usize, bool) {
+/// Günstigster Einstieg: bei geschlossenen Konturen jeder Punkt (mit `corners` nur Ecken, sofern es welche gibt),
+/// bei offenen Anfang oder Ende.
+fn best_entry(p: &Polyline, cur: Point, corners: bool) -> (f64, usize, bool) {
     if p.closed {
-        let (idx, d) = p
-            .points
-            .iter()
-            .enumerate()
-            .map(|(i, q)| (i, q.distance_sq(cur)))
-            .min_by(|a, b| a.1.total_cmp(&b.1))
-            .unwrap();
+        let nearest = |only_corners: bool| {
+            p.points
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| !only_corners || is_corner(&p.points, *i))
+                .map(|(i, q)| (i, q.distance_sq(cur)))
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+        };
+        let (idx, d) = corners.then(|| nearest(true)).flatten().or_else(|| nearest(false)).unwrap();
         (d, idx, false)
     } else {
         let ds = p.points[0].distance_sq(cur);
         let de = p.points.last().unwrap().distance_sq(cur);
         if de < ds { (de, 0, true) } else { (ds, 0, false) }
     }
+}
+
+/// Knoten `i` einer geschlossenen Kontur knickt um mindestens [`CORNER_ANGLE`].
+fn is_corner(pts: &[Point], i: usize) -> bool {
+    let n = pts.len();
+    if n < 3 {
+        return false;
+    }
+    let (a, p, b) = (pts[(i + n - 1) % n], pts[i], pts[(i + 1) % n]);
+    let (u, v) = (p - a, b - p);
+    let (lu, lv) = (u.length(), v.length());
+    if lu < 1e-9 || lv < 1e-9 {
+        return false;
+    }
+    (u.dot(v) / (lu * lv)).clamp(-1.0, 1.0).acos() >= CORNER_ANGLE
 }
 
 fn rect_distance_sq(r: &Rect, p: Point) -> f64 {
@@ -269,6 +296,29 @@ impl SegmentGrid {
 mod tests {
     use super::*;
     use vl_core::{Affine, VectorPath};
+
+    #[test]
+    fn closed_shapes_can_start_at_corners() {
+        // Quadrat mit Zwischenknoten mitten auf der unteren Kante, Startposition darunter
+        let sq = Polyline::new(
+            vec![
+                Point::new(0.0, 0.0),
+                Point::new(5.0, 0.0),
+                Point::new(10.0, 0.0),
+                Point::new(10.0, 10.0),
+                Point::new(0.0, 10.0),
+            ],
+            true,
+        );
+        let near = order_polylines_at(vec![sq.clone()], Point::new(5.0, -3.0), true, false);
+        assert_eq!(near[0].points[0], Point::new(5.0, 0.0));
+        let corner = order_polylines_at(vec![sq], Point::new(5.0, -3.0), true, true);
+        assert!([Point::new(0.0, 0.0), Point::new(10.0, 0.0)].contains(&corner[0].points[0]));
+        // Kreise haben keine Ecken: dann der nächste Punkt
+        let c = poly(VectorPath::ellipse(Point::new(0.0, 0.0), 10.0, 10.0));
+        let start = order_polylines_at(vec![c], Point::new(0.0, -20.0), true, true)[0].points[0];
+        assert!(start.distance(Point::new(0.0, -10.0)) < 0.5, "{start:?}");
+    }
 
     #[test]
     fn overlapping_lines_are_cut_once() {
