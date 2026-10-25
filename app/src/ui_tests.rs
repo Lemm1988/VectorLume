@@ -590,6 +590,41 @@ fn wait_until(h: &mut Harness<'static, VectorLumeApp>, done: impl Fn(&VectorLume
     panic!("Zeitüberschreitung");
 }
 
+/// Netzwerkkamera: Adresse eintragen, „Aufnehmen“ holt das Bild per HTTP (hier von einem Testserver).
+#[test]
+fn network_camera_snapshot() {
+    use std::io::{Read, Write};
+    let mut h = harness(false);
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://127.0.0.1:{}/capture", listener.local_addr().unwrap().port());
+    let server = std::thread::spawn(move || {
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::RgbImage::from_pixel(8, 6, image::Rgb([10, 200, 10]))
+            .write_to(&mut png, image::ImageFormat::Png)
+            .unwrap();
+        let (mut c, _) = listener.accept().unwrap();
+        let mut req = [0u8; 2048];
+        let n = c.read(&mut req).unwrap();
+        c.write_all(b"HTTP/1.0 200 OK\r\nContent-Type: image/png\r\n\r\n").unwrap();
+        c.write_all(png.get_ref()).unwrap();
+        String::from_utf8_lossy(&req[..n]).to_string()
+    });
+    {
+        let app = h.state_mut();
+        app.settings.camera.network = true;
+        app.settings.camera.url = url;
+        app.camera.open = true;
+    }
+    h.run_ok();
+    assert!(h.query_all_by_label("Adresse").count() > 0, "Adressfeld der Netzwerkkamera");
+    h.get_by_label(&format!("{} Aufnehmen", egui_phosphor::regular::CAMERA)).click();
+    wait_until(&mut h, |app| app.camera.frame_size() == Some((8, 6)));
+    assert!(server.join().unwrap().starts_with("GET /capture HTTP/1.0"));
+    let app = h.state_mut();
+    app.settings.camera.network = false;
+    app.settings.camera.url.clear();
+}
+
 /// GRBL-Parameter mit dem eingebauten Simulator: Werte lesen, einen ändern, schreiben, neu lesen.
 fn grbl_params_flow(render: bool) {
     let mut h = harness(render);

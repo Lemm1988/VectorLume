@@ -4943,6 +4943,7 @@ dependencies = [
 name = "vectorlume"
 version = "0.15.0"
 dependencies = [
+ "base64",
  "chrono",
  "dirs",
  "eframe",

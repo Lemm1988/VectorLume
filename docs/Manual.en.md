@@ -132,7 +132,7 @@ Send finished G-code files from other programs with *Laser → Send G-code file�
 
 ## Camera, Print & Cut, rotary
 
-- **Camera** (*Laser → Camera…*): a webcam or a photo of the work area is rectified with four reference points and placed under the design.
+- **Camera** (*Laser → Camera…*): a webcam, a network camera or a photo of the work area is rectified with four reference points and placed under the design. For a network camera (e.g. ESP32-CAM), choose "Network camera (URL)" and enter the image address, such as `http://192.168.1.50/capture`.
 - **Print & Cut**: align the design exactly to printed material using two printed registration marks.
 - **Rotary**: rollers or chuck for glasses and mugs, connected instead of the Y motor or as an A axis.
 

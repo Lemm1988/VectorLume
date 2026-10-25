@@ -1,4 +1,4 @@
-//! Kamera über der Arbeitsfläche: Live-Bild (Webcam) oder Foto, über vier Passpunkte perspektivisch entzerrt und
+//! Kamera über der Arbeitsfläche: Live-Bild (Webcam oder Netzwerkkamera) oder Foto, über vier Passpunkte perspektivisch entzerrt und
 //! halbtransparent auf der Arbeitsfläche angezeigt – zum genauen Platzieren auf dem Werkstück.
 
 use crate::app::{ToastKind, VectorLumeApp};
@@ -48,6 +48,10 @@ pub struct CameraSettings {
     pub mark_speed: f64,
     /// Ausgleich der Tonnenverzerrung des Objektivs (0 = keiner, siehe [`Lens`]).
     pub lens: f64,
+    /// Netzwerkkamera statt eines angeschlossenen Geräts verwenden.
+    pub network: bool,
+    /// Bild-Adresse der Netzwerkkamera (Schnappschuss oder MJPEG-Strom).
+    pub url: String,
 }
 
 impl Default for CameraSettings {
@@ -60,6 +64,8 @@ impl Default for CameraSettings {
             mark_power: 20.0,
             mark_speed: 1500.0,
             lens: 0.0,
+            network: false,
+            url: String::new(),
         }
     }
 }
@@ -101,7 +107,20 @@ impl Drop for Capture {
     }
 }
 
-fn start_capture(index: CameraIndex, live: bool, ctx: egui::Context) -> Capture {
+/// Woher die Bilder kommen.
+enum Source {
+    Device(CameraIndex),
+    Url(String),
+}
+
+/// Bild einer Netzwerkkamera holen und entpacken.
+fn fetch_frame(url: &str) -> Result<Frame, String> {
+    let data = crate::net_camera::fetch_image(url, Duration::from_secs(5))?;
+    let img = image::load_from_memory(&data).map_err(|e| format!("Kamerabild nicht lesbar: {e}"))?.to_rgb8();
+    Ok(Frame { width: img.width() as usize, height: img.height() as usize, rgb: Arc::new(img.into_raw()) })
+}
+
+fn start_capture(source: Source, live: bool, ctx: egui::Context) -> Capture {
     let stop = Arc::new(AtomicBool::new(false));
     let shared: Arc<Mutex<Option<Result<Frame, String>>>> = Arc::new(Mutex::new(None));
     let (stop2, shared2) = (stop.clone(), shared.clone());
@@ -109,6 +128,22 @@ fn start_capture(index: CameraIndex, live: bool, ctx: egui::Context) -> Capture 
         let put = |r: Result<Frame, String>| {
             *shared2.lock().unwrap() = Some(r);
             ctx.request_repaint();
+        };
+        let index = match source {
+            Source::Device(index) => index,
+            Source::Url(url) => {
+                while !stop2.load(Ordering::Relaxed) {
+                    match fetch_frame(&url) {
+                        Ok(f) => put(Ok(f)),
+                        Err(e) => return put(Err(trs(&e))),
+                    }
+                    if !live {
+                        break;
+                    }
+                    std::thread::sleep(LIVE_INTERVAL);
+                }
+                return;
+            }
         };
         let format = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestResolution);
         let mut cam = match nokhwa::Camera::new(index, format) {
@@ -189,6 +224,11 @@ impl CameraState {
     #[cfg(test)]
     pub(crate) fn set_test_frame(&mut self, width: usize, height: usize, rgb: Vec<u8>) {
         self.set_frame(Frame { width, height, rgb: Arc::new(rgb) });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn frame_size(&self) -> Option<(usize, usize)> {
+        self.frame.as_ref().map(|f| (f.width, f.height))
     }
 }
 
@@ -318,23 +358,52 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
             // Quelle
             ui.horizontal(|ui| {
                 ui.label(tr("Kamera"));
-                let current = devices
-                    .iter()
-                    .find(|d| d.1 == app.settings.camera.device)
-                    .or(devices.first())
-                    .map(|d| d.1.clone())
-                    .unwrap_or_else(|| tr("keine gefunden").into());
+                let cs = &mut app.settings.camera;
+                let current = if cs.network {
+                    tr("Netzwerkkamera (URL)").to_string()
+                } else {
+                    devices
+                        .iter()
+                        .find(|d| d.1 == cs.device)
+                        .or(devices.first())
+                        .map(|d| d.1.clone())
+                        .unwrap_or_else(|| tr("keine gefunden").into())
+                };
                 egui::ComboBox::from_id_salt("camera_device").selected_text(&current).width(220.0).show_ui(ui, |ui| {
                     for (_, name) in &devices {
-                        ui.selectable_value(&mut app.settings.camera.device, name.clone(), name);
+                        if ui.selectable_label(!cs.network && cs.device == *name, name).clicked() {
+                            cs.device = name.clone();
+                            cs.network = false;
+                        }
+                    }
+                    if ui.selectable_label(cs.network, tr("Netzwerkkamera (URL)")).clicked() {
+                        cs.network = true;
                     }
                 });
                 if ui.button(icon::ARROWS_CLOCKWISE).on_hover_text(tr("Kameras neu suchen")).clicked() {
                     app.camera.devices = Some(self::devices());
                 }
             });
+            if app.settings.camera.network {
+                ui.horizontal(|ui| {
+                    ui.label(tr("Adresse"));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut app.settings.camera.url)
+                            .hint_text("http://192.168.1.50/capture")
+                            .desired_width(330.0),
+                    )
+                    .on_hover_text(tr(
+                        "Bild-Adresse der Kamera: Schnappschuss (JPEG/PNG) oder MJPEG-Strom, z. B. bei einer ESP32-CAM \
+                         http://IP/capture. Mit Anmeldung: http://benutzer:passwort@IP/…",
+                    ));
+                });
+            }
             ui.horizontal(|ui| {
-                let has_cam = !devices.is_empty();
+                let has_cam = if app.settings.camera.network {
+                    !app.settings.camera.url.trim().is_empty()
+                } else {
+                    !devices.is_empty()
+                };
                 let busy = app.camera.capture.is_some();
                 if ui.add_enabled(has_cam && !busy, Button::new(trs(&format!("{} Aufnehmen", icon::CAMERA)))).clicked() {
                     action = Some("snap");
@@ -480,13 +549,19 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
         });
 
     match action {
+        Some(a @ ("snap" | "live")) if app.settings.camera.network => {
+            let url = app.settings.camera.url.trim().to_string();
+            app.camera.capture = None;
+            app.camera.error = None;
+            app.camera.capture = Some(start_capture(Source::Url(url), a == "live", ctx.clone()));
+        }
         Some(a @ ("snap" | "live")) => {
             let devices = app.camera.devices.clone().unwrap_or_default();
             let dev = devices.iter().find(|d| d.1 == app.settings.camera.device).or(devices.first()).cloned();
             if let Some((index, name)) = dev {
                 app.settings.camera.device = name;
                 app.camera.capture = None;
-                app.camera.capture = Some(start_capture(index, a == "live", ctx.clone()));
+                app.camera.capture = Some(start_capture(Source::Device(index), a == "live", ctx.clone()));
             }
         }
         Some("stop") => app.camera.capture = None,

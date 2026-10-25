@@ -132,7 +132,7 @@ Fertige G-Code-Dateien anderer Programme sendest du mit *Laser → G-Code-Datei 
 
 ## Kamera, Drucken & Schneiden, Drehachse
 
-- **Kamera** (*Laser → Kamera…*): Eine Webcam oder ein Foto der Arbeitsfläche wird über vier Passpunkte entzerrt und unter den Entwurf gelegt.
+- **Kamera** (*Laser → Kamera…*): Eine Webcam, eine Netzwerkkamera oder ein Foto der Arbeitsfläche wird über vier Passpunkte entzerrt und unter den Entwurf gelegt. Für eine Netzwerkkamera (z. B. ESP32-CAM) wählst du „Netzwerkkamera (URL)“ und trägst die Bild-Adresse ein, etwa `http://192.168.1.50/capture`.
 - **Drucken & Schneiden**: Den Entwurf über zwei mitgedruckte Passermarken genau auf bedrucktes Material ausrichten.
 - **Drehachse**: Rollen oder Futter für Gläser und Becher, angeschlossen statt des Y-Motors oder als A-Achse.
 
