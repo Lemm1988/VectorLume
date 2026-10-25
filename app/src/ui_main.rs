@@ -1,6 +1,7 @@
 //! Menü, Werkzeugleisten, Eigenschaftsfelder, Farbpalette, Statusleiste und Tastenkürzel.
 
 use crate::app::{ToastKind, Tool, VectorLumeApp};
+use crate::hotkeys::Action;
 use crate::i18n::{tr, trs};
 use crate::settings::ThemeChoice;
 use crate::theme;
@@ -14,79 +15,14 @@ use vl_core::primitive::Primitive;
 use vl_core::{Affine, LAYER_COUNT, Point};
 
 pub fn shortcuts(app: &mut VectorLumeApp, ctx: &egui::Context) {
-    if ctx.egui_wants_keyboard_input() || app.modal.is_some() {
+    // Während der Tastenaufnahme im Kürzel-Fenster gehört die Taste dort hin.
+    if ctx.egui_wants_keyboard_input() || app.modal.is_some() || app.hotkey_editor.recording.is_some() {
         return;
     }
     let sc = |m: Modifiers, k: Key| KeyboardShortcut::new(m, k);
-    let cs = Modifiers::COMMAND | Modifiers::SHIFT;
     let pressed = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
-
-    if pressed(sc(cs, Key::S)) {
-        app.save(true);
-    } else if pressed(sc(Modifiers::COMMAND, Key::S)) {
-        app.save(false);
-    }
-    if pressed(sc(Modifiers::COMMAND, Key::N)) {
-        app.new_document(false);
-    }
-    if pressed(sc(Modifiers::COMMAND, Key::O)) {
-        app.open_dialog(false, None);
-    }
-    if pressed(sc(Modifiers::COMMAND, Key::I)) {
-        app.import_dialog();
-    }
-    if pressed(sc(Modifiers::COMMAND, Key::E)) {
-        app.export_gcode_dialog();
-    }
-    if pressed(sc(cs, Key::Z)) || pressed(sc(Modifiers::COMMAND, Key::Y)) {
-        app.redo();
-    } else if pressed(sc(Modifiers::COMMAND, Key::Z)) {
-        app.undo();
-    }
-    if pressed(sc(Modifiers::COMMAND, Key::A)) {
-        app.select_all();
-    }
-    if pressed(sc(Modifiers::COMMAND, Key::D)) {
-        app.duplicate();
-    }
-    if pressed(sc(Modifiers::COMMAND, Key::C)) {
-        app.copy();
-    }
-    if pressed(sc(Modifiers::COMMAND, Key::X)) {
-        app.cut();
-    }
-    if pressed(sc(cs, Key::V)) {
-        app.paste_in_place();
-    } else if pressed(sc(Modifiers::COMMAND, Key::V)) {
-        app.paste();
-    }
-    for (m, k, how) in [
-        (Modifiers::COMMAND, Key::PageUp, vl_core::ZOrder::Front),
-        (Modifiers::COMMAND, Key::PageDown, vl_core::ZOrder::Back),
-        (Modifiers::NONE, Key::PageUp, vl_core::ZOrder::Forward),
-        (Modifiers::NONE, Key::PageDown, vl_core::ZOrder::Backward),
-    ] {
-        if pressed(sc(m, k)) {
-            app.reorder_selection(how);
-        }
-    }
-    if pressed(sc(cs, Key::G)) {
-        app.ungroup();
-    } else if pressed(sc(Modifiers::COMMAND, Key::G)) {
-        app.group();
-    }
-    if pressed(sc(Modifiers::NONE, Key::F1)) {
-        app.manual.open = !app.manual.open;
-    }
-    if pressed(sc(Modifiers::ALT, Key::P)) {
-        app.preview.active = !app.preview.active;
-    }
-    if pressed(sc(Modifiers::NONE, Key::Delete)) || pressed(sc(Modifiers::NONE, Key::Backspace)) {
-        if app.tool == Tool::Node {
-            app.delete_selected_node();
-        } else {
-            app.delete_selection();
-        }
+    for action in app.keys.pressed(ctx) {
+        crate::hotkeys::run(app, action);
     }
     if app.warp.is_some() && pressed(sc(Modifiers::NONE, Key::Enter)) {
         app.apply_warp();
@@ -101,23 +37,6 @@ pub fn shortcuts(app: &mut VectorLumeApp, ctx: &egui::Context) {
         } else {
             app.selection.clear();
         }
-    }
-    for (k, t) in [
-        (Key::V, Tool::Select),
-        (Key::R, Tool::Rect),
-        (Key::E, Tool::Ellipse),
-        (Key::L, Tool::Line),
-        (Key::T, Tool::Text),
-        (Key::Q, Tool::Barcode),
-        (Key::N, Tool::Node),
-        (Key::M, Tool::Measure),
-    ] {
-        if pressed(sc(Modifiers::NONE, k)) {
-            app.tool = t;
-        }
-    }
-    if pressed(sc(Modifiers::COMMAND, Key::Num0)) || pressed(sc(Modifiers::NONE, Key::F)) {
-        app.zoom_to_fit();
     }
     let step = if ctx.input(|i| i.modifiers.shift) { 10.0 } else { 1.0 };
     let (l, r, u, d) = ctx.input(|i| {
@@ -144,7 +63,7 @@ fn icon_button(ui: &mut Ui, glyph: &str, tooltip: &str, enabled: bool) -> bool {
 fn menu_item(ui: &mut Ui, text: &str, shortcut: &str, enabled: bool) -> bool {
     let mut b = Button::new(text);
     if !shortcut.is_empty() {
-        b = b.shortcut_text(crate::i18n::shortcut(shortcut));
+        b = b.shortcut_text(shortcut);
     }
     let clicked = ui.add_enabled(enabled, b).clicked();
     if clicked {
@@ -167,7 +86,7 @@ pub fn top_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
             ui.menu_button(tr("Ansicht"), |ui| view_menu(app, ui));
             ui.menu_button(tr("Laser"), |ui| laser_menu(app, ui));
             ui.menu_button(tr("Hilfe"), |ui| {
-                if menu_item(ui, tr("Handbuch"), "F1", true) {
+                if menu_item(ui, tr("Handbuch"), &app.keys.text(Action::Manual), true) {
                     app.manual.open = true;
                 }
                 if menu_item(ui, tr("Beispielprojekt laden"), "", true)
@@ -189,26 +108,30 @@ pub fn top_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
-                if icon_button(ui, icon::FILE_PLUS, tr("Neu (Strg+N)"), true) {
+                if icon_button(ui, icon::FILE_PLUS, &app.keys.hint(tr("Neu"), Action::New), true) {
                     app.new_document(false);
                 }
-                if icon_button(ui, icon::FOLDER_OPEN, tr("Öffnen (Strg+O)"), true) {
+                if icon_button(ui, icon::FOLDER_OPEN, &app.keys.hint(tr("Öffnen"), Action::Open), true) {
                     app.open_dialog(false, None);
                 }
-                if icon_button(ui, icon::FLOPPY_DISK, tr("Speichern (Strg+S)"), true) {
+                if icon_button(ui, icon::FLOPPY_DISK, &app.keys.hint(tr("Speichern"), Action::Save), true) {
                     app.save(false);
                 }
-                if icon_button(ui, icon::DOWNLOAD_SIMPLE, tr("Importieren: SVG, DXF, Bilder (Strg+I)"), true) {
+                let hint = app.keys.hint(tr("Importieren: SVG, DXF, Bilder"), Action::Import);
+                if icon_button(ui, icon::DOWNLOAD_SIMPLE, &hint, true) {
                     app.import_dialog();
                 }
-                if icon_button(ui, icon::EXPORT, tr("G-Code speichern (Strg+E)"), !app.doc.objects.is_empty()) {
+                let hint = app.keys.hint(tr("G-Code speichern"), Action::ExportGcode);
+                if icon_button(ui, icon::EXPORT, &hint, !app.doc.objects.is_empty()) {
                     app.export_gcode_dialog();
                 }
                 ui.separator();
-                if icon_button(ui, icon::ARROW_U_UP_LEFT, tr("Rückgängig (Strg+Z)"), app.history.can_undo()) {
+                let hint = app.keys.hint(tr("Rückgängig"), Action::Undo);
+                if icon_button(ui, icon::ARROW_U_UP_LEFT, &hint, app.history.can_undo()) {
                     app.undo();
                 }
-                if icon_button(ui, icon::ARROW_U_UP_RIGHT, tr("Wiederholen (Strg+Y)"), app.history.can_redo()) {
+                let hint = app.keys.hint(tr("Wiederholen"), Action::Redo);
+                if icon_button(ui, icon::ARROW_U_UP_RIGHT, &hint, app.history.can_redo()) {
                     app.redo();
                 }
                 ui.separator();
@@ -225,7 +148,8 @@ pub fn top_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
                 let label = trs(&format!("{} Vorschau", if app.preview.active { icon::EYE } else { icon::EYE_SLASH }));
                 let b =
                     Button::selectable(app.preview.active, RichText::new(label).size(14.0)).min_size(vec2(0.0, 28.0));
-                if ui.add(b).on_hover_text(tr("Werkzeugweg und Laufzeit anzeigen (Alt+P)")).clicked() {
+                let hint = app.keys.hint(tr("Werkzeugweg und Laufzeit anzeigen"), Action::Preview);
+                if ui.add(b).on_hover_text(hint).clicked() {
                     app.preview.active = !app.preview.active;
                 }
                 ui.separator();
@@ -244,10 +168,10 @@ pub fn top_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
 }
 
 fn file_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
-    if menu_item(ui, tr("Neu"), "Strg+N", true) {
+    if menu_item(ui, tr("Neu"), &app.keys.text(Action::New), true) {
         app.new_document(false);
     }
-    if menu_item(ui, tr("Öffnen…"), "Strg+O", true) {
+    if menu_item(ui, tr("Öffnen…"), &app.keys.text(Action::Open), true) {
         app.open_dialog(false, None);
     }
     let recent = app.settings.recent_files.clone();
@@ -261,19 +185,19 @@ fn file_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
             }
         });
     });
-    if menu_item(ui, tr("Speichern"), "Strg+S", true) {
+    if menu_item(ui, tr("Speichern"), &app.keys.text(Action::Save), true) {
         app.save(false);
     }
-    if menu_item(ui, tr("Speichern unter…"), tr("Strg+Umschalt+S"), true) {
+    if menu_item(ui, tr("Speichern unter…"), &app.keys.text(Action::SaveAs), true) {
         app.save(true);
     }
     ui.separator();
-    if menu_item(ui, tr("Importieren…"), "Strg+I", true) {
+    if menu_item(ui, tr("Importieren…"), &app.keys.text(Action::Import), true) {
         app.import_dialog();
     }
     ui.separator();
     let has = !app.doc.objects.is_empty();
-    if menu_item(ui, tr("G-Code speichern…"), "Strg+E", has) {
+    if menu_item(ui, tr("G-Code speichern…"), &app.keys.text(Action::ExportGcode), has) {
         app.export_gcode_dialog();
     }
     if menu_item(ui, tr("Als SVG exportieren…"), "", has) {
@@ -293,39 +217,43 @@ fn file_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
 
 fn edit_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     let has = !app.selection.is_empty();
-    if menu_item(ui, tr("Rückgängig"), "Strg+Z", app.history.can_undo()) {
+    if menu_item(ui, tr("Rückgängig"), &app.keys.text(Action::Undo), app.history.can_undo()) {
         app.undo();
     }
-    if menu_item(ui, tr("Wiederholen"), "Strg+Y", app.history.can_redo()) {
+    if menu_item(ui, tr("Wiederholen"), &app.keys.text(Action::Redo), app.history.can_redo()) {
         app.redo();
     }
-    if menu_item(ui, tr("Bearbeitungsverlauf…"), "", true) {
+    if menu_item(ui, tr("Bearbeitungsverlauf…"), &app.keys.text(Action::History), true) {
         app.history_window.open = !app.history_window.open;
     }
+    if menu_item(ui, tr("Tastenkürzel…"), "", true) {
+        app.hotkey_editor.open = true;
+    }
     ui.separator();
-    if menu_item(ui, tr("Ausschneiden"), "Strg+X", has) {
+    if menu_item(ui, tr("Ausschneiden"), &app.keys.text(Action::Cut), has) {
         app.cut();
     }
-    if menu_item(ui, tr("Kopieren"), "Strg+C", has) {
+    if menu_item(ui, tr("Kopieren"), &app.keys.text(Action::Copy), has) {
         app.copy();
     }
-    if menu_item(ui, tr("Einfügen"), "Strg+V", !app.clipboard.is_empty()) {
+    if menu_item(ui, tr("Einfügen"), &app.keys.text(Action::Paste), !app.clipboard.is_empty()) {
         app.paste();
     }
-    if menu_item(ui, tr("An Ort und Stelle einfügen"), tr("Strg+Umschalt+V"), !app.clipboard.is_empty()) {
+    if menu_item(ui, tr("An Ort und Stelle einfügen"), &app.keys.text(Action::PasteInPlace), !app.clipboard.is_empty())
+    {
         app.paste_in_place();
     }
-    if menu_item(ui, tr("Duplizieren"), "Strg+D", has) {
+    if menu_item(ui, tr("Duplizieren"), &app.keys.text(Action::Duplicate), has) {
         app.duplicate();
     }
-    if menu_item(ui, tr("Löschen"), "Entf", has) {
+    if menu_item(ui, tr("Löschen"), &app.keys.text(Action::Delete), has) {
         app.delete_selection();
     }
     ui.separator();
-    if menu_item(ui, tr("Alles auswählen"), "Strg+A", !app.doc.objects.is_empty()) {
+    if menu_item(ui, tr("Alles auswählen"), &app.keys.text(Action::SelectAll), !app.doc.objects.is_empty()) {
         app.select_all();
     }
-    if menu_item(ui, tr("Auswahl umkehren"), "", !app.doc.objects.is_empty()) {
+    if menu_item(ui, tr("Auswahl umkehren"), &app.keys.text(Action::InvertSelection), !app.doc.objects.is_empty()) {
         app.invert_selection();
     }
     let layer = app.current_layer;
@@ -354,13 +282,13 @@ const BED_POSITIONS: [(&str, &str); 9] = [
 fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     let has = !app.selection.is_empty();
     let multi = app.selection.len() > 1;
-    if menu_item(ui, tr("Gruppieren"), "Strg+G", multi) {
+    if menu_item(ui, tr("Gruppieren"), &app.keys.text(Action::Group), multi) {
         app.group();
     }
-    if menu_item(ui, tr("Gruppierung lösen"), tr("Strg+Umschalt+G"), has) {
+    if menu_item(ui, tr("Gruppierung lösen"), &app.keys.text(Action::Ungroup), has) {
         app.ungroup();
     }
-    if menu_item(ui, tr("Zerlegen"), "", has) {
+    if menu_item(ui, tr("Zerlegen"), &app.keys.text(Action::BreakApart), has) {
         app.break_apart();
     }
     if menu_item(ui, tr("Automatisch gruppieren"), "", !app.doc.objects.is_empty()) {
@@ -409,14 +337,9 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
                 .small()
                 .color(theme::of(ui).text_weak),
             );
-            for (label, keys, how) in [
-                (tr("Ganz nach vorne"), tr("Strg+Bild↑"), vl_core::ZOrder::Front),
-                (tr("Eins nach vorne"), tr("Bild↑"), vl_core::ZOrder::Forward),
-                (tr("Eins nach hinten"), tr("Bild↓"), vl_core::ZOrder::Backward),
-                (tr("Ganz nach hinten"), tr("Strg+Bild↓"), vl_core::ZOrder::Back),
-            ] {
-                if menu_item(ui, label, keys, true) {
-                    app.reorder_selection(how);
+            for action in [Action::ToFront, Action::Forward, Action::Backward, Action::ToBack] {
+                if menu_item(ui, action.label(), &app.keys.text(action), true) {
+                    crate::hotkeys::run(app, action);
                 }
             }
         });
@@ -449,10 +372,10 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
         });
     });
     ui.separator();
-    if menu_item(ui, tr("Horizontal spiegeln"), "", has) {
+    if menu_item(ui, tr("Horizontal spiegeln"), &app.keys.text(Action::MirrorH), has) {
         app.mirror(true);
     }
-    if menu_item(ui, tr("Vertikal spiegeln"), "", has) {
+    if menu_item(ui, tr("Vertikal spiegeln"), &app.keys.text(Action::MirrorV), has) {
         app.mirror(false);
     }
     if menu_item(ui, tr("An Linie spiegeln…"), "", has) {
@@ -460,13 +383,13 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
         app.measure = None;
         app.toast(ToastKind::Info, tr("Spiegelachse ziehen, dann oben „An Linie spiegeln“ wählen."));
     }
-    if menu_item(ui, tr("90° im Uhrzeigersinn drehen"), "", has) {
+    if menu_item(ui, tr("90° im Uhrzeigersinn drehen"), &app.keys.text(Action::RotateCw), has) {
         app.rotate_selection(90.0);
     }
-    if menu_item(ui, tr("90° gegen den Uhrzeigersinn drehen"), "", has) {
+    if menu_item(ui, tr("90° gegen den Uhrzeigersinn drehen"), &app.keys.text(Action::RotateCcw), has) {
         app.rotate_selection(-90.0);
     }
-    if menu_item(ui, tr("Auf Arbeitsfläche zentrieren"), "", has) {
+    if menu_item(ui, tr("Auf Arbeitsfläche zentrieren"), &app.keys.text(Action::CenterOnBed), has) {
         app.center_on_bed();
     }
     ui.add_enabled_ui(has, |ui| {
@@ -511,7 +434,7 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
                 ui.close();
             }
             ui.separator();
-            if menu_item(ui, tr("Verschweißen"), "", has) {
+            if menu_item(ui, tr("Verschweißen"), &app.keys.text(Action::Weld), has) {
                 app.weld_selection();
             }
         });
@@ -611,7 +534,7 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
 }
 
 fn view_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
-    if menu_item(ui, tr("Arbeitsfläche einpassen"), "F", true) {
+    if menu_item(ui, tr("Arbeitsfläche einpassen"), &app.keys.text(Action::ZoomFit), true) {
         app.zoom_to_fit();
     }
     if menu_item(ui, tr("Auf Auswahl zoomen"), "", !app.selection.is_empty()) {
@@ -622,7 +545,8 @@ fn view_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
         app.show_notes = true;
     }
     ui.separator();
-    ui.checkbox(&mut app.preview.active, tr("Vorschau (Alt+P)"));
+    let label = app.keys.hint(tr("Vorschau"), Action::Preview);
+    ui.checkbox(&mut app.preview.active, label);
     if ui.checkbox(&mut app.settings.show_travel, tr("Leerfahrten in der Vorschau")).changed() {
         app.settings.save();
     }
@@ -961,7 +885,7 @@ pub fn tool_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
                     let selected = app.tool == t;
                     let text = RichText::new(t.icon()).size(19.0).color(if selected { pal.accent } else { pal.text });
                     let b = Button::selectable(selected, text).min_size(vec2(36.0, 34.0));
-                    if ui.add(b).on_hover_text(tr(t.label())).clicked() {
+                    if ui.add(b).on_hover_text(app.keys.hint(t.label(), Action::Tool(t))).clicked() {
                         app.tool = t;
                     }
                 }
@@ -978,7 +902,8 @@ pub fn tool_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
                 if icon_button(ui, icon::ARROW_CLOCKWISE, tr("90° drehen"), has) {
                     app.rotate_selection(90.0);
                 }
-                if icon_button(ui, icon::SELECTION, tr("Gruppieren (Strg+G)"), app.selection.len() > 1) {
+                let hint = app.keys.hint(tr("Gruppieren"), Action::Group);
+                if icon_button(ui, icon::SELECTION, &hint, app.selection.len() > 1) {
                     app.group();
                 }
                 if icon_button(ui, icon::SELECTION_SLASH, tr("Gruppierung lösen"), has) {

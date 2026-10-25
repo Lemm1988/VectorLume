@@ -65,16 +65,16 @@ impl Tool {
 
     pub fn label(self) -> &'static str {
         match self {
-            Tool::Select => tr("Auswählen (V)"),
-            Tool::Rect => tr("Rechteck (R)"),
-            Tool::Ellipse => tr("Ellipse (E)"),
-            Tool::Line => tr("Linie (L)"),
+            Tool::Select => tr("Auswählen"),
+            Tool::Rect => tr("Rechteck"),
+            Tool::Ellipse => tr("Ellipse"),
+            Tool::Line => tr("Linie"),
             Tool::Polygon => tr("Vieleck"),
             Tool::Star => tr("Stern"),
-            Tool::Text => tr("Text (T)"),
-            Tool::Barcode => tr("QR-/Barcode (Q)"),
-            Tool::Node => tr("Knoten bearbeiten (N)"),
-            Tool::Measure => tr("Messen (M)"),
+            Tool::Text => tr("Text"),
+            Tool::Barcode => tr("QR-/Barcode"),
+            Tool::Node => tr("Knoten bearbeiten"),
+            Tool::Measure => tr("Messen"),
             Tool::Trim => tr("Trimmen"),
             Tool::Tabs => tr("Laschen setzen"),
         }
@@ -267,6 +267,9 @@ pub struct VectorLumeApp {
     pub manual: crate::manual::Manual,
     pub model: crate::model_tool::ModelTool,
     pub history_window: crate::history_window::HistoryWindow,
+    /// Aktuelle Tastenbelegung (aus `settings.hotkeys`).
+    pub keys: crate::hotkeys::Keymap,
+    pub hotkey_editor: crate::hotkeys::HotkeyEditor,
     /// Laufendes Verzerren der Auswahl.
     pub warp: Option<crate::warp_tool::WarpSession>,
     pub tangent: Option<crate::tangent_tool::TangentPick>,
@@ -325,6 +328,7 @@ impl VectorLumeApp {
             });
         }
         let (tx, rx) = channel();
+        let keys = crate::hotkeys::Keymap::new(&settings.hotkeys);
         let mut app = Self {
             ctx,
             doc: Document::new(),
@@ -375,6 +379,8 @@ impl VectorLumeApp {
             manual: Default::default(),
             model: Default::default(),
             history_window: Default::default(),
+            keys,
+            hotkey_editor: Default::default(),
             warp: None,
             tangent: None,
             library: Default::default(),

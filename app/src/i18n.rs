@@ -149,6 +149,12 @@ pub fn shortcut(keys: &str) -> String {
             "Umschalt" => "Shift",
             "Entf" => "Del",
             "Leertaste" => "Space",
+            "Bild↑" => "PgUp",
+            "Bild↓" => "PgDn",
+            "Rücktaste" => "Backspace",
+            "Einfg" => "Ins",
+            "Pos1" => "Home",
+            "Ende" => "End",
             k => k,
         })
         .collect::<Vec<_>>()

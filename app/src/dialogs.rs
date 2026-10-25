@@ -24,6 +24,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     crate::manual::show(app, ctx);
     crate::model_tool::show(app, ctx);
     crate::history_window::show(app, ctx);
+    crate::hotkeys::show(app, ctx);
     crate::warp_tool::show(app, ctx);
     device_settings(app, ctx);
     about(app, ctx);
@@ -335,6 +336,7 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
         return;
     }
     let mut open = true;
+    let mut edit_keys = false;
     egui::Window::new(tr("Über VectorLume"))
         .open(&mut open)
         .collapsible(false)
@@ -353,25 +355,22 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
             ui.add_space(6.0);
             ui.label(tr("Software zum Gestalten und Lasern für Diodenlaser mit GRBL, Marlin oder Smoothieware. Eigenständig in Rust entwickelt."));
             ui.add_space(6.0);
-            ui.label(RichText::new(tr("Tastenkürzel")).strong());
+            ui.label(RichText::new(tr("Maus und feste Tasten")).strong());
             egui::Grid::new("keys").num_columns(2).show(ui, |ui| {
                 for (k, d) in [
-                    ("V / R / E / L / T / Q", tr("Auswahl, Rechteck, Ellipse, Linie, Text, Code")),
-                    ("N / M", tr("Knoten bearbeiten, Messen")),
                     (tr("Mausrad"), tr("Zoomen")),
                     (tr("Mittlere Maustaste / Leertaste + Ziehen"), tr("Ansicht verschieben")),
                     (tr("Umschalt beim Ziehen"), tr("Seitenverhältnis frei / 15°-Schritte / Achse fixieren")),
                     (tr("Pfeiltasten (+Umschalt)"), tr("Auswahl 1 mm (10 mm) verschieben")),
-                    ("Alt+P", tr("Vorschau")),
-                    ("F", tr("Arbeitsfläche einpassen")),
-                    (tr("Strg+Umschalt+V"), tr("An Ort und Stelle einfügen")),
-                    (tr("Bild↑ / Bild↓ (+Strg)"), tr("Auswahl eins (ganz) nach vorne / hinten")),
                 ] {
                     ui.label(RichText::new(k).monospace());
                     ui.label(d);
                     ui.end_row();
                 }
             });
+            if ui.link(tr("Alle Tastenkürzel anzeigen und ändern…")).clicked() {
+                edit_keys = true;
+            }
             ui.add_space(6.0);
             ui.label(RichText::new(tr("Privates Projekt – alle Rechte vorbehalten.")).small().color(pal.text_weak));
             ui.label(
@@ -401,6 +400,9 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
     );
     if !open {
         app.show_about = false;
+    }
+    if edit_keys {
+        app.hotkey_editor.open = true;
     }
 }
 

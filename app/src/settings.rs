@@ -1,6 +1,7 @@
 //! Dauerhafte Programmeinstellungen (Maschinenprofil, Job-Optionen, Ansicht).
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use vl_cam::{JobSettings, MachineProfile, TestPattern};
 
@@ -40,6 +41,8 @@ pub struct AppSettings {
     pub camera: crate::camera::CameraSettings,
     /// Eigene Befehlsfolgen als Knöpfe in der Konsole.
     pub macros: Vec<Macro>,
+    /// Geänderte Tastenkürzel je Befehl (z. B. `"save": ["Ctrl+S"]`, leere Liste = keine Taste).
+    pub hotkeys: BTreeMap<String, Vec<String>>,
 }
 
 /// Benannte G-Code-Zeilen, die mit einem Klick gesendet werden (z. B. Luft an/aus, Parkposition).
@@ -72,6 +75,7 @@ impl Default for AppSettings {
             test_pattern: TestPattern::default(),
             camera: Default::default(),
             macros: Vec::new(),
+            hotkeys: BTreeMap::new(),
         }
     }
 }

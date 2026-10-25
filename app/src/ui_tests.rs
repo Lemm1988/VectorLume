@@ -1193,6 +1193,72 @@ fn history_window_lists_steps_and_jumps() {
     history_window_flow(false);
 }
 
+/// Belegt nur Befehle ohne Standardkürzel mit H: andere Tests laden dieselben Einstellungen.
+fn hotkey_flow(render: bool) {
+    use crate::hotkeys::Action;
+    let mut h = harness(render);
+    let id = add(&mut h, VectorPath::rect(20.0, 20.0, 60.0, 20.0, 0.0));
+    h.get_by_label("Bearbeiten").click();
+    h.run_ok();
+    h.get_by_label("Tastenkürzel…").click();
+    h.run_ok();
+    assert!(h.state().hotkey_editor.open);
+    if render {
+        save(&mut h, "tastenkuerzel");
+    }
+    // Taste aufnehmen: H dreht danach die Auswahl
+    h.state_mut().hotkey_editor.filter = "im Uhrzeigersinn".into();
+    h.run_ok();
+    assert_eq!(h.query_all_by_label("Ändern").count(), 1);
+    h.get_by_label("Ändern").click();
+    h.run_ok();
+    assert!(h.query_by_label("Taste drücken …").is_some());
+    h.key_press(egui::Key::H);
+    h.run_ok();
+    assert_eq!(h.state().settings.hotkeys.get("rotate_cw"), Some(&vec!["H".to_string()]));
+    h.key_press(egui::Key::H);
+    h.run_ok();
+    let b = h.state().doc.bounds_of(&[id]);
+    assert!((b.width() - 20.0).abs() < 1e-6 && (b.height() - 60.0).abs() < 1e-6, "{b:?}");
+    // Fest belegte Taste wird abgelehnt
+    h.get_by_label("Ändern").click();
+    h.run_ok();
+    h.key_press(egui::Key::ArrowUp);
+    h.run_ok();
+    assert!(h.query_by_label_contains("ist fest belegt").is_some());
+    assert_eq!(h.state().doc.bounds_of(&[id]), b, "Pfeiltaste verschiebt während der Aufnahme nicht");
+    // Gleiche Taste für einen anderen Befehl: beim bisherigen entfernt
+    h.state_mut().hotkey_editor.filter = "gegen den Uhrzeigersinn".into();
+    h.run_ok();
+    h.get_by_label("Ändern").click();
+    h.run_ok();
+    h.key_press(egui::Key::H);
+    h.run_ok();
+    assert!(h.query_by_label_contains("zugewiesen und wurde dort entfernt").is_some());
+    let app = h.state();
+    assert!(app.keys.of(Action::RotateCw).is_empty());
+    assert_eq!(app.keys.text(Action::RotateCcw), "H");
+    assert!(!app.settings.hotkeys.contains_key("rotate_cw"), "leer = wieder Standard (ohne Taste)");
+    h.state_mut().hotkey_editor.filter.clear();
+    h.run_ok();
+    h.get_by_label("Alle auf Standard zurücksetzen").click();
+    h.run_ok();
+    let app = h.state();
+    assert!(app.settings.hotkeys.is_empty());
+    assert!(app.keys.of(Action::RotateCcw).is_empty());
+}
+
+#[test]
+fn hotkeys_record_resolve_conflicts_and_reset() {
+    hotkey_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_hotkeys() {
+    hotkey_flow(true);
+}
+
 #[test]
 #[ignore = "rendert Bilder zur Sichtprüfung"]
 fn render_history_window() {

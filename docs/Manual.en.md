@@ -168,6 +168,8 @@ Send finished G-code files from other programs with *Laser → Send G-code file�
 - F or Ctrl+0 fit work area; Alt+P preview; F1 this manual
 - Tools: V Select, R Rectangle, E Ellipse, L Line, T Text, Q QR/barcode, N Nodes, M Measure
 
+These are the defaults. Change them under *Edit → Keyboard shortcuts…*: click "Change" and press the new combination. If it is already in use, it is removed from the other command. Commands without a default shortcut – such as mirror, rotate 90° or weld – can be assigned there too. Menus and tooltips always show the current keys.
+
 ## Troubleshooting
 
 - **No port in the list**: check the USB cable and driver; some cables only charge and carry no data.

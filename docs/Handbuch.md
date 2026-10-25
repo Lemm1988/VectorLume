@@ -168,6 +168,8 @@ Fertige G-Code-Dateien anderer Programme sendest du mit *Laser → G-Code-Datei 
 - F oder Strg+0 Arbeitsfläche einpassen; Alt+P Vorschau; F1 dieses Handbuch
 - Werkzeuge: V Auswählen, R Rechteck, E Ellipse, L Linie, T Text, Q QR-/Barcode, N Knoten, M Messen
 
+Das ist die Standardbelegung. Unter *Bearbeiten → Tastenkürzel…* änderst du sie: „Ändern“ klicken und die neue Kombination drücken. Ist sie schon vergeben, wird sie beim anderen Befehl entfernt. Auch Befehle ohne Kürzel – etwa Spiegeln, 90° drehen oder Verschweißen – lassen sich dort belegen. Menüs und Hinweise zeigen immer die aktuelle Belegung.
+
 ## Probleme lösen
 
 - **Kein Anschluss in der Liste**: USB-Kabel und Treiber prüfen; manche Kabel laden nur und übertragen keine Daten.
