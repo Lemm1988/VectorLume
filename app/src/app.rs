@@ -707,6 +707,39 @@ impl VectorLumeApp {
             self.doc.objects.iter().filter(|o| self.doc.layers[o.layer].selectable()).map(|o| o.id).collect();
     }
 
+    pub fn invert_selection(&mut self) {
+        let old = std::mem::take(&mut self.selection);
+        self.selection = self
+            .doc
+            .objects
+            .iter()
+            .filter(|o| self.doc.layers[o.layer].selectable() && !old.contains(&o.id))
+            .map(|o| o.id)
+            .collect();
+    }
+
+    pub fn select_layer(&mut self, layer: usize) {
+        self.selection = self.doc.objects_on_layer(layer).map(|o| o.id).collect();
+    }
+
+    /// Wählt Pfade mit offenen Enden – sie werden beim Füllen übergangen und beim Schneiden nicht geschlossen.
+    pub fn select_open_shapes(&mut self) {
+        self.selection = self
+            .doc
+            .objects
+            .iter()
+            .filter(|o| self.doc.layers[o.layer].selectable() && o.text.is_none())
+            .filter(|o| matches!(&o.shape, Shape::Path(p) if p.subpaths.iter().any(|s| !s.closed)))
+            .map(|o| o.id)
+            .collect();
+        let n = self.selection.len();
+        if n == 0 {
+            self.toast(ToastKind::Info, tr("Keine offenen Formen gefunden."));
+        } else {
+            self.toast(ToastKind::Info, trs(&format!("{n} offene Formen ausgewählt.")));
+        }
+    }
+
     /// Genau ein Bild und mindestens eine Vektorform ausgewählt.
     pub fn can_clip_image(&self) -> bool {
         let objs: Vec<&Object> = self.selection.iter().filter_map(|id| self.doc.get(*id)).collect();
@@ -1312,6 +1345,28 @@ impl VectorLumeApp {
     pub fn jog_rotary(&mut self, travel: f64) {
         let axis = self.settings.profile.rotary.axis.letter();
         self.send_jog(true, &format!("{axis}{}", vl_cam::gcode::fmt_mm(travel)));
+    }
+
+    /// Fährt den Laser auf einen Punkt des Dokuments (absolute Koordinaten).
+    pub fn jog_to_doc(&mut self, p: Point) {
+        let m = self.settings.profile.doc_to_machine(p);
+        self.send_jog(false, &format!("X{} Y{}", vl_cam::gcode::fmt_mm(m.x), vl_cam::gcode::fmt_mm(m.y)));
+    }
+
+    /// Laser kann zu Dokumentpunkten fahren: verbunden, kein Job, absolute Koordinaten, keine Drehachse.
+    pub fn can_jog_to_doc(&self) -> bool {
+        self.machine.connected
+            && !self.machine.job_running
+            && self.settings.job.start_from == StartFrom::Absolute
+            && self.settings.profile.rotary.active_scale().is_none()
+    }
+
+    /// Fährt den Laser zum Job-Ankerpunkt der Auswahl (ohne Auswahl: des ganzen Entwurfs).
+    pub fn move_laser_to_selection(&mut self) {
+        let b = if self.selection.is_empty() { self.doc.bounds() } else { self.selection_bounds() };
+        if !b.is_empty() {
+            self.jog_to_doc(self.settings.job.anchor.point_in(&b));
+        }
     }
 
     pub fn set_user_origin_here(&mut self) {

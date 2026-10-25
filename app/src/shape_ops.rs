@@ -160,6 +160,83 @@ impl VectorLumeApp {
         self.replace_selection(tr(op.label()), layer, &result);
     }
 
+    /// Zerlegt Pfade und Texte der Auswahl in ein Objekt je Teilpfad (Löcher werden eigene Formen).
+    pub fn break_apart(&mut self) {
+        let targets: Vec<ObjectId> = self
+            .selection
+            .iter()
+            .copied()
+            .filter(|id| self.doc.get(*id).is_some_and(|o| matches!(&o.shape, Shape::Path(p) if p.subpaths.len() > 1)))
+            .collect();
+        if targets.is_empty() {
+            self.toast(ToastKind::Info, tr("Nichts zu zerlegen – die Auswahl besteht schon aus einzelnen Formen."));
+            return;
+        }
+        self.checkpoint();
+        let mut selection: Vec<ObjectId> = self.selection.iter().copied().filter(|id| !targets.contains(id)).collect();
+        for id in targets {
+            let Some(i) = self.doc.objects.iter().position(|o| o.id == id) else { continue };
+            let mut base = self.doc.objects.remove(i);
+            let Shape::Path(path) = std::mem::replace(&mut base.shape, Shape::Path(VectorPath::default())) else {
+                continue;
+            };
+            base.text = None;
+            for (k, sub) in path.subpaths.into_iter().enumerate() {
+                let mut part = base.clone();
+                part.id = self.doc.alloc_id();
+                part.shape = Shape::Path(VectorPath { subpaths: vec![sub] });
+                selection.push(part.id);
+                self.doc.objects.insert(i + k, part);
+            }
+        }
+        self.selection = selection;
+        self.mark_changed();
+    }
+
+    /// Bringt jede ausgewählte Einheit (Gruppen als Ganzes) auf die Breite bzw. Höhe der zuerst gewählten.
+    pub fn make_same_size(&mut self, width: bool) {
+        let units = self.selection_units();
+        let Some(first) = self.selection.first() else { return };
+        let Some(reference) = units.iter().find(|u| u.contains(first)) else { return };
+        let r = self.doc.bounds_of(reference);
+        let target = if width { r.width() } else { r.height() };
+        if units.len() < 2 || target <= 1e-9 {
+            return;
+        }
+        self.checkpoint();
+        for u in &units {
+            let b = self.doc.bounds_of(u);
+            let size = if width { b.width() } else { b.height() };
+            if size <= 1e-9 {
+                continue;
+            }
+            let k = target / size;
+            let (sx, sy) = if width { (k, 1.0) } else { (1.0, k) };
+            self.doc.transform_objects(u, &Affine::scale_about(sx, sy, b.center()));
+        }
+        self.mark_changed();
+    }
+
+    /// Legt eine straff gespannte Hülle (konvexe Hülle) um die Auswahl, z. B. als Schnittkontur um Aufkleber.
+    pub fn rubber_band_outline(&mut self) {
+        let points: Vec<Point> = self
+            .selection
+            .iter()
+            .filter_map(|id| self.doc.get(*id))
+            .flat_map(|o| o.polylines(0.05))
+            .flat_map(|p| p.points)
+            .collect();
+        let hull = vl_core::ops::convex_hull(&points);
+        if hull.len() < 3 {
+            self.toast(ToastKind::Info, tr("Für einen Umriss sind mindestens drei Punkte nötig."));
+            return;
+        }
+        self.checkpoint();
+        let id = self.doc.add_path(tr("Gummiband-Umriss"), self.current_layer, VectorPath::polygon(&hull, true));
+        self.selection = vec![id];
+        self.mark_changed();
+    }
+
     /// Reine Pfadobjekte der Auswahl (ohne Bilder und Texte), bei leerer Auswahl alle sichtbaren.
     fn cleanup_targets(&self) -> Vec<ObjectId> {
         let all = self.selection.is_empty();

@@ -126,13 +126,6 @@ impl VectorLumeApp {
         }
         self.toast(ToastKind::Success, tr("Entwurf an den Marken ausgerichtet."));
     }
-
-    /// Fährt den Laser zur Entwurfsmarke – als Startpunkt für die Feinjustierung auf die gedruckte Marke.
-    fn jog_to(&mut self, p: Point) {
-        let m = self.settings.profile.doc_to_machine(p);
-        let axes = format!("X{} Y{}", vl_cam::gcode::fmt_mm(m.x), vl_cam::gcode::fmt_mm(m.y));
-        self.send_jog(false, &axes);
-    }
 }
 
 /// Aufgeschobene Änderung am Programmzustand nach dem Zeichnen des Fensters.
@@ -217,7 +210,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                                     .on_disabled_hover_text(tr("Erst mit dem Laser verbinden"))
                                     .clicked()
                             {
-                                action = Some(Box::new(move |app| app.jog_to(d)));
+                                action = Some(Box::new(move |app| app.jog_to_doc(d)));
                             }
                             pick_button(ui, pc, Pick::Target(i), tr("Punkt auf der Arbeitsfläche anklicken, z. B. im Kamerabild"));
                         });

@@ -13,7 +13,7 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
   mit Strichbreiten-Ausgleich);
   Auswählen, Verschieben, Skalieren, Drehen, Spiegeln, Ausrichten, Verteilen, Gruppieren, Rückgängig/Wiederholen
 - **Bearbeiten:** Knotenwerkzeug, Boolesche Operationen und Verschweißen, Bereinigen (offene Pfade verbinden,
-  doppelte Linien löschen), Versatz, Reihen-Kopien (Raster, Kreis,
+  doppelte Linien löschen), Zerlegen, Gummiband-Umriss, gleiche Breite/Höhe, Versatz, Reihen-Kopien (Raster, Kreis,
   entlang Pfad), Bild nachzeichnen, Objektfang mit Ausrichtungslinien, Ebenen sperren
 - **Import/Export:** SVG (inkl. Text), DXF (inkl. Blöcke, Bögen, Splines), PDF/AI, EPS (mit installiertem
   Ghostscript), HPGL/PLT,

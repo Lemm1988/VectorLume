@@ -85,12 +85,12 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF | Funktion | Umsetzung | Stand |
 |---|---|---|---|
 | LF-10 | Arbeitsfläche | Bett mit adaptivem Raster, Lineale in Maschinenkoordinaten, Zoom am Mauszeiger, Verschieben (Mitte/Leertaste) | ✅ |
-| LF-11 | Auswählen und Transformieren | Klick, Umschalt-Klick, Rahmenauswahl (links→rechts: vollständig, rechts→links: berührend), Verschieben, 8 Griffe zum Skalieren, Drehgriff (Umschalt = 15°) | ✅ |
+| LF-11 | Auswählen und Transformieren | Klick, Umschalt-Klick, Rahmenauswahl (links→rechts: vollständig, rechts→links: berührend), Verschieben, 8 Griffe zum Skalieren, Drehgriff (Umschalt = 15°); Auswahl umkehren, alles auf der aktuellen Ebene, offene Formen auswählen | ✅ |
 | LF-12 | Zahleneingabe | X/Y/B/H in Maschinenkoordinaten, Seitenverhältnis sperren, Drehen um Winkel | ✅ |
 | LF-13 | Grundformen | Rechteck mit Eckenradius, Ellipse/Kreis, Linie (Umschalt = 45°), Vieleck, Stern | ✅ |
 | LF-14 | Text | Installierte Schriften, fett/kursiv, Höhe, Zeichen-/Zeilenabstand, Ausrichtung, Kerning; Text bleibt bearbeitbar (Doppelklick); Text auf Pfad (Versatz, Abstand, Seite); variabler Text mit `{n}` (zählt nach jedem fertigen Job weiter), `{datum}`, `{zeit}`, `{jahr}`; Datenliste aus CSV (Spalten als Platzhalter, `{zeile}`, nächste Zeile nach jedem fertigen Job; `,` `;` Tab, UTF-8/Windows-1252); Umwandeln in Kurven | ✅ |
-| LF-15 | Spiegeln, Drehen, Ausrichten, Verteilen | inkl. „Auf Arbeitsfläche zentrieren“, Gruppen werden als Einheit behandelt | ✅ |
-| LF-16 | Gruppen, Ausblenden | Gruppieren/Lösen, Ebenen ausblenden und sperren | ✅ |
+| LF-15 | Spiegeln, Drehen, Ausrichten, Verteilen | inkl. „Auf Arbeitsfläche zentrieren“, gleiche Breite/Höhe (Maß der zuerst gewählten Form), Gruppen werden als Einheit behandelt | ✅ |
+| LF-16 | Gruppen, Zerlegen, Ausblenden | Gruppieren/Lösen, Zerlegen (ein Objekt je Teilpfad, auch Texte), Gummiband-Umriss (konvexe Hülle der Auswahl als neue Form), Ebenen ausblenden und sperren | ✅ |
 | LF-17 | Knotenbearbeitung | Knotenwerkzeug (N): Knoten/Kurvengriffe ziehen, Doppelklick fügt ein, Entf löscht, Segment → Linie/Kurve, Pfad öffnen/schließen | ✅ |
 | LF-18 | Boolesche Operationen | Vereinigen, Differenz, Schnittmenge, Exklusiv-Oder, Verschweißen (i_overlay) | ✅ |
 | LF-19 | Versatz | nach außen/innen, Ecken rund/spitz/abgeschrägt, offene Pfade werden umrandet | ✅ |
@@ -120,7 +120,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 |---|---|---|---|
 | LF-40 | Verbindung | Anschlussliste mit USB-Kennung, Baudrate aus Profil, automatische Abfrage `$I` und `$$` | ✅ |
 | LF-41 | Status und Konsole | Zustand, Position (WPos/MPos+WCO) alle 200 ms, Fehler- und Alarmcodes mit deutschem Text, Konsole mit Schnellbefehlen und eigenen **Makro-Knöpfen** (Name + G-Code-Zeilen, in den Einstellungen gespeichert, Rechtsklick bearbeitet/entfernt, nur verbunden und ohne laufenden Job) | ✅ |
-| LF-42 | Referenzfahrt, Entsperren, Jog | `$H`, `$X`, `$J=` mit Schrittweite und Geschwindigkeit, Richtungen passend zur Nullpunkt-Ecke, Jog-Abbruch | ✅ |
+| LF-42 | Referenzfahrt, Entsperren, Jog | `$H`, `$X`, `$J=` mit Schrittweite und Geschwindigkeit, Richtungen passend zur Nullpunkt-Ecke, Jog-Abbruch, „Laser zur Auswahl fahren“ (Job-Ankerpunkt, absolute Koordinaten) | ✅ |
 | LF-43 | Rahmen | Umriss der Ausgabe abfahren (Laser aus oder ≤ 5 % laut Profil), Anfahrt immer im Eilgang; als Rechteck oder als **Umriss-Rahmen** (konvexe Hülle aller gelaserten Strecken, folgt runden und schrägen Formen) | ✅ |
 | LF-44 | Job-Steuerung | Start, Pause (`!`), Fortsetzen (`~`), Stopp (Feed-Hold + Soft-Reset), Fortschritt, Restzeit; **fremde G-Code-Datei senden** (*Laser → G-Code-Datei senden…*: Kommentare, Leerzeilen, `%` und BOM entfernt, Bestätigung mit Warnhinweis, Inhalt ungeprüft, Restzeit aus dem Fortschritt hochgerechnet) | ✅ |
 | LF-45 | Job-Ursprung | Absolut, Benutzer-Ursprung, aktuelle Position (G91 mit fehlerfreier Rundung), 9 Ankerpunkte | ✅ |

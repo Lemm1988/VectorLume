@@ -290,6 +290,17 @@ fn edit_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Alles auswählen"), "Strg+A", !app.doc.objects.is_empty()) {
         app.select_all();
     }
+    if menu_item(ui, tr("Auswahl umkehren"), "", !app.doc.objects.is_empty()) {
+        app.invert_selection();
+    }
+    let layer = app.current_layer;
+    let on_layer = app.doc.objects_on_layer(layer).next().is_some();
+    if menu_item(ui, &trs(&format!("Alles auf Ebene „{}“ auswählen", app.doc.layers[layer].name)), "", on_layer) {
+        app.select_layer(layer);
+    }
+    if menu_item(ui, tr("Offene Formen auswählen"), "", !app.doc.objects.is_empty()) {
+        app.select_open_shapes();
+    }
 }
 
 fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
@@ -300,6 +311,9 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     }
     if menu_item(ui, tr("Gruppierung lösen"), tr("Strg+Umschalt+G"), has) {
         app.ungroup();
+    }
+    if menu_item(ui, tr("Zerlegen"), "", has) {
+        app.break_apart();
     }
     ui.separator();
     ui.add_enabled_ui(multi, |ui| {
@@ -323,6 +337,15 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
             }
             if menu_item(ui, tr("Vertikal"), "", true) {
                 app.distribute(false);
+            }
+        });
+        ui.menu_button(tr("Gleiche Größe"), |ui| {
+            ui.label(RichText::new(tr("Maß der zuerst gewählten Form")).small().color(theme::of(ui).text_weak));
+            if menu_item(ui, tr("Gleiche Breite"), "", true) {
+                app.make_same_size(true);
+            }
+            if menu_item(ui, tr("Gleiche Höhe"), "", true) {
+                app.make_same_size(false);
             }
         });
     });
@@ -386,6 +409,9 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     }
     if menu_item(ui, tr("Reihen-Kopien…"), "", has) {
         app.shape_dialogs.array_open = true;
+    }
+    if menu_item(ui, tr("Gummiband-Umriss"), "", has) {
+        app.rubber_band_outline();
     }
     ui.separator();
     let image = app.selection.iter().any(|id| app.doc.get(*id).is_some_and(|o| o.is_image()));
@@ -472,6 +498,9 @@ fn laser_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     }
     if menu_item(ui, tr("Umriss-Rahmen fahren"), "", connected) {
         app.frame_job(true);
+    }
+    if menu_item(ui, tr("Laser zur Auswahl fahren"), "", app.can_jog_to_doc() && !app.doc.objects.is_empty()) {
+        app.move_laser_to_selection();
     }
     if menu_item(ui, tr("Job starten"), "", connected && !app.machine.job_running) {
         app.start_job();
