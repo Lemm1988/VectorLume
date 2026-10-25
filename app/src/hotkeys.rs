@@ -70,12 +70,13 @@ pub enum Action {
     CenterOnBed,
     ZoomFit,
     Preview,
+    SidePanel,
     Manual,
     Tool(Tool),
 }
 
 impl Action {
-    pub const ALL: [Action; 45] = [
+    pub const ALL: [Action; 46] = [
         Action::New,
         Action::Open,
         Action::Save,
@@ -108,6 +109,7 @@ impl Action {
         Action::CenterOnBed,
         Action::ZoomFit,
         Action::Preview,
+        Action::SidePanel,
         Action::Manual,
         Action::Tool(Tool::Select),
         Action::Tool(Tool::Node),
@@ -158,6 +160,7 @@ impl Action {
             Action::CenterOnBed => "center_on_bed",
             Action::ZoomFit => "zoom_fit",
             Action::Preview => "preview",
+            Action::SidePanel => "side_panel",
             Action::Manual => "manual",
             Action::Tool(t) => match t {
                 Tool::Select => "tool_select",
@@ -210,6 +213,7 @@ impl Action {
             Action::CenterOnBed => tr("Auf Arbeitsfläche zentrieren"),
             Action::ZoomFit => tr("Arbeitsfläche einpassen"),
             Action::Preview => tr("Vorschau"),
+            Action::SidePanel => tr("Seitenleiste ein-/ausblenden"),
             Action::Manual => tr("Handbuch"),
             Action::Tool(t) => t.label(),
         }
@@ -231,7 +235,7 @@ impl Action {
             | Action::Delete
             | Action::SelectAll
             | Action::InvertSelection => Group::Edit,
-            Action::ZoomFit | Action::Preview | Action::Manual => Group::View,
+            Action::ZoomFit | Action::Preview | Action::SidePanel | Action::Manual => Group::View,
             Action::Tool(_) => Group::Tools,
             _ => Group::Arrange,
         }
@@ -473,6 +477,10 @@ pub fn run(app: &mut VectorLumeApp, a: Action) {
         Action::CenterOnBed => app.center_on_bed(),
         Action::ZoomFit => app.zoom_to_fit(),
         Action::Preview => app.preview.active = !app.preview.active,
+        Action::SidePanel => {
+            app.settings.show_side_panel = !app.settings.show_side_panel;
+            app.settings.save();
+        }
         Action::Manual => app.manual.open = !app.manual.open,
         Action::Tool(t) => app.tool = t,
     }

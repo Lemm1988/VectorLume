@@ -1486,6 +1486,10 @@ pub static EN: &[(&str, &str)] = &[
     ("Importieren: SVG, DXF, Bilder", "Import: SVG, DXF, images"),
     ("Werkzeugweg und Laufzeit anzeigen", "Show toolpath and run time"),
     ("Tastenkürzel…", "Keyboard shortcuts…"),
+    ("Seitenleiste ein-/ausblenden", "Show/hide side panel"),
+    ("Seitenleiste (Ebenen, Laser, Konsole)", "Side panel (layers, laser, console)"),
+    ("Rahmen wiederholen, bis „Stopp“ gedrückt oder dieser Schalter ausgeschaltet wird – zum Ausrichten des Materials", "Repeat the frame until \"Stop\" is pressed or this switch is turned off – for aligning the material"),
+    ("Rahmen läuft – Durchgang {}. Ausschalten beendet nach dieser Runde, „Stopp“ sofort.", "Frame running – pass {}. Switching off ends after this round, \"Stop\" immediately."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

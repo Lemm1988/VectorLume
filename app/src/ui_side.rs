@@ -38,6 +38,9 @@ fn section_title(ui: &mut Ui, glyph: &str, text: &str) {
 }
 
 pub fn right_panel(app: &mut VectorLumeApp, ui: &mut Ui) {
+    if !app.settings.show_side_panel {
+        return;
+    }
     let pal = theme::of(ui);
     egui::Panel::right("side")
         .resizable(true)
@@ -762,7 +765,7 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             if ui
                 .add_enabled(
                     connected && !running,
-                    Button::new(trs(&format!("{} Rahmen", icon::FRAME_CORNERS))).min_size(vec2(w - 34.0, 28.0)),
+                    Button::new(trs(&format!("{} Rahmen", icon::FRAME_CORNERS))).min_size(vec2(w - 68.0, 28.0)),
                 )
                 .on_hover_text(tr("Das umgebende Rechteck des Jobs abfahren (Laser aus)"))
                 .clicked()
@@ -777,6 +780,20 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 .clicked()
             {
                 app.frame_job(true);
+            }
+            let looping = app.machine.frame_repeat.is_some();
+            let glyph = RichText::new(icon::REPEAT).color(if app.machine.frame_loop { pal.accent } else { pal.text });
+            let hint = if looping {
+                trs(&format!("Rahmen läuft – Durchgang {}. Ausschalten beendet nach dieser Runde, „Stopp“ sofort.", app.machine.frame_passes))
+            } else {
+                tr("Rahmen wiederholen, bis „Stopp“ gedrückt oder dieser Schalter ausgeschaltet wird – zum Ausrichten des Materials").to_string()
+            };
+            if ui
+                .add(Button::selectable(app.machine.frame_loop, glyph).min_size(vec2(30.0, 28.0)))
+                .on_hover_text(hint)
+                .clicked()
+            {
+                app.machine.frame_loop = !app.machine.frame_loop;
             }
             ui.spacing_mut().item_spacing.x = spacing;
             if ui

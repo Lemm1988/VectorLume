@@ -115,7 +115,7 @@ Under *Arrange → Generators*:
 ## Lasering
 
 1. **Preview** (Alt+P): shows the finished job with run time, travel moves and a playback slider.
-2. **Run frame**: the laser traces the bounding rectangle (laser off) so you can check the position on the material. *Run outline frame* traces the hull of the shapes.
+2. **Run frame**: the laser traces the bounding rectangle (laser off) so you can check the position on the material. *Run outline frame* traces the hull of the shapes. With the switch next to them (repeat icon) the frame runs again and again until you press "Stop" or switch it off – so you can move the material while the laser shows the outline.
 3. **Start job**. Pause and stop are possible at any time; stop switches the laser off immediately.
 
 **Start from** sets where the job goes:

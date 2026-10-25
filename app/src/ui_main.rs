@@ -547,6 +547,10 @@ fn view_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     ui.separator();
     let label = app.keys.hint(tr("Vorschau"), Action::Preview);
     ui.checkbox(&mut app.preview.active, label);
+    let side = app.keys.hint(tr("Seitenleiste (Ebenen, Laser, Konsole)"), Action::SidePanel);
+    if ui.checkbox(&mut app.settings.show_side_panel, side).changed() {
+        app.settings.save();
+    }
     if ui.checkbox(&mut app.settings.show_travel, tr("Leerfahrten in der Vorschau")).changed() {
         app.settings.save();
     }

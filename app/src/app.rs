@@ -137,6 +137,12 @@ pub struct MachineInfo {
     pub job_estimate: f64,
     /// Der laufende Job wurde aus dem Dokument erzeugt.
     pub document_job: bool,
+    /// Schalter „Rahmen wiederholen“: der Rahmen läuft immer wieder, bis gestoppt oder ausgeschaltet.
+    pub frame_loop: bool,
+    /// Zeilen des laufenden Wiederhol-Rahmens, nach jedem Durchgang erneut gesendet.
+    pub frame_repeat: Option<vl_core::LineBuf>,
+    /// Durchgänge des laufenden Rahmens.
+    pub frame_passes: u32,
 }
 
 impl MachineInfo {
@@ -1427,6 +1433,8 @@ impl VectorLumeApp {
 
     pub fn run_frame(&mut self, job: &Job, hull: bool) {
         let lines = strip_for_streaming(&vl_cam::frame_gcode(job, &self.settings.profile, hull));
+        self.machine.frame_passes = 1;
+        self.machine.frame_repeat = self.machine.frame_loop.then(|| lines.clone());
         self.device.send(Command::StartJob { name: tr("Rahmen").into(), lines });
     }
 
@@ -1740,6 +1748,7 @@ impl VectorLumeApp {
                     self.machine.connected = false;
                     self.machine.status = None;
                     self.machine.job_running = false;
+                    self.machine.frame_repeat = None;
                     match reason {
                         Some(r) => {
                             self.console_push(Direction::Info, r.clone());
@@ -1771,6 +1780,13 @@ impl VectorLumeApp {
                 }
                 Event::JobProgress { acked, total } => self.machine.job_progress = (acked, total),
                 Event::JobFinished { ok, message, seconds } => {
+                    if let Some(lines) = self.machine.frame_repeat.as_ref().filter(|_| ok && self.machine.frame_loop) {
+                        // nächster Durchgang ohne Meldung; der Job gilt dazwischen weiter als laufend
+                        self.machine.frame_passes += 1;
+                        self.device.send(Command::StartJob { name: tr("Rahmen").into(), lines: lines.clone() });
+                        continue;
+                    }
+                    self.machine.frame_repeat = None;
                     self.machine.job_running = false;
                     if std::mem::take(&mut self.machine.document_job) && ok {
                         self.advance_text_counters();

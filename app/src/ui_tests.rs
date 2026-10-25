@@ -653,6 +653,34 @@ fn grbl_params_flow(render: bool) {
     wait_until(&mut h, |app| !app.machine.connected);
 }
 
+/// „Rahmen wiederholen“ mit dem Simulator: mehrere Durchgänge, Ausschalten beendet nach der laufenden Runde.
+#[test]
+fn frame_loop_repeats_until_switched_off() {
+    let mut h = harness(false);
+    add(&mut h, VectorPath::rect(1.0, 1.0, 2.0, 2.0, 0.0));
+    {
+        let app = h.state_mut();
+        app.settings.profile.frame_speed = 6000.0;
+        app.selected_port = vl_device::SIMULATOR_PORT.into();
+        app.connect();
+    }
+    wait_until(&mut h, |app| app.machine.connected && app.machine.status.is_some());
+    let toggle = egui_phosphor::regular::REPEAT;
+    assert_eq!(h.query_all_by_label(toggle).count(), 1);
+    h.get_by_label(toggle).click();
+    h.run_ok();
+    assert!(h.state().machine.frame_loop);
+    h.state_mut().frame_job(false);
+    wait_until(&mut h, |app| app.machine.frame_passes >= 3);
+    assert!(h.state().machine.job_running && h.state().machine.frame_repeat.is_some());
+    h.get_by_label(toggle).click();
+    wait_until(&mut h, |app| !app.machine.job_running);
+    let app = h.state();
+    assert!(!app.machine.frame_loop && app.machine.frame_repeat.is_none());
+    h.state_mut().disconnect();
+    wait_until(&mut h, |app| !app.machine.connected);
+}
+
 #[test]
 fn grbl_params_written_to_simulator() {
     grbl_params_flow(false);

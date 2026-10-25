@@ -33,6 +33,8 @@ pub struct AppSettings {
     pub network_address: String,
     pub jog_step: f64,
     pub show_travel: bool,
+    /// Rechte Seitenleiste (Ebenen, Laser, Konsole, Bibliothek); ausblendbar für kleine Bildschirme.
+    pub show_side_panel: bool,
     pub safety_acknowledged: bool,
     pub snap_to_grid: bool,
     pub grid_snap_mm: f64,
@@ -68,6 +70,7 @@ impl Default for AppSettings {
             network_address: String::new(),
             jog_step: 10.0,
             show_travel: true,
+            show_side_panel: true,
             safety_acknowledged: false,
             snap_to_grid: false,
             grid_snap_mm: 1.0,

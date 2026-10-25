@@ -115,7 +115,7 @@ Unter *Anordnen → Generatoren*:
 ## Lasern
 
 1. **Vorschau** (Alt+P): zeigt den fertigen Job mit Laufzeit, Leerfahrten und Abspielregler.
-2. **Rahmen fahren**: Der Laser fährt das umgebende Rechteck ab (Laser aus), damit du die Lage auf dem Material prüfen kannst. *Umriss-Rahmen* fährt die Hülle der Formen ab.
+2. **Rahmen fahren**: Der Laser fährt das umgebende Rechteck ab (Laser aus), damit du die Lage auf dem Material prüfen kannst. *Umriss-Rahmen* fährt die Hülle der Formen ab. Mit dem Schalter daneben (Wiederholen-Symbol) läuft der Rahmen immer wieder, bis du „Stopp“ drückst oder den Schalter ausschaltest – so kannst du das Material verschieben, während der Laser den Umriss zeigt.
 3. **Job starten**. Pause und Stopp sind jederzeit möglich; Stopp schaltet den Laser sofort aus.
 
 **Start von** legt fest, wohin der Job kommt:
