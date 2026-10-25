@@ -15,6 +15,14 @@ use vl_raster::render::{RenderOptions, render_bounds, render_objects, render_siz
 /// Toleranz beim Abflachen von Kurven für Formoperationen (mm).
 const TOLERANCE: f64 = 0.01;
 
+/// Richtung des Versatzes; beidseitig ergibt je eine Kontur außen und innen.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum OffsetDirection {
+    Outward,
+    Inward,
+    Both,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ArrayMode {
     Grid,
@@ -26,7 +34,7 @@ pub enum ArrayMode {
 pub struct ShapeDialogs {
     pub offset_open: bool,
     pub offset_distance: f64,
-    pub offset_inward: bool,
+    pub offset_direction: OffsetDirection,
     pub offset_corner: Corner,
     pub offset_keep_original: bool,
     pub array_open: bool,
@@ -79,7 +87,7 @@ impl Default for ShapeDialogs {
         Self {
             offset_open: false,
             offset_distance: 2.0,
-            offset_inward: false,
+            offset_direction: OffsetDirection::Outward,
             offset_corner: Corner::Round,
             offset_keep_original: true,
             array_open: false,
@@ -579,18 +587,30 @@ impl VectorLumeApp {
 
     fn apply_offset(&mut self) {
         let d = &self.shape_dialogs;
-        let distance = if d.offset_inward { -d.offset_distance } else { d.offset_distance };
+        let (distance, direction) = (d.offset_distance, d.offset_direction);
         let (corner, keep) = (d.offset_corner, d.offset_keep_original);
         let units = self.ordered_units();
         if units.is_empty() {
             self.toast(ToastKind::Info, tr("Bitte zuerst Objekte auswählen."));
             return;
         }
-        let results: Vec<(usize, Vec<Polyline>)> = units
-            .iter()
-            .map(|u| (self.unit_layer(u), vl_core::ops::offset(&self.unit_polylines(u), distance, corner)))
-            .filter(|(_, p)| !p.is_empty())
-            .collect();
+        let mut results: Vec<(usize, Vec<Polyline>)> = Vec::new();
+        for u in &units {
+            let (layer, polys) = (self.unit_layer(u), self.unit_polylines(u));
+            if direction != OffsetDirection::Inward {
+                results.push((layer, vl_core::ops::offset(&polys, distance, corner)));
+            }
+            if direction != OffsetDirection::Outward {
+                // Offene Pfade werden nur einmal umrandet (beim Versatz nach außen)
+                let closed: Vec<Polyline> = if direction == OffsetDirection::Both {
+                    polys.into_iter().filter(|p| p.closed).collect()
+                } else {
+                    polys
+                };
+                results.push((layer, vl_core::ops::offset(&closed, -distance, corner)));
+            }
+        }
+        results.retain(|(_, p)| !p.is_empty());
         if results.is_empty() {
             self.toast(ToastKind::Error, tr("Versatz: Das Ergebnis ist leer (zu weit nach innen?)."));
             return;
@@ -1028,8 +1048,9 @@ fn offset_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.end_row();
                 ui.label(tr("Richtung"));
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut d.offset_inward, false, tr("Nach außen"));
-                    ui.radio_value(&mut d.offset_inward, true, tr("Nach innen"));
+                    ui.radio_value(&mut d.offset_direction, OffsetDirection::Outward, tr("Nach außen"));
+                    ui.radio_value(&mut d.offset_direction, OffsetDirection::Inward, tr("Nach innen"));
+                    ui.radio_value(&mut d.offset_direction, OffsetDirection::Both, tr("Beidseitig"));
                 });
                 ui.end_row();
                 ui.label(tr("Ecken"));

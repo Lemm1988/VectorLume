@@ -93,7 +93,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-16 | Gruppen, Zerlegen, Ausblenden | Gruppieren/Lösen, Zerlegen (ein Objekt je Teilpfad, auch Texte), Gummiband-Umriss (konvexe Hülle der Auswahl als neue Form), Ebenen ausblenden und sperren | ✅ |
 | LF-17 | Knotenbearbeitung | Knotenwerkzeug (N): Knoten/Kurvengriffe ziehen, Doppelklick fügt ein, Entf löscht, Segment → Linie/Kurve, Pfad öffnen/schließen; **Trimmen** (Schere): Klick entfernt das Linienstück bis zu den nächsten Schnittpunkten mit allem Sichtbaren, auch anderen Teilen desselben Objekts und sich selbst; rote Vorschau unter dem Mauszeiger, ohne Schnittpunkt fällt der ganze Teilpfad weg, übrige Teilpfade behalten ihre Kurven, leere Objekte werden gelöscht | ✅ |
 | LF-18 | Boolesche Operationen | Vereinigen, Differenz, Schnittmenge, Exklusiv-Oder, Verschweißen (i_overlay) | ✅ |
-| LF-19 | Versatz | nach außen/innen, Ecken rund/spitz/abgeschrägt, offene Pfade werden umrandet | ✅ |
+| LF-19 | Versatz | nach außen/innen/beidseitig (offene Pfade nur einmal umrandet), Ecken rund/spitz/abgeschrägt, offene Pfade werden umrandet | ✅ |
 | LF-20 | Reihen-Kopien | Raster, Kreis, entlang eines Pfades (gleichmäßig, an der Richtung ausgerichtet) | ✅ |
 | LF-21 | Bild nachzeichnen | Schwellwert, Invertieren, Fleckenfilter, Vereinfachen, Glätten mit Eckenerkennung, Live-Vorschau (eigener Algorithmus) | ✅ |
 | LF-22 | Fangen | Raster 1 mm; Objektfang an Knoten, Mitten und Kanten mit Ausrichtungslinien (Alt = aus) | ✅ |

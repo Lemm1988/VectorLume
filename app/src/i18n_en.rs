@@ -1072,6 +1072,7 @@ pub static EN: &[(&str, &str)] = &[
     ("Durchreichen graviert jedes Bildpixel als einen Punkt – dafür muss der Zeilenabstand der Bildauflösung entsprechen.", "Pass-through engraves every image pixel as one dot – the line interval must match the image resolution."),
     ("Zeilenabstand an Bild anpassen ({} dpi)", "Match line interval to image ({} dpi)"),
     ("Durchreichen (fertiges S/W-Bild)", "Pass-through (finished B/W image)"),
+    ("Beidseitig", "Both sides"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
