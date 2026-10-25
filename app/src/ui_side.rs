@@ -288,7 +288,8 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
         ui.end_row();
 
         let raster = s.mode == LayerMode::Image || has_images;
-        if raster && s.dither == DitherMode::Grayscale {
+        let ramp = s.mode == LayerMode::Fill && s.ramp_length > 0.0;
+        if (raster && s.dither == DitherMode::Grayscale) || ramp {
             ui.label(tr("Leistung min."));
             ui.add(egui::Slider::new(&mut s.power_min, 0.0..=100.0).suffix(" %").fixed_decimals(1));
             ui.end_row();
@@ -386,6 +387,17 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
             ui.end_row();
             ui.label("");
             ui.checkbox(&mut s.crosshatch, tr("Kreuzschraffur"));
+            ui.end_row();
+            ui.label(tr("Rampe"));
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut s.ramp_length).speed(0.05).range(0.0..=20.0).max_decimals(2).suffix(" mm"))
+                    .on_hover_text(tr(
+                        "Für Stempel: Die Leistung steigt vom Rand aus über diese Strecke von der Mindest- zur \
+                         Höchstleistung, so entstehen schräge, stabile Flanken. 0 = aus.",
+                    ));
+                ui.add_enabled(s.ramp_length > 0.0, egui::Checkbox::new(&mut s.ramp_outer_only, tr("nur außen")))
+                    .on_hover_text(tr("Rampe nur an der äußersten Kontur, nicht an Löchern und inneren Formen"));
+            });
             ui.end_row();
             ui.label(tr("Füllreihenfolge"));
             egui::ComboBox::from_id_salt("fill_grouping").selected_text(tr(s.fill_grouping.label())).show_ui(ui, |ui| {

@@ -257,6 +257,96 @@ pub fn hatch_ops_on_grid(
     ops
 }
 
+/// Stempel-Rampe: Brennstrecken werden unterteilt, die Leistung steigt mit dem Abstand zum nächsten Rand von `min`
+/// bis `max` (Anteile 0…1) über die Länge `ramp`. Gleiche Stufen (0,5 %) werden zusammengefasst.
+pub fn apply_ramp(ops: Vec<Op>, edges_of: &[Polyline], ramp: f64, min: f32, max: f32) -> Vec<Op> {
+    if ramp <= 0.0 || edges_of.is_empty() {
+        return ops;
+    }
+    let grid = EdgeGrid::new(edges_of, ramp);
+    let step = (ramp / 16.0).clamp(0.02, 1.0);
+    let level = |p: Point| {
+        let t = (grid.distance(p, ramp) / ramp) as f32;
+        let v = min + (max - min) * t.clamp(0.0, 1.0);
+        (v * 200.0).round() / 200.0
+    };
+    let mut out = Vec::with_capacity(ops.len());
+    let mut cur = Point::ZERO;
+    for op in ops {
+        match op {
+            Op::Move { to, power } if power > 0.0 => {
+                let len = cur.distance(to);
+                let n = (len / step).ceil().max(1.0) as usize;
+                let mut pending: Option<(Point, f32)> = None;
+                for k in 0..n {
+                    let (a, b) = (cur.lerp(to, k as f64 / n as f64), cur.lerp(to, (k + 1) as f64 / n as f64));
+                    let p = level(a.lerp(b, 0.5));
+                    pending = match pending {
+                        Some((_, q)) if q == p => Some((b, p)),
+                        Some((end, q)) => {
+                            out.push(Op::Move { to: end, power: q });
+                            Some((b, p))
+                        }
+                        None => Some((b, p)),
+                    };
+                }
+                if let Some((end, q)) = pending {
+                    out.push(Op::Move { to: end, power: q });
+                }
+            }
+            other => out.push(other),
+        }
+        cur = op.target();
+    }
+    out
+}
+
+/// Kanten in einem Raster mit Zellgröße `cell` für schnelle Abstandsabfragen bis `cell`.
+struct EdgeGrid {
+    cell: f64,
+    map: std::collections::HashMap<(i64, i64), Vec<(Point, Point)>>,
+}
+
+impl EdgeGrid {
+    fn new(polys: &[Polyline], cell: f64) -> Self {
+        let mut map: std::collections::HashMap<(i64, i64), Vec<(Point, Point)>> = Default::default();
+        let key = |p: Point| ((p.x / cell).floor() as i64, (p.y / cell).floor() as i64);
+        for poly in polys {
+            for (a, b) in poly.edges() {
+                // Stützpunkte im Abstand einer halben Zelle; Abfragen schauen eine Zelle weiter
+                let n = (a.distance(b) / (cell / 2.0)).ceil().max(1.0) as usize;
+                let mut last = None;
+                for k in 0..=n {
+                    let c = key(a.lerp(b, k as f64 / n as f64));
+                    if last != Some(c) {
+                        let list = map.entry(c).or_default();
+                        if list.last() != Some(&(a, b)) {
+                            list.push((a, b));
+                        }
+                        last = Some(c);
+                    }
+                }
+            }
+        }
+        Self { cell, map }
+    }
+
+    /// Abstand zur nächsten Kante, höchstens `limit`.
+    fn distance(&self, p: Point, limit: f64) -> f64 {
+        let r = ((limit / self.cell).ceil() as i64) + 1;
+        let (cx, cy) = ((p.x / self.cell).floor() as i64, (p.y / self.cell).floor() as i64);
+        let mut best = limit;
+        for x in cx - r..=cx + r {
+            for y in cy - r..=cy + r {
+                for &(a, b) in self.map.get(&(x, y)).into_iter().flatten() {
+                    best = best.min(vl_core::path::distance_to_segment(p, a, b));
+                }
+            }
+        }
+        best
+    }
+}
+
 /// Leistungswert für eine Rasterzelle.
 fn cell_power(v: f32, settings: &CutSettings) -> f32 {
     if v <= 0.002 {
@@ -453,6 +543,44 @@ mod tests {
         let shifted = raster_ops(&r, &settings, 0.1);
         assert_eq!(shifted[0], Op::Rapid(Point::new(0.9, 1.5)));
         assert_eq!(shifted[2].target(), Point::new(4.1, 2.5));
+    }
+
+    #[test]
+    fn ramp_raises_power_away_from_edges() {
+        // Rahmen 0…20 × 0…10 mit Loch 8…12 × 4…6
+        let mut p = VectorPath::rect(0.0, 0.0, 20.0, 10.0, 0.0);
+        p.append(VectorPath::rect(8.0, 4.0, 4.0, 2.0, 0.0));
+        let polys = p.flatten(&Affine::IDENTITY, 0.01);
+        let ops = hatch_ops(&polys, 0.5, 0.0, false, 0.0, 0.0, 1.0);
+        let burned = burned_length(&ops);
+        let power_at = |ops: &[Op], x: f64, y: f64| -> f32 {
+            let mut cur = Point::ZERO;
+            for op in ops {
+                if let Op::Move { to, power } = *op
+                    && power > 0.0
+                    && (cur.y - y).abs() < 0.3
+                    && (to.y - y).abs() < 0.3
+                    && cur.x.min(to.x) <= x
+                    && x <= cur.x.max(to.x)
+                {
+                    return power;
+                }
+                cur = op.target();
+            }
+            panic!("keine Brennstrecke bei {x}/{y}");
+        };
+        let ramped = apply_ramp(ops.clone(), &polys, 2.0, 0.2, 1.0);
+        assert!((burned_length(&ramped) - burned).abs() < 1e-6);
+        // am Rand nahe Mindestleistung, innen voll, am Loch wieder schwächer
+        assert!(power_at(&ramped, 0.3, 2.25) < 0.35);
+        assert!((power_at(&ramped, 4.0, 2.25) - 1.0).abs() < 1e-6);
+        assert!(power_at(&ramped, 7.6, 4.75) < 0.4);
+        // nur Außenkante: am Loch volle Leistung
+        let outer = vl_core::ops::outermost(&polys);
+        assert_eq!(outer.len(), 1);
+        let ramped = apply_ramp(ops, &outer, 2.0, 0.2, 1.0);
+        assert!(power_at(&ramped, 0.3, 2.25) < 0.35);
+        assert!((power_at(&ramped, 7.6, 4.75) - 1.0).abs() < 1e-6);
     }
 
     #[test]

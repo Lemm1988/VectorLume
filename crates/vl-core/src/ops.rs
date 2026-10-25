@@ -152,6 +152,32 @@ pub fn offset(polys: &[Polyline], distance: f64, corner: Corner) -> Vec<Polyline
 /// Löchern. Eine Form in einem Loch ist wieder eine eigene Insel. Offene Linienzüge entfallen.
 pub fn islands(polys: &[Polyline]) -> Vec<Vec<Polyline>> {
     let rings: Vec<&Polyline> = polys.iter().filter(|p| p.closed && p.points.len() >= 3).collect();
+    let n = rings.len();
+    let (depth, parent) = nesting(&rings);
+    let mut island_of: Vec<Option<usize>> = vec![None; n];
+    let mut out: Vec<Vec<Polyline>> = Vec::new();
+    for i in (0..n).filter(|&i| depth[i].is_multiple_of(2)) {
+        island_of[i] = Some(out.len());
+        out.push(vec![rings[i].clone()]);
+    }
+    for i in (0..n).filter(|&i| !depth[i].is_multiple_of(2)) {
+        match parent[i].and_then(|p| island_of[p]) {
+            Some(k) => out[k].push(rings[i].clone()),
+            None => out.push(vec![rings[i].clone()]),
+        }
+    }
+    out
+}
+
+/// Äußerste geschlossene Konturen (in keiner anderen enthalten).
+pub fn outermost(polys: &[Polyline]) -> Vec<Polyline> {
+    let rings: Vec<&Polyline> = polys.iter().filter(|p| p.closed && p.points.len() >= 3).collect();
+    let (depth, _) = nesting(&rings);
+    rings.iter().zip(depth).filter(|(_, d)| *d == 0).map(|(r, _)| (*r).clone()).collect()
+}
+
+/// Verschachtelungstiefe jedes Rings und der kleinste ihn enthaltende Ring.
+fn nesting(rings: &[&Polyline]) -> (Vec<usize>, Vec<Option<usize>>) {
     let bounds: Vec<crate::geom::Rect> = rings.iter().map(|p| p.bounds()).collect();
     let area: Vec<f64> = rings.iter().map(|p| p.signed_area().abs()).collect();
     let n = rings.len();
@@ -173,19 +199,7 @@ pub fn islands(polys: &[Polyline]) -> Vec<Vec<Polyline>> {
             }
         }
     }
-    let mut island_of: Vec<Option<usize>> = vec![None; n];
-    let mut out: Vec<Vec<Polyline>> = Vec::new();
-    for i in (0..n).filter(|&i| depth[i].is_multiple_of(2)) {
-        island_of[i] = Some(out.len());
-        out.push(vec![rings[i].clone()]);
-    }
-    for i in (0..n).filter(|&i| !depth[i].is_multiple_of(2)) {
-        match parent[i].and_then(|p| island_of[p]) {
-            Some(k) => out[k].push(rings[i].clone()),
-            None => out.push(vec![rings[i].clone()]),
-        }
-    }
-    out
+    (depth, parent)
 }
 
 /// Konvexe Hülle (Andrew-Verfahren), gegen den Uhrzeigersinn im mathematischen Sinn, ohne doppelte und

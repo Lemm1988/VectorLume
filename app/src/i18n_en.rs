@@ -983,6 +983,10 @@ pub static EN: &[(&str, &str)] = &[
     ("Formen einzeln", "Shapes individually"),
     ("Punktbreite", "Dot width"),
     ("Punktbreiten-Korrektur: Jede gebrannte Strecke wird an beiden Enden um die halbe Breite des Laserpunkts gekürzt, damit gerasterte Bilder nicht zulaufen. Für Diodenlaser meist 0,05–0,1 mm, 0 = aus.", "Dot width correction: each burned run is shortened at both ends by half the width of the laser dot so rastered images do not fill in. Usually 0.05–0.1 mm for diode lasers, 0 = off."),
+    ("Rampe", "Ramp"),
+    ("Für Stempel: Die Leistung steigt vom Rand aus über diese Strecke von der Mindest- zur Höchstleistung, so entstehen schräge, stabile Flanken. 0 = aus.", "For stamps: starting at the edge, the power rises over this distance from minimum to maximum power, creating sloped, sturdy shoulders. 0 = off."),
+    ("nur außen", "outer only"),
+    ("Rampe nur an der äußersten Kontur, nicht an Löchern und inneren Formen", "Ramp only at the outermost contour, not at holes and inner shapes"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

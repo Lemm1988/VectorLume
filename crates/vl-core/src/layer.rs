@@ -173,6 +173,11 @@ pub struct CutSettings {
     pub fill_grouping: FillGrouping,
     /// Bild: Breite des Laserpunkts (mm); jede gebrannte Strecke wird an beiden Enden um die Hälfte gekürzt.
     pub dot_width: f64,
+    /// Füllen: Rampe für Stempel – die Leistung steigt auf dieser Strecke (mm) von der Mindest- zur Höchstleistung
+    /// an, gemessen vom nächsten Rand. 0 = aus.
+    pub ramp_length: f64,
+    /// Rampe nur an der äußersten Kontur, nicht an Löchern und inneren Formen.
+    pub ramp_outer_only: bool,
 }
 
 /// Wie mehrere Formen einer Füll-Ebene zeilenweise abgefahren werden.
@@ -242,6 +247,8 @@ impl CutSettings {
             screen_angle: 45.0,
             fill_grouping: FillGrouping::All,
             dot_width: 0.0,
+            ramp_length: 0.0,
+            ramp_outer_only: false,
         }
     }
 

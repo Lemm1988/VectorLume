@@ -5,7 +5,8 @@ use crate::gcode::{CoordMode, GcodeOptions, emit, fmt_mm};
 use crate::machine::{JobSettings, MachineProfile, RotaryKind, StartFrom};
 use crate::optimize::order_polylines;
 use crate::toolpath::{
-    Block, BlockKind, Op, RasterPreview, Toolpath, cut_ops, hatch_ops, hatch_ops_on_grid, line_ops, raster_ops,
+    Block, BlockKind, Op, RasterPreview, Toolpath, apply_ramp, cut_ops, hatch_ops, hatch_ops_on_grid, line_ops,
+    raster_ops,
 };
 use vl_core::{CutSettings, Document, FillGrouping, LayerMode, Object, ObjectId, Point, Polyline, Rect, Shape};
 
@@ -383,17 +384,25 @@ fn layer_blocks(
                 FillGrouping::Groups => units.into_iter().map(|u| u.1).collect(),
                 FillGrouping::Shapes => vl_core::ops::islands(&polys),
             };
-            if parts.is_empty() {
+            let ops = if parts.is_empty() {
                 let mut ops =
                     hatch_ops(&polys, cs.interval, cs.fill_angle, cs.bidirectional, cs.overscan, shift, power);
                 if cs.crosshatch {
                     let angle = cs.fill_angle + 90.0;
                     ops.extend(hatch_ops(&polys, cs.interval, angle, cs.bidirectional, cs.overscan, shift, power));
                 }
-                (BlockKind::Fill, ops)
+                ops
             } else {
-                (BlockKind::Fill, fill_parts(&parts, cs, shift, power, *cur))
-            }
+                fill_parts(&parts, cs, shift, power, *cur)
+            };
+            let ops = if cs.mode == LayerMode::Fill && cs.ramp_length > 0.0 {
+                let edges = if cs.ramp_outer_only { vl_core::ops::outermost(&polys) } else { polys.clone() };
+                let min = (cs.power_min / 100.0).clamp(0.0, 1.0) as f32;
+                apply_ramp(ops, &edges, cs.ramp_length, min.min(power), power)
+            } else {
+                ops
+            };
+            (BlockKind::Fill, ops)
         }
     };
     if let Some(last) = vector_ops.last() {
