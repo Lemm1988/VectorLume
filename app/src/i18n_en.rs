@@ -976,6 +976,11 @@ pub static EN: &[(&str, &str)] = &[
     ("Gerät aus Datei importieren", "Import device from file"),
     ("Gerät in Datei exportieren (zum Weitergeben)", "Export device to file (for sharing)"),
     ("{} (Kopie)", "{} (copy)"),
+    ("Füllreihenfolge", "Fill order"),
+    ("Alle zusammen: gemeinsame Zeilen über alle Formen, gut bei dicht liegenden Formen. Gruppen bzw. Formen einzeln: eine nach der anderen – spart Leerfahrten, wenn die Formen weit auseinanderliegen.", "All together: shared lines across all shapes, good for shapes close to each other. Groups or shapes individually: one after the other – saves travel when the shapes are far apart."),
+    ("Alle zusammen", "All together"),
+    ("Gruppen einzeln", "Groups individually"),
+    ("Formen einzeln", "Shapes individually"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

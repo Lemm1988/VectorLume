@@ -169,6 +169,32 @@ pub struct CutSettings {
     pub screen_cell: f64,
     /// Rasterwinkel in Grad für Halbton und Linienraster.
     pub screen_angle: f64,
+    /// Füllen: alle Formen gemeinsam, je Gruppe oder je Form.
+    pub fill_grouping: FillGrouping,
+}
+
+/// Wie mehrere Formen einer Füll-Ebene zeilenweise abgefahren werden.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FillGrouping {
+    /// Alle Formen in gemeinsamen Zeilen – am schnellsten bei dicht beieinanderliegenden Formen.
+    #[default]
+    All,
+    /// Jede Gruppe (und jedes ungruppierte Objekt) für sich.
+    Groups,
+    /// Jede Form (Kontur mit ihren Löchern) für sich – spart Leerfahrten bei weit verteilten Formen.
+    Shapes,
+}
+
+impl FillGrouping {
+    pub const ALL: [FillGrouping; 3] = [FillGrouping::All, FillGrouping::Groups, FillGrouping::Shapes];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            FillGrouping::All => "Alle zusammen",
+            FillGrouping::Groups => "Gruppen einzeln",
+            FillGrouping::Shapes => "Formen einzeln",
+        }
+    }
 }
 
 impl Default for CutSettings {
@@ -212,6 +238,7 @@ impl CutSettings {
             perf_gap: 1.0,
             screen_cell: 0.8,
             screen_angle: 45.0,
+            fill_grouping: FillGrouping::All,
         }
     }
 

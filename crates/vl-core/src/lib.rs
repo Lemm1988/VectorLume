@@ -15,7 +15,7 @@ pub mod text;
 pub use document::{Document, GroupId, ImageAdjust, ImageObject, Object, ObjectId, RasterImage, Shape};
 pub use firmware::Firmware;
 pub use geom::{Affine, Point, Rect};
-pub use layer::{CutSettings, DitherMode, LAYER_COUNT, Layer, LayerMode, PALETTE};
+pub use layer::{CutSettings, DitherMode, FillGrouping, LAYER_COUNT, Layer, LayerMode, PALETTE};
 pub use material::{MaterialEntry, MaterialLibrary};
 pub use path::{PathBuilder, Polyline, Segment, SubPath, VectorPath};
 pub use text::{BarcodeKind, BarcodeSpec, DataList, QrLevel, TextAlign, TextData, TextSpec};

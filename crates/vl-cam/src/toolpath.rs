@@ -156,6 +156,22 @@ pub fn hatch_ops(
     scan_shift: f64,
     power: f32,
 ) -> Vec<Op> {
+    hatch_ops_on_grid(polys, interval, angle_deg, bidirectional, overscan, scan_shift, power, None)
+}
+
+/// Wie [`hatch_ops`]; mit `grid` liegen die Zeilen auf dem festen Raster `grid + (k + ½)·interval` (im gedrehten
+/// System), damit getrennt gefüllte Formen dieselben Zeilen haben.
+#[allow(clippy::too_many_arguments)]
+pub fn hatch_ops_on_grid(
+    polys: &[Polyline],
+    interval: f64,
+    angle_deg: f64,
+    bidirectional: bool,
+    overscan: f64,
+    scan_shift: f64,
+    power: f32,
+    grid: Option<f64>,
+) -> Vec<Op> {
     let interval = interval.max(0.01);
     let angle = angle_deg.to_radians();
     let mut edges = Vec::new();
@@ -186,10 +202,14 @@ pub fn hatch_ops(
     let mut row_count = 0usize;
     let mut cursor: Option<Point> = None;
     let rot = |p: Point| p.rotated(angle);
-    let rows = ((ymax - ymin) / interval).floor() as usize + 1;
+    let base = match grid {
+        Some(g) => g + ((ymin - g) / interval).floor() * interval,
+        None => ymin,
+    };
+    let rows = ((ymax - base) / interval).floor() as usize + 1;
 
     for row in 0..rows {
-        let y = ymin + (row as f64 + 0.5) * interval;
+        let y = base + (row as f64 + 0.5) * interval;
         if y >= ymax {
             break;
         }

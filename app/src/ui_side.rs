@@ -387,6 +387,18 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
             ui.label("");
             ui.checkbox(&mut s.crosshatch, tr("Kreuzschraffur"));
             ui.end_row();
+            ui.label(tr("Füllreihenfolge"));
+            egui::ComboBox::from_id_salt("fill_grouping").selected_text(tr(s.fill_grouping.label())).show_ui(ui, |ui| {
+                for g in vl_core::FillGrouping::ALL {
+                    ui.selectable_value(&mut s.fill_grouping, g, tr(g.label()));
+                }
+            })
+            .response
+            .on_hover_text(tr(
+                "Alle zusammen: gemeinsame Zeilen über alle Formen, gut bei dicht liegenden Formen. Gruppen bzw. \
+                 Formen einzeln: eine nach der anderen – spart Leerfahrten, wenn die Formen weit auseinanderliegen.",
+            ));
+            ui.end_row();
         }
         if raster {
             ui.label(tr("Bildmodus"));

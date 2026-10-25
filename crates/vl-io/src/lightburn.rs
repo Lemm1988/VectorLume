@@ -11,8 +11,8 @@ use std::path::Path;
 use std::sync::Arc;
 use vl_core::path::PathBuilder;
 use vl_core::{
-    Affine, CutSettings, DitherMode, Document, ImageObject, LAYER_COUNT, LayerMode, ObjectId, Point, RasterImage,
-    Shape, VectorPath,
+    Affine, CutSettings, DitherMode, Document, FillGrouping, ImageObject, LAYER_COUNT, LayerMode, ObjectId, Point,
+    RasterImage, Shape, VectorPath,
 };
 
 /// Ergebnis: neues Dokument mit Ebenen-Einstellungen und Hinweise zu nicht übernommenen Teilen.
@@ -189,6 +189,13 @@ impl Importer<'_> {
             }
             if let Some(v) = flag("bidir") {
                 s.bidirectional = v;
+            }
+            if let Some(v) = value("scanOpt") {
+                s.fill_grouping = match v {
+                    "byGroup" => FillGrouping::Groups,
+                    "individual" => FillGrouping::Shapes,
+                    _ => FillGrouping::All,
+                };
             }
             if let Some(v) = flag("runBlower") {
                 s.air_assist = v;

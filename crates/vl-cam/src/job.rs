@@ -4,8 +4,10 @@ use crate::estimate::{Estimate, estimate};
 use crate::gcode::{CoordMode, GcodeOptions, emit, fmt_mm};
 use crate::machine::{JobSettings, MachineProfile, RotaryKind, StartFrom};
 use crate::optimize::order_polylines;
-use crate::toolpath::{Block, BlockKind, Op, RasterPreview, Toolpath, cut_ops, hatch_ops, line_ops, raster_ops};
-use vl_core::{CutSettings, Document, LayerMode, Object, ObjectId, Point, Polyline, Rect, Shape};
+use crate::toolpath::{
+    Block, BlockKind, Op, RasterPreview, Toolpath, cut_ops, hatch_ops, hatch_ops_on_grid, line_ops, raster_ops,
+};
+use vl_core::{CutSettings, Document, FillGrouping, LayerMode, Object, ObjectId, Point, Polyline, Rect, Shape};
 
 /// Toleranz beim Abflachen von Kurven für die Ausgabe (mm).
 pub const OUTPUT_TOLERANCE: f64 = 0.01;
@@ -283,6 +285,39 @@ pub fn generate(
     Ok(tp)
 }
 
+/// Füllt die Teile nacheinander (jeweils das nächstgelegene zuerst) auf einem gemeinsamen Zeilenraster.
+fn fill_parts(parts: &[Vec<Polyline>], cs: &CutSettings, shift: f64, power: f32, from: Point) -> Vec<Op> {
+    let hatch = |polys: &[Polyline], angle: f64| {
+        hatch_ops_on_grid(polys, cs.interval, angle, cs.bidirectional, cs.overscan, shift, power, Some(0.0))
+    };
+    let mut pending: Vec<Vec<Op>> = parts
+        .iter()
+        .map(|p| {
+            let mut ops = hatch(p, cs.fill_angle);
+            if cs.crosshatch {
+                ops.extend(hatch(p, cs.fill_angle + 90.0));
+            }
+            ops
+        })
+        .filter(|ops| !ops.is_empty())
+        .collect();
+    let mut out = Vec::new();
+    let mut at = from;
+    while !pending.is_empty() {
+        let next = (0..pending.len())
+            .min_by(|&a, &b| at.distance(pending[a][0].target()).total_cmp(&at.distance(pending[b][0].target())))
+            .unwrap_or(0);
+        let mut ops = pending.swap_remove(next);
+        // Der erste Zug eines Teils führt mit abgeschaltetem Laser dorthin – als Eilgang
+        if let Some(Op::Move { to, .. }) = ops.first().copied() {
+            ops[0] = Op::Rapid(to);
+        }
+        at = ops.last().map(|o| o.target()).unwrap_or(at);
+        out.extend(ops);
+    }
+    out
+}
+
 /// Bahnen einer Ebene (bzw. ihrer Objekte mit gleicher Leistung) an den Werkzeugweg anhängen.
 fn layer_blocks(
     tp: &mut Toolpath,
@@ -298,6 +333,8 @@ fn layer_blocks(
 
     let mut raster_blocks: Vec<(usize, Vec<Op>)> = Vec::new();
     let mut polys: Vec<Polyline> = Vec::new();
+    // Konturen je Gruppe (ungruppierte Objekte einzeln) für „Gruppen einzeln füllen“
+    let mut units: Vec<(Option<u64>, Vec<Polyline>)> = Vec::new();
     for o in objs {
         match &o.shape {
             Shape::Image(img) => {
@@ -310,7 +347,16 @@ fn layer_blocks(
                 raster_blocks.push((tp.rasters.len(), ops));
                 tp.rasters.push(RasterPreview { layer, result: r });
             }
-            Shape::Path(p) => polys.extend(p.flatten(&o.transform, OUTPUT_TOLERANCE)),
+            Shape::Path(p) => {
+                let flat = p.flatten(&o.transform, OUTPUT_TOLERANCE);
+                if cs.mode == LayerMode::Fill && cs.fill_grouping == FillGrouping::Groups {
+                    match units.iter_mut().find(|u| o.group.is_some() && u.0 == o.group) {
+                        Some(u) => u.1.extend(flat.iter().cloned()),
+                        None => units.push((o.group, flat.clone())),
+                    }
+                }
+                polys.extend(flat);
+            }
         }
     }
 
@@ -332,12 +378,22 @@ fn layer_blocks(
             (BlockKind::Fill, line_ops(&ordered, power))
         }
         LayerMode::Fill | LayerMode::Image => {
-            let mut ops = hatch_ops(&polys, cs.interval, cs.fill_angle, cs.bidirectional, cs.overscan, shift, power);
-            if cs.crosshatch {
-                let angle = cs.fill_angle + 90.0;
-                ops.extend(hatch_ops(&polys, cs.interval, angle, cs.bidirectional, cs.overscan, shift, power));
+            let parts = match cs.fill_grouping {
+                FillGrouping::All => Vec::new(),
+                FillGrouping::Groups => units.into_iter().map(|u| u.1).collect(),
+                FillGrouping::Shapes => vl_core::ops::islands(&polys),
+            };
+            if parts.is_empty() {
+                let mut ops =
+                    hatch_ops(&polys, cs.interval, cs.fill_angle, cs.bidirectional, cs.overscan, shift, power);
+                if cs.crosshatch {
+                    let angle = cs.fill_angle + 90.0;
+                    ops.extend(hatch_ops(&polys, cs.interval, angle, cs.bidirectional, cs.overscan, shift, power));
+                }
+                (BlockKind::Fill, ops)
+            } else {
+                (BlockKind::Fill, fill_parts(&parts, cs, shift, power, *cur))
             }
-            (BlockKind::Fill, ops)
         }
     };
     if let Some(last) = vector_ops.last() {
@@ -552,6 +608,40 @@ mod tests {
         doc.layers[0].sub[0] = vl_core::CutSettings::default_for(LayerMode::Image);
         assert_eq!(kinds(&doc, &in_order), [(0, BlockKind::Fill), (1, BlockKind::Line)]);
         assert_eq!(doc.layers[0].mode_labels(), ["Füllen", "Bild"]);
+    }
+
+    #[test]
+    fn fill_shapes_individually_saves_travel() {
+        let mut doc = Document::new();
+        // zwei weit auseinanderliegende Quadrate, das rechte mit Loch
+        doc.add_path("links", 0, VectorPath::rect(0.0, 0.0, 10.0, 10.0, 0.0));
+        let mut right = VectorPath::rect(200.0, 0.0, 10.0, 10.0, 0.0);
+        right.append(VectorPath::rect(203.0, 3.0, 4.0, 4.0, 0.0));
+        doc.add_path("rechts", 0, right);
+        doc.layers[0].settings = vl_core::CutSettings::default_for(LayerMode::Fill);
+        doc.layers[0].settings.interval = 0.5;
+        let profile = MachineProfile::default();
+        let run = |doc: &Document| {
+            let objs: Vec<&Object> = doc.objects.iter().collect();
+            let tp = generate(doc, &objs, &profile, &JobSettings::default(), Point::ZERO).unwrap();
+            let (mut burn, mut travel, mut at) = (0.0, 0.0, Point::ZERO);
+            for op in tp.blocks.iter().flat_map(|b| &b.ops) {
+                let d = at.distance(op.target());
+                match op {
+                    Op::Move { power, .. } if *power > 0.0 => burn += d,
+                    _ => travel += d,
+                }
+                at = op.target();
+            }
+            (burn, travel)
+        };
+        let (burn_all, travel_all) = run(&doc);
+        for g in [FillGrouping::Shapes, FillGrouping::Groups] {
+            doc.layers[0].settings.fill_grouping = g;
+            let (burn, travel) = run(&doc);
+            assert!((burn - burn_all).abs() < 1e-6, "{g:?}: gleiche Fläche {burn} {burn_all}");
+            assert!(travel * 5.0 < travel_all, "{g:?}: {travel} gegen {travel_all}");
+        }
     }
 
     #[test]

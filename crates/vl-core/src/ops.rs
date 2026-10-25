@@ -148,6 +148,46 @@ pub fn offset(polys: &[Polyline], distance: f64, corner: Corner) -> Vec<Polyline
     out
 }
 
+/// Zerlegt geschlossene Konturen in Inseln: jede Außenkontur (gerade Verschachtelungstiefe) mit ihren direkten
+/// Löchern. Eine Form in einem Loch ist wieder eine eigene Insel. Offene Linienzüge entfallen.
+pub fn islands(polys: &[Polyline]) -> Vec<Vec<Polyline>> {
+    let rings: Vec<&Polyline> = polys.iter().filter(|p| p.closed && p.points.len() >= 3).collect();
+    let bounds: Vec<crate::geom::Rect> = rings.iter().map(|p| p.bounds()).collect();
+    let area: Vec<f64> = rings.iter().map(|p| p.signed_area().abs()).collect();
+    let n = rings.len();
+    let mut depth = vec![0usize; n];
+    let mut parent: Vec<Option<usize>> = vec![None; n];
+    for i in 0..n {
+        let probe = rings[i].points[0];
+        for j in 0..n {
+            if i == j
+                || area[j] < area[i]
+                || !bounds[j].contains_rect(&bounds[i])
+                || !crate::path::point_in_polylines(probe, std::slice::from_ref(rings[j]))
+            {
+                continue;
+            }
+            depth[i] += 1;
+            if parent[i].is_none_or(|p| area[j] < area[p]) {
+                parent[i] = Some(j);
+            }
+        }
+    }
+    let mut island_of: Vec<Option<usize>> = vec![None; n];
+    let mut out: Vec<Vec<Polyline>> = Vec::new();
+    for i in (0..n).filter(|&i| depth[i].is_multiple_of(2)) {
+        island_of[i] = Some(out.len());
+        out.push(vec![rings[i].clone()]);
+    }
+    for i in (0..n).filter(|&i| !depth[i].is_multiple_of(2)) {
+        match parent[i].and_then(|p| island_of[p]) {
+            Some(k) => out[k].push(rings[i].clone()),
+            None => out.push(vec![rings[i].clone()]),
+        }
+    }
+    out
+}
+
 /// Konvexe Hülle (Andrew-Verfahren), gegen den Uhrzeigersinn im mathematischen Sinn, ohne doppelte und
 /// kollineare Punkte. Bei weniger als drei verschiedenen Punkten kommen diese unverändert zurück.
 pub fn convex_hull(points: &[Point]) -> Vec<Point> {
@@ -329,6 +369,24 @@ pub fn position_at(poly: &Polyline, s: f64) -> Option<(Point, f64)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn islands_pair_outlines_with_holes() {
+        use crate::geom::Affine;
+        use crate::path::VectorPath;
+        // Rahmen mit Loch, darin eine Insel; daneben ein einzelnes Quadrat
+        let mut p = VectorPath::rect(0.0, 0.0, 30.0, 30.0, 0.0);
+        p.append(VectorPath::rect(5.0, 5.0, 20.0, 20.0, 0.0));
+        p.append(VectorPath::rect(10.0, 10.0, 10.0, 10.0, 0.0));
+        p.append(VectorPath::rect(50.0, 0.0, 5.0, 5.0, 0.0));
+        p.append(VectorPath::line(Point::new(0.0, 40.0), Point::new(10.0, 40.0)));
+        let polys = p.flatten(&Affine::IDENTITY, 0.01);
+        let mut sizes: Vec<usize> = islands(&polys).iter().map(|i| i.len()).collect();
+        sizes.sort();
+        assert_eq!(sizes, [1, 1, 2]);
+        let frame = islands(&polys).into_iter().find(|i| i.len() == 2).unwrap();
+        assert!((frame[0].bounds().width() - 30.0).abs() < 1e-9 && (frame[1].bounds().width() - 20.0).abs() < 1e-9);
+    }
     use crate::path::point_in_polylines;
 
     #[test]
