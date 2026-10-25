@@ -304,23 +304,25 @@ fn tabs_flow(render: bool) {
     h.state_mut().doc.layers[0].settings.tab_width = 2.0;
     h.run_ok();
     let click = |h: &mut Harness<'static, VectorLumeApp>, p: Point| {
-        // erst klicken, wenn Hintergrundberechnungen fertig sind und die Ansicht stillsteht
-        let probe = |h: &Harness<'static, VectorLumeApp>| {
-            h.state().view.tf.map(|t| (t.to_screen(Point::ZERO), t.to_screen(Point::new(100.0, 100.0))))
-        };
+        // erst drücken, wenn Hintergrundberechnungen fertig sind und die Stelle zwei Bilder lang stillsteht
+        let mut pos = None;
         for _ in 0..200 {
-            let before = probe(h);
-            h.run_ok();
-            if h.state().jobs.busy == 0 && probe(h) == before {
+            let now = h.state().view.tf.map(|t| t.to_screen(p));
+            if now.is_some() && now == pos && h.state().jobs.busy == 0 {
                 break;
             }
+            pos = now;
+            if let Some(q) = pos {
+                h.hover_at(q);
+            }
+            h.run_ok();
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
-        let pos = h.state().view.tf.expect("Ansicht").to_screen(p);
-        h.hover_at(pos);
-        h.run_ok();
+        let pos = pos.expect("Ansicht");
+        // Drücken und Loslassen in einem Lauf: jedes Ereignis bekommt genau ein Bild (je 0,25 s Testzeit). Mit
+        // einem Lauf dazwischen könnten zusätzliche Bilder (z. B. nach einer fertigen Hintergrundberechnung) die
+        // Klickdauer über 0,8 s treiben – dann wäre es kein Klick mehr.
         h.drag_at(pos);
-        h.run_ok();
         h.drop_at(pos);
         h.run_ok();
     };
