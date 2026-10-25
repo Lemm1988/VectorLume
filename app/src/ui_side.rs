@@ -118,7 +118,8 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                             let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
                             ui.painter().rect_filled(r, CornerRadius::same(4), theme::layer_color(layer.color));
                             ui.label(RichText::new(&layer.name).strong());
-                            ui.label(RichText::new(tr(layer.settings.mode.label())).color(pal.text_weak).size(12.0));
+                            let modes: Vec<&str> = layer.mode_labels().into_iter().map(tr).collect();
+                            ui.label(RichText::new(modes.join(" + ")).color(pal.text_weak).size(12.0));
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                 ui.spacing_mut().item_spacing.x = 2.0;
                                 if ui.small_button(icon::CARET_DOWN).on_hover_text(tr("Später ausgeben")).clicked() {
@@ -188,6 +189,9 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             })
             .response;
         if resp.clicked() {
+            if app.current_layer != l {
+                app.sub_tab = 0;
+            }
             app.current_layer = l;
         }
         ui.add_space(3.0);
@@ -205,6 +209,16 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             ui.add(egui::TextEdit::singleline(&mut layer.name).desired_width(120.0));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
+                    .small_button(icon::STACK_PLUS)
+                    .on_hover_text(tr(
+                        "Unterebene hinzufügen: weitere Bearbeitung derselben Objekte, z. B. erst füllen, dann die Kontur schneiden",
+                    ))
+                    .clicked()
+                {
+                    layer.sub.push(CutSettings::default_for(LayerMode::Line));
+                    app.sub_tab = layer.sub.len();
+                }
+                if ui
                     .small_button(trs(&format!("{} Material", icon::BOOKS)))
                     .on_hover_text(tr("Materialbibliothek öffnen"))
                     .clicked()
@@ -213,8 +227,31 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 }
             });
         });
+        // Reiter für Haupt- und Unterebenen
+        app.sub_tab = app.sub_tab.min(layer.sub.len());
+        if !layer.sub.is_empty() {
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                for (i, cs) in layer.operations().enumerate() {
+                    let label = format!("{} · {}", i + 1, tr(cs.mode.label()));
+                    if ui.selectable_label(app.sub_tab == i, label).clicked() {
+                        app.sub_tab = i;
+                    }
+                }
+                if app.sub_tab > 0
+                    && ui.small_button(icon::STACK_MINUS).on_hover_text(tr("Diese Unterebene entfernen")).clicked()
+                {
+                    layer.sub.remove(app.sub_tab - 1);
+                    app.sub_tab -= 1;
+                }
+            });
+        }
         ui.add_space(4.0);
-        cut_settings_ui(ui, &mut layer.settings, has_images, z_axis);
+        let tab = app.sub_tab;
+        let images_here = has_images && layer.image_operation() == tab;
+        if let Some(cs) = layer.operation_mut(tab) {
+            cut_settings_ui(ui, cs, images_here, z_axis);
+        }
     });
     if layer != app.doc.layers[l] {
         app.checkpoint_coalesced("layer");

@@ -232,23 +232,35 @@ pub fn generate(
 ) -> Result<Toolpath, String> {
     let mut tp = Toolpath::default();
     let mut cur = start;
-    let mut layers = doc.used_layers();
+    // Bearbeitungen (Ebene, Haupt- bzw. Unterebene); der Ausgabe-Schalter der Ebene gilt für alle
+    let mut work: Vec<(usize, usize)> = Vec::new();
+    for l in doc.used_layers() {
+        let layer = &doc.layers[l];
+        if layer.settings.output {
+            work.extend(layer.operations().enumerate().filter(|(_, cs)| cs.output).map(|(i, _)| (l, i)));
+        }
+    }
+    let has_images = |l: usize| objects.iter().any(|o| o.layer == l && o.is_image());
     if settings.engrave_first {
         // Stabile Sortierung: innerhalb gleicher Art bleibt die Reihenfolge der Ebenenliste erhalten.
-        layers.sort_by_key(|&l| {
-            let has_images = objects.iter().any(|o| o.layer == l && o.is_image());
-            match doc.layers[l].settings.mode {
-                LayerMode::Line if !has_images => 1,
+        work.sort_by_key(|&(l, i)| {
+            let layer = &doc.layers[l];
+            let images = layer.image_operation() == i && has_images(l);
+            match layer.operation(i).map(|cs| cs.mode) {
+                Some(LayerMode::Line) if !images => 1,
                 _ => 0,
             }
         });
     }
-    for layer in layers {
-        let cs = &doc.layers[layer].settings;
-        if !cs.output {
-            continue;
-        }
-        let objs: Vec<&Object> = objects.iter().copied().filter(|o| o.layer == layer).collect();
+    for (layer, i) in work {
+        let l = &doc.layers[layer];
+        let Some(cs) = l.operation(i) else { continue };
+        let (images, vectors) = (l.image_operation() == i, l.handles_vectors(i));
+        let objs: Vec<&Object> = objects
+            .iter()
+            .copied()
+            .filter(|o| o.layer == layer && if o.is_image() { images } else { vectors })
+            .collect();
         // Objekte mit eigener Leistung (z. B. Materialtest) getrennt ausgeben, in der Reihenfolge des Dokuments
         let mut scales: Vec<f64> = Vec::new();
         for o in &objs {
@@ -467,6 +479,37 @@ mod tests {
             Point::new(100.0, 100.0),
         );
         doc
+    }
+
+    #[test]
+    fn sublayers_add_operations() {
+        let mut doc = Document::new();
+        doc.add_path("Quadrat", 0, VectorPath::rect(0.0, 0.0, 10.0, 10.0, 0.0));
+        doc.add_path("Linie", 1, VectorPath::line(Point::new(0.0, 20.0), Point::new(10.0, 20.0)));
+        doc.layers[0].settings = vl_core::CutSettings::default_for(LayerMode::Fill);
+        doc.layers[0].sub.push(vl_core::CutSettings::default_for(LayerMode::Line));
+        let profile = MachineProfile::default();
+        let kinds = |doc: &Document, settings: &JobSettings| -> Vec<(usize, BlockKind)> {
+            let objs: Vec<&Object> = doc.objects.iter().collect();
+            let tp = generate(doc, &objs, &profile, settings, Point::ZERO).unwrap();
+            tp.blocks.iter().map(|b| (b.layer, b.kind)).collect()
+        };
+        let in_order = JobSettings { engrave_first: false, ..JobSettings::default() };
+        assert_eq!(kinds(&doc, &in_order), [(0, BlockKind::Fill), (0, BlockKind::Line), (1, BlockKind::Line)]);
+        // Gravieren vor Schneiden gilt auch für Unterebenen
+        let first = JobSettings { engrave_first: true, ..JobSettings::default() };
+        assert_eq!(kinds(&doc, &first)[0], (0, BlockKind::Fill));
+        // eigener Ausgabe-Schalter; Ebene aus = alle Bearbeitungen aus
+        doc.layers[0].sub[0].output = false;
+        assert_eq!(kinds(&doc, &in_order), [(0, BlockKind::Fill), (1, BlockKind::Line)]);
+        doc.layers[0].sub[0].output = true;
+        doc.layers[0].settings.output = false;
+        assert_eq!(kinds(&doc, &in_order), [(1, BlockKind::Line)]);
+        // Unterebene im Modus Bild bearbeitet nur Bilder
+        doc.layers[0].settings.output = true;
+        doc.layers[0].sub[0] = vl_core::CutSettings::default_for(LayerMode::Image);
+        assert_eq!(kinds(&doc, &in_order), [(0, BlockKind::Fill), (1, BlockKind::Line)]);
+        assert_eq!(doc.layers[0].mode_labels(), ["Füllen", "Bild"]);
     }
 
     #[test]

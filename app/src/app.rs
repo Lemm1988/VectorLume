@@ -200,6 +200,8 @@ pub struct VectorLumeApp {
     pub history: History,
     pub selection: Vec<ObjectId>,
     pub current_layer: usize,
+    /// Gewählter Reiter der Ebeneneinstellungen: 0 = Hauptbearbeitung, ab 1 Unterebenen.
+    pub sub_tab: usize,
     pub tool: Tool,
     pub tool_options: ToolOptions,
     pub view: View,
@@ -280,6 +282,7 @@ impl VectorLumeApp {
             history: History::default(),
             selection: Vec::new(),
             current_layer: 0,
+            sub_tab: 0,
             tool: Tool::Select,
             tool_options: ToolOptions::default(),
             view: View::default(),

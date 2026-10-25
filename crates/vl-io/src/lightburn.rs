@@ -118,6 +118,7 @@ struct LayerDef {
     visible: bool,
     priority: i64,
     settings: CutSettings,
+    sub: Option<CutSettings>,
 }
 
 struct LayerEntry {
@@ -162,12 +163,6 @@ impl Importer<'_> {
             } else {
                 LayerMode::Line
             };
-            if kind == "Scan+Cut" {
-                self.warnings.push(format!(
-                    "Ebene {}: „Füllen + Linie“ gibt es in VectorLume nicht – nur Füllen übernommen.",
-                    index + 1
-                ));
-            }
             let mut s = CutSettings::default_for(mode);
             if let Some(v) = num("speed") {
                 s.speed = v * 60.0;
@@ -223,11 +218,19 @@ impl Importer<'_> {
                     }
                 };
             }
+            // „Füllen + Linie“: Kontur als Unterebene mit denselben Grundwerten
+            let sub = (kind == "Scan+Cut").then(|| CutSettings::default_for(LayerMode::Line)).map(|mut line| {
+                (line.speed, line.power_max, line.power_min, line.passes) =
+                    (s.speed, s.power_max, s.power_min, s.passes);
+                (line.air_assist, line.output) = (s.air_assist, s.output);
+                line
+            });
             let def = LayerDef {
                 name: value("name").map(str::trim).filter(|n| !is_default_name(n)).map(str::to_string),
                 visible: !flag("hide").unwrap_or(false),
                 priority: num("priority").unwrap_or(0.0) as i64,
                 settings: s,
+                sub,
             };
             if is_image {
                 image.push((index, def));
@@ -270,6 +273,7 @@ impl Importer<'_> {
         }
         l.visible = def.visible;
         l.settings = def.settings;
+        l.sub = def.sub.into_iter().collect();
         self.entries.push(LayerEntry { layer, priority: def.priority, index });
     }
 
@@ -703,6 +707,19 @@ mod tests {
         let text = doc.objects.iter().find(|o| o.name == "Hi").unwrap();
         assert!((text.bounds().max.y - 395.0).abs() < 1e-9);
         assert!(im.warnings.iter().any(|w| w.contains("Text als Umrisse")));
+    }
+
+    #[test]
+    fn fill_plus_line_becomes_sublayer() {
+        let xml = r#"<LightBurnProject AppVersion="2.0.05" FormatVersion="1">
+    <CutSetting type="Scan+Cut"><index Value="3"/><maxPower Value="30"/><speed Value="80"/><numPasses Value="2"/></CutSetting>
+    <Shape Type="Rect" CutIndex="3" W="10" H="10" Cr="0"><XForm>1 0 0 1 20 20</XForm></Shape>
+</LightBurnProject>"#;
+        let im = import_lightburn(xml.as_bytes(), 400.0, None).unwrap();
+        let l = &im.doc.layers[3];
+        assert_eq!(l.mode_labels(), ["Füllen", "Linie"]);
+        assert_eq!((l.sub[0].speed, l.sub[0].power_max, l.sub[0].passes), (4800.0, 30.0, 2));
+        assert!(im.warnings.is_empty(), "{:?}", im.warnings);
     }
 
     #[test]

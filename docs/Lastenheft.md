@@ -78,7 +78,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 | Nr. | Anforderung | Prio |
 |---|---|---|
 | LF-30 | Farbebenen (Palette mit mind. 30 Farben), Objekte per Klick einer Ebene zuweisen | M |
-| LF-31 | Modi je Ebene: Linie, Füllen, Bild; später Offset-Füllen | M / S |
+| LF-31 | Modi je Ebene: Linie, Füllen, Bild; später Offset-Füllen; mehrere Bearbeitungen je Ebene (Unterebenen) | M / S |
 | LF-32 | Je Ebene: Geschwindigkeit, Leistung min/max, Durchgänge, Ausgabe an/aus, Luftunterstützung | M |
 | LF-33 | Füllen: Linienabstand, Winkel, bidirektional, Kreuzschraffur, Overscan | M |
 | LF-34 | Bild: Graustufen und Dithering (Schwellwert, Floyd-Steinberg, Jarvis, Stucki, Atkinson, Burkes, Sierra, geordnet, Halbton), Negativ | M |

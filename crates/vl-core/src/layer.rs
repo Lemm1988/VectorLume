@@ -241,6 +241,10 @@ pub struct Layer {
     #[serde(default)]
     pub locked: bool,
     pub settings: CutSettings,
+    /// Unterebenen: weitere Bearbeitungen derselben Objekte nach `settings`, z. B. erst füllen, dann Kontur
+    /// schneiden. Jede hat eigene Werte und einen eigenen Ausgabe-Schalter.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sub: Vec<CutSettings>,
 }
 
 fn default_true() -> bool {
@@ -256,7 +260,36 @@ impl Layer {
             visible: true,
             locked: false,
             settings: CutSettings::default(),
+            sub: Vec::new(),
         }
+    }
+
+    /// Hauptbearbeitung und Unterebenen in Ausgabereihenfolge.
+    pub fn operations(&self) -> impl Iterator<Item = &CutSettings> {
+        std::iter::once(&self.settings).chain(&self.sub)
+    }
+
+    pub fn operation(&self, i: usize) -> Option<&CutSettings> {
+        if i == 0 { Some(&self.settings) } else { self.sub.get(i - 1) }
+    }
+
+    pub fn operation_mut(&mut self, i: usize) -> Option<&mut CutSettings> {
+        if i == 0 { Some(&mut self.settings) } else { self.sub.get_mut(i - 1) }
+    }
+
+    /// Bearbeitung, die die Bilder der Ebene rastert: die erste im Modus Bild, sonst die Hauptbearbeitung.
+    pub fn image_operation(&self) -> usize {
+        self.operations().position(|c| c.mode == LayerMode::Image).unwrap_or(0)
+    }
+
+    /// Bearbeitet die Bearbeitung `i` Vektorformen? Unterebenen im Modus Bild sind nur für Bilder da.
+    pub fn handles_vectors(&self, i: usize) -> bool {
+        i == 0 || self.operation(i).is_some_and(|c| c.mode != LayerMode::Image)
+    }
+
+    /// Modi aller Bearbeitungen, z. B. „Füllen + Linie“ (deutsche Bezeichnungen).
+    pub fn mode_labels(&self) -> Vec<&'static str> {
+        self.operations().map(|c| c.mode.label()).collect()
     }
 
     /// Objekte dieser Ebene können ausgewählt werden.

@@ -104,7 +104,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF | Funktion | Umsetzung | Stand |
 |---|---|---|---|
 | LF-30 | 30 Farbebenen | eigene Palette, Klick weist Auswahl zu | ✅ |
-| LF-31 | Modi | Linie, Füllen, Versatz-Füllen, Bild | ✅ |
+| LF-31 | Modi | Linie, Füllen, Versatz-Füllen, Bild; **Unterebenen**: beliebig viele weitere Bearbeitungen derselben Objekte je Ebene (z. B. Füllen, dann Kontur schneiden) mit eigenen Werten und eigenem Ausgabe-Schalter, Reiter in den Ebeneneinstellungen, „Gravieren vor Schneiden“ gilt je Bearbeitung; eine Unterebene im Modus Bild rastert nur die Bilder; LightBurn „Füllen + Linie“ wird als Füllen mit Linien-Unterebene übernommen | ✅ |
 | LF-32 | Basiswerte | Geschwindigkeit, Leistung max./min., Durchgänge, Ausgabe, Luft (M8/M9); **Leistung je Objekt** in Prozent der Ebenenleistung (Eigenschaftenleiste, z. B. für Materialtests auf einer Ebene) | ✅ |
 | LF-33 | Füllen | Zeilenabstand (mit dpi-Anzeige), Winkel, bidirektional, Kreuzschraffur, Overscan; Gerade-Ungerade-Regel (Löcher bleiben frei) | ✅ |
 | LF-34 | Bildmodi | Schwellwert, Floyd-Steinberg, Jarvis, Stucki, Atkinson, Burkes, Sierra, Bayer 8×8, Graustufen; Negativ; **Halbton** (runde Punkte, deren Fläche dem Grauwert entspricht, Rasterweite in mm und Winkel einstellbar) und **zusätzlich Linienraster** (Linien mit grauwertabhängiger Breite, Kupferstich-Optik) | ✅ |
@@ -216,7 +216,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (124):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (126):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,

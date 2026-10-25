@@ -18,7 +18,7 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
   Ghostscript), HPGL/PLT,
   PNG/JPG/BMP/GIF/WEBP/TIFF; LightBurn-Projekte (`.lbrn2`) öffnen; Export als G-Code, SVG und DXF; eigenes
   Projektformat `.vlume`; Autosicherung
-- **30 Farbebenen** mit den Modi *Linie* (Schnittbreite, Laschen, Überschnitt, Perforieren), *Füllen* (Winkel, Kreuzschraffur, Overscan),
+- **30 Farbebenen** (jeweils mit Unterebenen, z. B. Füllen + Kontur) mit den Modi *Linie* (Schnittbreite, Laschen, Überschnitt, Perforieren), *Füllen* (Winkel, Kreuzschraffur, Overscan),
   *Versatz-Füllen* und *Bild* (8 Dithering-Verfahren, Halbton und Linienraster mit Rasterweite/-winkel oder Graustufen,
   Helligkeit/Kontrast/Gamma)
 - **Material:** Materialtest-Generator und Materialbibliothek; Z-Versatz je Durchgang für Geräte mit Z-Achse;

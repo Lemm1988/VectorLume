@@ -101,10 +101,14 @@ impl VectorLumeApp {
 
     fn apply_to_current_layer(&mut self, settings: &vl_core::CutSettings, what: &str) {
         let l = self.current_layer;
+        let tab = self.sub_tab.min(self.doc.layers[l].sub.len());
+        let Some(output) = self.doc.layers[l].operation(tab).map(|c| c.output) else { return };
         let mut s = settings.clone();
-        s.output = self.doc.layers[l].settings.output;
+        s.output = output;
         self.checkpoint();
-        self.doc.layers[l].settings = s;
+        if let Some(op) = self.doc.layers[l].operation_mut(tab) {
+            *op = s;
+        }
         self.mark_changed();
         let name = self.doc.layers[l].name.clone();
         self.toast(ToastKind::Success, trs(&format!("{what} auf Ebene {name} übernommen.")));
@@ -667,7 +671,8 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
         });
 
     if from_layer {
-        let s = app.doc.layers[app.current_layer].settings.clone();
+        let layer = &app.doc.layers[app.current_layer];
+        let s = layer.operation(app.sub_tab).unwrap_or(&layer.settings).clone();
         let title = if s.mode == LayerMode::Line { tr("Schneiden") } else { tr("Gravieren") };
         app.materials.draft = Some(MaterialEntry { title: title.into(), settings: s, ..Default::default() });
     }
