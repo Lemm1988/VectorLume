@@ -172,6 +172,70 @@ fn keys_reorder_and_paste_in_place() {
     assert_eq!(app.doc.bounds_of(&app.selection).min.x, before.min.x + 5.0, "normal versetzt");
 }
 
+/// Verzerren: Eckgriff mit der Maus ziehen, mit Enter übernehmen; Esc bricht ab und lässt die Auswahl stehen.
+fn warp_flow(render: bool) {
+    use vl_core::warp::WarpKind;
+    let mut h = harness(render);
+    let id = add(&mut h, VectorPath::rect(40.0, 40.0, 60.0, 30.0, 0.0));
+    h.state_mut().settings.snap_to_grid = true;
+    h.state_mut().start_warp(WarpKind::Perspective);
+    h.run_ok();
+    assert!(h.query_by_label_contains("Anwenden").is_some());
+    // Griff oben rechts (100/40) nach 110/20 ziehen
+    let tf = h.state().view.tf.expect("Ansicht");
+    let (from, to) = (tf.to_screen(Point::new(100.0, 40.0)), tf.to_screen(Point::new(110.0, 20.0)));
+    h.hover_at(from);
+    h.run_ok();
+    h.drag_at(from);
+    h.run_ok();
+    for k in 1..=4 {
+        h.hover_at(from + (to - from) * (k as f32 / 4.0));
+        h.run_ok();
+    }
+    h.drop_at(to);
+    h.run_ok();
+    let handle = h.state().warp.as_ref().expect("Sitzung").warp.handles[1];
+    assert!(handle.distance(Point::new(110.0, 20.0)) < 0.6, "{handle:?}");
+    if render {
+        save(&mut h, "verzerren_perspektive");
+    }
+    h.state_mut().warp.as_mut().unwrap().warp.set_kind(WarpKind::Envelope);
+    h.state_mut().warp.as_mut().unwrap().warp.handles[6] = Point::new(70.0, 80.0);
+    h.run_ok();
+    if render {
+        save(&mut h, "verzerren_huelle");
+    }
+    h.key_press(egui::Key::Enter);
+    h.run_ok();
+    let app = h.state();
+    assert!(app.warp.is_none());
+    let b = app.doc.bounds();
+    assert!((b.max.x - 110.0).abs() < 0.6 && (b.min.y - 20.0).abs() < 0.6 && (b.max.y - 80.0).abs() < 0.05, "{b:?}");
+    let bent = match &h.state().doc.get(id).unwrap().shape {
+        Shape::Path(p) => p.subpaths[0].segments.iter().any(|s| matches!(s, vl_core::Segment::Cubic(..))),
+        Shape::Image(_) => false,
+    };
+    assert!(bent, "untere Kante gebogen");
+    // Abbrechen
+    h.state_mut().start_warp(WarpKind::Perspective);
+    h.run_ok();
+    h.key_press(egui::Key::Escape);
+    h.run_ok();
+    assert!(h.state().warp.is_none() && h.state().selection == vec![id]);
+    assert!(h.state_mut().history.can_undo());
+}
+
+#[test]
+fn warp_drags_handle_and_applies() {
+    warp_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_warp() {
+    warp_flow(true);
+}
+
 /// Grundformen zeigen ihre Parameter in der oberen Leiste, gewöhnliche Pfade nicht.
 fn primitive_fields_flow(render: bool) {
     use vl_core::primitive::Primitive;

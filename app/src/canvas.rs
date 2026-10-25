@@ -34,6 +34,8 @@ pub struct View {
     pub cursor: Option<Point>,
     /// Sichtbarer Ausschnitt im Dokument (z. B. zum Einfügen in der Mitte der Ansicht).
     pub visible: Option<DRect>,
+    /// Abbildung Dokument → Bildschirm im letzten Bild (z. B. für Oberflächentests).
+    pub(crate) tf: Option<ViewTf>,
     /// Zoom aus Menü/Tastatur, wird im nächsten Frame um die Bildmitte angewendet.
     pending_zoom: f32,
     /// Solange der Benutzer die Ansicht nicht verändert hat, wird bei Größenänderung neu eingepasst.
@@ -50,6 +52,7 @@ impl Default for View {
             initialized: false,
             cursor: None,
             visible: None,
+            tf: None,
             pending_zoom: 1.0,
             user_moved: false,
             last_size: Vec2::ZERO,
@@ -612,6 +615,7 @@ impl VectorLumeApp {
         let tf = ViewTf { origin: work.min + self.view.pan, zoom: self.view.zoom };
         let vt = tf.affine();
         self.view.visible = Some(DRect::from_points(tf.to_doc(work.min), tf.to_doc(work.max)));
+        self.view.tf = Some(tf);
         let clip = painter.with_clip_rect(work);
         self.view.cursor = resp.hover_pos().filter(|p| work.contains(*p)).map(|p| tf.to_doc(p));
 
@@ -752,8 +756,8 @@ impl VectorLumeApp {
 
         // Auswahlrahmen und Griffe
         let sel_bounds = self.selection_bounds();
-        let sel_screen =
-            (!sel_bounds.is_empty() && !preview_active && self.tool != Tool::Node).then(|| tf.rect(&sel_bounds));
+        let sel_screen = (!sel_bounds.is_empty() && !preview_active && self.tool != Tool::Node && self.warp.is_none())
+            .then(|| tf.rect(&sel_bounds));
         if self.tool == Tool::Node && !preview_active {
             self.node_sync();
             self.draw_nodes(&clip, &tf, pal);
@@ -785,6 +789,9 @@ impl VectorLumeApp {
         }
 
         self.canvas_interaction(&ctx, &resp, &tf, sel_screen, space, ppm);
+        if !preview_active {
+            self.draw_warp(&clip, &tf, pal);
+        }
 
         // Gummiband / Vorschau der neuen Form
         if let (Some(cur), true) = (resp.interact_pointer_pos(), resp.dragged_by(PointerButton::Primary)) {
@@ -903,6 +910,9 @@ impl VectorLumeApp {
         let snap_tol = SNAP_PX * ppm;
         if self.tool == Tool::Node {
             self.node_interaction(ctx, resp, tf, space, tol, snap_tol);
+            return;
+        }
+        if self.warp_interaction(ctx, resp, tf, space) {
             return;
         }
         // Drucken & Schneiden: Marke per Klick setzen (Entwurfsmarken fangen an Mitten und Knoten)

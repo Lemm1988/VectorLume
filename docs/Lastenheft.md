@@ -78,6 +78,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 | LF-28 | Teile platzsparend auf Material verschachteln (Nesting), auch auf Reststücken | K |
 | LF-29 | Steckschlitze an eine andere Materialstärke anpassen | K |
 | LF-29a | Ecken abrunden oder abschrägen (alle oder einzeln) | S |
+| LF-29b | Formen verzerren: perspektivisch und mit gebogener Hülle | K |
 | LF-24 | QR-Codes und Strichcodes (EAN, Code 128 u. a.), auch mit fortlaufender Nummer | S |
 
 ### 5.3 Ebenen und Laser-Einstellungen

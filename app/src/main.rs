@@ -28,6 +28,7 @@ mod ui_side;
 #[cfg(test)]
 mod ui_tests;
 mod units;
+mod warp_tool;
 
 fn icon() -> egui::IconData {
     let size = 64;

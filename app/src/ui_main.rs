@@ -85,8 +85,13 @@ pub fn shortcuts(app: &mut VectorLumeApp, ctx: &egui::Context) {
             app.delete_selection();
         }
     }
+    if app.warp.is_some() && pressed(sc(Modifiers::NONE, Key::Enter)) {
+        app.apply_warp();
+    }
     if pressed(sc(Modifiers::NONE, Key::Escape)) {
-        if app.preview.active {
+        if app.warp.is_some() {
+            app.cancel_warp();
+        } else if app.preview.active {
             app.preview.active = false;
         } else if app.tool != Tool::Select {
             app.tool = Tool::Select;
@@ -503,6 +508,9 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     }
     if menu_item(ui, tr("Ecken abrunden…"), "", has) {
         app.shape_dialogs.corners_open = true;
+    }
+    if menu_item(ui, tr("Verzerren…"), "", has) {
+        app.start_warp(vl_core::warp::WarpKind::Perspective);
     }
     if menu_item(ui, tr("Reihen-Kopien…"), "", has) {
         app.shape_dialogs.array_open = true;

@@ -1181,6 +1181,19 @@ pub static EN: &[(&str, &str)] = &[
     ("Zoll", "Inches"),
     ("Konstante Leistung (M3)", "Constant power (M3)"),
     ("Volle Leistung auch beim Abbremsen in Ecken und Kurven, für gleichmäßig tiefe Schnitte. Ecken können dabei stärker verbrennen. Ohne Wirkung, wenn das Gerät ohnehin M3 nutzt.", "Full power even while slowing down in corners and curves, for evenly deep cuts. Corners may burn more. No effect if the device uses M3 anyway."),
+    ("Perspektive", "Perspective"),
+    ("Hülle", "Envelope"),
+    ("Verzerren…", "Warp…"),
+    ("Zum Verzerren Formen oder Texte auswählen.", "Select shapes or texts to warp."),
+    ("Die Auswahl ist zu flach zum Verzerren.", "The selection is too flat to warp."),
+    ("Bilder werden nicht verzerrt und bleiben unverändert.", "Images are not warped and stay unchanged."),
+    ("Die Griffe überkreuzen sich – so lässt sich nicht verzerren.", "The handles cross each other – this cannot be warped."),
+    ("Ecken ziehen: Geraden bleiben gerade, z. B. für schräg gesehene Flächen.", "Drag the corners: straight lines stay straight, e.g. for surfaces seen at an angle."),
+    ("Ecken und Kantenmitten ziehen: Kanten werden gebogen, z. B. für Wölbungen.", "Drag corners and edge midpoints: edges are bent, e.g. for curved surfaces."),
+    ("Texte und Grundformen werden dabei zu Kurven. Enter übernimmt, Esc bricht ab.", "Texts and basic shapes become curves. Enter applies, Esc cancels."),
+    ("{} Objekte verzerrt.", "{} objects warped."),
+    ("{} Verzerren", "{} Warp"),
+    ("{} Anwenden", "{} Apply"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
@@ -1211,4 +1224,5 @@ pub static SOURCES: &[(&str, &str)] = &[
     ("ui_side.rs", include_str!("ui_side.rs")),
     ("ui_tests.rs", include_str!("ui_tests.rs")),
     ("units.rs", include_str!("units.rs")),
+    ("warp_tool.rs", include_str!("warp_tool.rs")),
 ];

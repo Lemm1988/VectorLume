@@ -17,6 +17,7 @@ pub mod project;
 pub mod slots;
 pub mod text;
 pub mod trim;
+pub mod warp;
 
 pub use document::{
     Document, GroupId, ImageAdjust, ImageObject, Object, ObjectId, ProjectNotes, RasterImage, Shape, ZOrder,

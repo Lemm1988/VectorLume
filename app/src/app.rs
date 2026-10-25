@@ -247,6 +247,8 @@ pub struct VectorLumeApp {
     pub show_rotary: bool,
     pub print_cut: crate::print_cut::PrintCut,
     pub center_finder: crate::center_finder::CenterFinder,
+    /// Laufendes Verzerren der Auswahl.
+    pub warp: Option<crate::warp_tool::WarpSession>,
     pub library: crate::library::Library,
     /// Letzte Messung des Messwerkzeugs (Start, Ende).
     pub measure: Option<(Point, Point)>,
@@ -338,6 +340,7 @@ impl VectorLumeApp {
             show_rotary: false,
             print_cut: Default::default(),
             center_finder: Default::default(),
+            warp: None,
             library: Default::default(),
             measure: None,
             trim_hover: None,
