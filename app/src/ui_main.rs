@@ -410,6 +410,17 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
                     app.boolean_op(op);
                 }
             }
+            if ui
+                .add_enabled(multi, Button::new(tr("Zerschneiden")))
+                .on_hover_text(tr(
+                    "Die oberste Form schneidet die übrigen wie ein Ausstecher in Einzelteile (innen und außen); \
+                     sie selbst entfällt.",
+                ))
+                .clicked()
+            {
+                app.cut_shapes();
+                ui.close();
+            }
             ui.separator();
             if menu_item(ui, tr("Verschweißen"), "", has) {
                 app.weld_selection();

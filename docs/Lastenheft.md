@@ -66,7 +66,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 | LF-15 | Spiegeln, 90°-Drehung, Ausrichten, Verteilen und Andocken | M |
 | LF-16 | Gruppieren/Gruppe auflösen, Ebenen-Sperre, Ausblenden | S |
 | LF-17 | Knotenbearbeitung (Punkte verschieben, einfügen, löschen, Kurven glätten) | S |
-| LF-18 | Boolesche Operationen (Vereinigen, Differenz, Schnitt), Verschweißen | S |
+| LF-18 | Boolesche Operationen (Vereinigen, Differenz, Schnitt), Verschweißen, Formen zerschneiden | S |
 | LF-19 | Versatz (Offset) von Pfaden, Pfade schließen/verbinden, Optimieren | S |
 | LF-20 | Reihen-Kopien (Raster, kreisförmig), Kopien entlang eines Pfades | S |
 | LF-21 | Bild nachzeichnen (Vektorisierung) | S |

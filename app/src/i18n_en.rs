@@ -1099,6 +1099,11 @@ pub static EN: &[(&str, &str)] = &[
     ("Nach rechts", "Right"),
     ("Nach oben", "Up"),
     ("Nach unten", "Down"),
+    ("Die oberste Form muss geschlossen sein, um zu schneiden.", "The topmost shape must be closed to cut."),
+    ("Die oberste Form schneidet keine der übrigen Formen.", "The topmost shape does not cut any of the other shapes."),
+    ("In {} Teile zerschnitten.", "Cut into {} pieces."),
+    ("Zerschneiden", "Cut shapes"),
+    ("Die oberste Form schneidet die übrigen wie ein Ausstecher in Einzelteile (innen und außen); sie selbst entfällt.", "The topmost shape cuts the others into separate pieces like a cookie cutter (inside and outside); it is removed itself."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

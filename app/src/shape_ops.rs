@@ -225,6 +225,58 @@ impl VectorLumeApp {
     }
 
     /// Zerlegt Pfade und Texte der Auswahl in ein Objekt je Teilpfad (Löcher werden eigene Formen).
+    /// Die oberste ausgewählte Form (bzw. Gruppe) zerschneidet alle übrigen ausgewählten Formen wie ein
+    /// Ausstecher: jedes Teil wird ein eigenes Objekt, die Schneidform entfällt.
+    pub fn cut_shapes(&mut self) {
+        let units = self.ordered_units();
+        if units.len() < 2 {
+            self.toast(ToastKind::Info, tr("Bitte mindestens zwei Objekte (oder Gruppen) auswählen."));
+            return;
+        }
+        let z = |id: &ObjectId| self.doc.objects.iter().position(|o| o.id == *id);
+        let Some(top) = (0..units.len()).max_by_key(|&i| units[i].iter().filter_map(z).max()) else { return };
+        let cutter: Vec<Polyline> = self.unit_polylines(&units[top]).into_iter().filter(|p| p.closed).collect();
+        if cutter.is_empty() {
+            self.toast(ToastKind::Info, tr("Die oberste Form muss geschlossen sein, um zu schneiden."));
+            return;
+        }
+        let mut cuts: Vec<(ObjectId, Vec<Vec<Polyline>>)> = Vec::new();
+        for unit in units.iter().enumerate().filter(|(i, _)| *i != top).map(|(_, u)| u) {
+            for o in unit.iter().filter_map(|id| self.doc.get(*id)).filter(|o| !o.is_image()) {
+                let (pieces, cut) = vl_core::ops::cut_by(&o.polylines(TOLERANCE), &cutter);
+                if cut {
+                    cuts.push((o.id, pieces));
+                }
+            }
+        }
+        if cuts.is_empty() {
+            self.toast(ToastKind::Info, tr("Die oberste Form schneidet keine der übrigen Formen."));
+            return;
+        }
+        self.checkpoint();
+        let cutter_ids = units[top].clone();
+        let mut selection = Vec::new();
+        let mut count = 0;
+        for (id, pieces) in cuts {
+            let Some(i) = self.doc.objects.iter().position(|o| o.id == id) else { continue };
+            let mut base = self.doc.objects.remove(i);
+            base.text = None;
+            base.transform = Affine::IDENTITY;
+            for (k, piece) in pieces.iter().enumerate() {
+                let mut part = base.clone();
+                part.id = self.doc.alloc_id();
+                part.shape = Shape::Path(polylines_to_path(piece));
+                selection.push(part.id);
+                self.doc.objects.insert(i + k, part);
+                count += 1;
+            }
+        }
+        self.doc.remove(&cutter_ids);
+        self.selection = selection;
+        self.mark_changed();
+        self.toast(ToastKind::Success, trs(&format!("In {count} Teile zerschnitten.")));
+    }
+
     pub fn break_apart(&mut self) {
         let targets: Vec<ObjectId> = self
             .selection

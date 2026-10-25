@@ -176,6 +176,86 @@ pub fn islands(polys: &[Polyline]) -> Vec<Vec<Polyline>> {
     out
 }
 
+/// Zerschneidet `target` mit den geschlossenen Konturen von `cutter`: Flächen zerfallen in die Inseln innerhalb und
+/// außerhalb der Schneidform, offene Linienzüge werden an den Schnittpunkten getrennt. Nicht Geschnittenes bleibt
+/// als ein gemeinsames Teil zusammen. Liefert die Teile und ob überhaupt etwas geschnitten wurde.
+pub fn cut_by(target: &[Polyline], cutter: &[Polyline]) -> (Vec<Vec<Polyline>>, bool) {
+    let cutter: Vec<Polyline> = cutter.iter().filter(|p| p.closed && p.points.len() >= 3).cloned().collect();
+    let closed: Vec<Polyline> = target.iter().filter(|p| p.closed).cloned().collect();
+    let (mut pieces, mut rest, mut cut) = (Vec::new(), Vec::new(), false);
+    if !closed.is_empty() && !cutter.is_empty() {
+        let inside = boolean(&closed, &cutter, BoolOp::Intersection);
+        let outside = boolean(&closed, &cutter, BoolOp::Difference);
+        if !inside.is_empty() && !outside.is_empty() {
+            pieces.extend(islands(&inside));
+            pieces.extend(islands(&outside));
+            cut = true;
+        } else {
+            rest.extend(closed);
+        }
+    } else {
+        rest.extend(closed);
+    }
+    for p in target.iter().filter(|p| !p.closed && p.points.len() >= 2) {
+        let parts = split_open(p, &cutter);
+        if parts.len() > 1 {
+            pieces.extend(parts.into_iter().map(|q| vec![q]));
+            cut = true;
+        } else {
+            rest.push(p.clone());
+        }
+    }
+    if !rest.is_empty() {
+        pieces.push(rest);
+    }
+    (pieces, cut)
+}
+
+/// Trennt einen offenen Linienzug an allen Schnittpunkten mit den Kanten von `cutter`.
+fn split_open(poly: &Polyline, cutter: &[Polyline]) -> Vec<Polyline> {
+    let mut pieces = Vec::new();
+    let mut cur = vec![poly.points[0]];
+    for w in poly.points.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        let mut ts: Vec<f64> = cutter
+            .iter()
+            .flat_map(|c| c.edges())
+            .filter_map(|(c, d)| segment_param(a, b, c, d))
+            .filter(|t| *t > 1e-9)
+            .collect();
+        ts.sort_by(f64::total_cmp);
+        for t in ts {
+            let p = a.lerp(b, t);
+            if cur.last().is_some_and(|q| q.distance(p) > 1e-9) {
+                cur.push(p);
+            }
+            if cur.len() >= 2 {
+                pieces.push(std::mem::replace(&mut cur, vec![p]));
+            }
+        }
+        if cur.last().is_some_and(|q| q.distance(b) > 1e-9) {
+            cur.push(b);
+        }
+    }
+    if cur.len() >= 2 {
+        pieces.push(cur);
+    }
+    pieces.into_iter().map(|p| Polyline::new(p, false)).collect()
+}
+
+/// Parameter t ∈ [0, 1] auf `a`–`b`, an dem die Strecke `c`–`d` sie kreuzt.
+fn segment_param(a: Point, b: Point, c: Point, d: Point) -> Option<f64> {
+    let (r, s) = (b - a, d - c);
+    let denom = r.cross(s);
+    if denom.abs() < 1e-12 {
+        return None;
+    }
+    let ca = c - a;
+    let t = ca.cross(s) / denom;
+    let u = ca.cross(r) / denom;
+    ((0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u)).then_some(t)
+}
+
 /// Douglas-Peucker ohne Rekursion: Punkte, die höchstens `tol` von der Verbindung ihrer Nachbarn abweichen,
 /// entfallen. Bei geschlossenen Polygonen dient der vom Start am weitesten entfernte Punkt als zweiter Anker.
 pub fn simplify_points(pts: &[Point], closed: bool, tol: f64) -> Vec<Point> {
@@ -645,5 +725,28 @@ mod tests {
         assert!((cut - 36.0).abs() < 1e-9, "{cut}");
         // Zu kurze Kontur bleibt unverändert
         assert_eq!(split_for_tabs(&square(0.0, 0.0, 1.0), 4, 1.0).len(), 1);
+    }
+
+    #[test]
+    fn cut_by_splits_areas_and_lines() {
+        let cutter = [square(5.0, 5.0, 10.0)];
+        // Fläche: Teil innen (5 × 5) und L-förmiger Rest (75)
+        let (pieces, cut) = cut_by(&[square(0.0, 0.0, 10.0)], &cutter);
+        assert!(cut);
+        let mut areas: Vec<f64> = pieces.iter().map(|p| area(p)).collect();
+        areas.sort_by(f64::total_cmp);
+        assert!((areas[0] - 25.0).abs() < 1e-6 && (areas[1] - 75.0).abs() < 1e-6, "{areas:?}");
+        // Linie quer durch: drei Stücke
+        let line = Polyline::new(vec![Point::new(0.0, 10.0), Point::new(20.0, 10.0)], false);
+        let (pieces, cut) = cut_by(std::slice::from_ref(&line), &cutter);
+        assert!(cut);
+        assert_eq!(pieces.len(), 3);
+        assert!(pieces[1][0].points[0].distance(Point::new(5.0, 10.0)) < 1e-9);
+        // Unberührte Formen bleiben ein gemeinsames Teil
+        let far = [square(30.0, 30.0, 2.0), square(40.0, 30.0, 2.0)];
+        let (pieces, cut) = cut_by(&far, &cutter);
+        assert!(!cut);
+        assert_eq!(pieces.len(), 1);
+        assert_eq!(pieces[0].len(), 2);
     }
 }

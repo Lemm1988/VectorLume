@@ -92,7 +92,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-15 | Spiegeln, Drehen, Ausrichten, Verteilen | inkl. **Andocken** (*Anordnen → Andocken*: Auswahl nach links/rechts/oben/unten schieben, bis ihre Kontur – nicht nur die Umrandung – eine andere sichtbare Form berührt, sonst bis an den Rand der Arbeitsfläche; wahlweise mit Abstand), **An Linie spiegeln** (Achse mit dem Messwerkzeug ziehen, Auswahl spiegeln oder gespiegelte Kopie anlegen), „Auf Arbeitsfläche zentrieren“, gleiche Breite/Höhe (Maß der zuerst gewählten Form), Gruppen werden als Einheit behandelt | ✅ |
 | LF-16 | Gruppen, Zerlegen, Ausblenden | Gruppieren/Lösen, Zerlegen (ein Objekt je Teilpfad, auch Texte), Gummiband-Umriss (konvexe Hülle der Auswahl als neue Form), Ebenen ausblenden und sperren | ✅ |
 | LF-17 | Knotenbearbeitung | Knotenwerkzeug (N): Knoten/Kurvengriffe ziehen, Doppelklick fügt ein, Entf löscht, Segment → Linie/Kurve, Pfad öffnen/schließen; **Trimmen** (Schere): Klick entfernt das Linienstück bis zu den nächsten Schnittpunkten mit allem Sichtbaren, auch anderen Teilen desselben Objekts und sich selbst; rote Vorschau unter dem Mauszeiger, ohne Schnittpunkt fällt der ganze Teilpfad weg, übrige Teilpfade behalten ihre Kurven, leere Objekte werden gelöscht | ✅ |
-| LF-18 | Boolesche Operationen | Vereinigen, Differenz, Schnittmenge, Exklusiv-Oder, Verschweißen (i_overlay) | ✅ |
+| LF-18 | Boolesche Operationen | Vereinigen, Differenz, Schnittmenge, Exklusiv-Oder, Verschweißen (i_overlay); **Zerschneiden**: die oberste Form schneidet die übrigen wie ein Ausstecher – Flächen zerfallen in Inseln innen und außen, offene Linien werden an den Schnittpunkten getrennt, jedes Teil wird ein eigenes Objekt, Ungeschnittenes bleibt unverändert | ✅ |
 | LF-19 | Versatz | nach außen/innen/beidseitig (offene Pfade nur einmal umrandet), Ecken rund/spitz/abgeschrägt, offene Pfade werden umrandet | ✅ |
 | LF-20 | Reihen-Kopien | Raster, Kreis, entlang eines Pfades (gleichmäßig, an der Richtung ausgerichtet) | ✅ |
 | LF-21 | Bild nachzeichnen | Schwellwert, Invertieren, Fleckenfilter, Vereinfachen, Glätten mit Eckenerkennung, Live-Vorschau (eigener Algorithmus) | ✅ |
@@ -222,7 +222,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (168):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (169):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
