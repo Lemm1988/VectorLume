@@ -128,7 +128,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-47 | Simulator | GRBL-Nachbildung mit 128-Byte-Puffer, Planer (15), Echtzeitbefehlen, Alarm nach Reset | ✅ |
 | LF-48 | weitere Steuerungen | Marlin 2.1 (Laser im Inline-Modus `M3/M4 I`, S bis 255, Senden und Warten auf `ok`, Jobende per `M400`, Position per `M114`, Pause im Programm, Stopp `M410`+`M5`, Referenzfahrt `G28`), Smoothieware (S 0…1, Statusabfrage `?`, Stopp Strg-X mit `M112` als Rückfall, Freigabe `M999`); beide experimentell, da ohne Hardwaretest; Ruida, Trocen, TopWisdom, Galvo ⏳ | 🟡 |
 | LF-49 | Netzwerk | TCP/Telnet für FluidNC, grblHAL, ESP3D: Eintrag „Netzwerk“ mit Adresse (Standard-Port 23), alle Steuerungsarten | ✅ |
-| LF-50 | Drehachse, Kamera | Drehachse: Rollen oder Futter, statt Y-Motor oder als A-Achse, Weg je Umdrehung, Rollen-/Werkstückdurchmesser (auch als Umfang), Richtung; Y wird um den Ankerpunkt auf den Achsweg umgerechnet (Job, Rahmen, Verfahren), Prüfung Motivhöhe ≤ Umfang, Testdrehungen; **Kamera:** Webcam (Einzelbild oder live alle 0,3 s) oder Foto der Arbeitsfläche, Ausrichten über vier Passpunkte (Bettlage in Maschinenkoordinaten, Klick ins Bild; „Ausrichtmarken lasern“ brennt Kreuze an diesen Stellen), perspektivische Entzerrung (Homographie) und halbtransparente Anzeige unter dem Raster; Objektivverzerrung (Fischauge) wird nicht ausgeglichen | ✅ |
+| LF-50 | Drehachse, Kamera, Drucken & Schneiden | Drehachse: Rollen oder Futter, statt Y-Motor oder als A-Achse, Weg je Umdrehung, Rollen-/Werkstückdurchmesser (auch als Umfang), Richtung; Y wird um den Ankerpunkt auf den Achsweg umgerechnet (Job, Rahmen, Verfahren), Prüfung Motivhöhe ≤ Umfang, Testdrehungen; **Kamera:** Webcam (Einzelbild oder live alle 0,3 s) oder Foto der Arbeitsfläche, Ausrichten über vier Passpunkte (Bettlage in Maschinenkoordinaten, Klick ins Bild; „Ausrichtmarken lasern“ brennt Kreuze an diesen Stellen), perspektivische Entzerrung (Homographie) und halbtransparente Anzeige unter dem Raster; Objektivverzerrung (Fischauge) wird nicht ausgeglichen; **Drucken & Schneiden** (*Laser → Drucken & Schneiden…*): zwei Passermarken (Kreuz mit Kreis, eigene Ebene ohne Ausgabe) einfügen oder im Entwurf wählen (Mitte der Auswahl oder Klick mit Objektfang), dieselben Marken auf dem Material per Laserposition, Klick (z. B. ins Kamerabild) oder Zahleneingabe; „Hinfahren“ zur Entwurfsmarke als Startpunkt fürs Nachjustieren; Ausrichten der Auswahl bzw. des ganzen Entwurfs durch Drehen, Verschieben und wahlweise gleichmäßiges Skalieren (ohne Skalieren treffen sich die Mitten), Anzeige von Verschiebung/Drehung/Maßstab mit Warnung ab 2 % Maßstabsabweichung, Startposition wird auf absolute Koordinaten gestellt | ✅ |
 
 ### 4.5 Vorschau und Optimierung
 | LF | Funktion | Umsetzung | Stand |
@@ -217,7 +217,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (134):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (135):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,

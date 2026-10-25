@@ -261,6 +261,25 @@ impl Affine {
         Some(Affine([d / det, -b / det, -c / det, a / det, (c * f - d * e) / det, (b * e - a * f) / det]))
     }
 
+    /// Verschieben und Drehen (mit `scale` auch gleichmäßig Skalieren), das die Punkte `from` auf `to` legt. Ohne
+    /// Skalieren treffen sich die Mitten beider Punktpaare, eine Längenabweichung verteilt sich auf beide Punkte.
+    /// `None`, wenn ein Punktpaar zusammenfällt.
+    pub fn from_point_pairs(from: [Point; 2], to: [Point; 2], scale: bool) -> Option<Affine> {
+        let (u, v) = (from[1] - from[0], to[1] - to[0]);
+        if u.length() < 1e-6 || v.length() < 1e-6 {
+            return None;
+        }
+        let s = if scale { v.length() / u.length() } else { 1.0 };
+        let angle = v.y.atan2(v.x) - u.y.atan2(u.x);
+        let (a, b) = (from[0].lerp(from[1], 0.5), to[0].lerp(to[1], 0.5));
+        Some(
+            Affine::translate(-a.x, -a.y)
+                .then(&Affine::rotate(angle))
+                .then(&Affine::scale(s, s))
+                .then(&Affine::translate(b.x, b.y)),
+        )
+    }
+
     /// Mittlerer Skalierungsfaktor (für Toleranzen beim Abflachen von Kurven).
     pub fn mean_scale(&self) -> f64 {
         self.determinant().abs().sqrt().max(1e-9)
@@ -290,6 +309,26 @@ mod tests {
 
     fn close(a: Point, b: Point) -> bool {
         a.distance(b) < 1e-9
+    }
+
+    #[test]
+    fn two_point_alignment() {
+        let from = [Point::new(10.0, 10.0), Point::new(110.0, 10.0)];
+        // gedrehtes, leicht vergrößertes und verschobenes Material
+        let truth = Affine::rotate(0.05).then(&Affine::scale(1.01, 1.01)).then(&Affine::translate(3.0, -2.0));
+        let to = [truth.apply(from[0]), truth.apply(from[1])];
+        let t = Affine::from_point_pairs(from, to, true).unwrap();
+        assert!(close(t.apply(from[0]), to[0]) && close(t.apply(from[1]), to[1]));
+        let p = Point::new(40.0, 70.0);
+        assert!(close(t.apply(p), truth.apply(p)));
+        // ohne Skalieren: Mitten treffen sich, Abweichung je zur Hälfte
+        let t = Affine::from_point_pairs(from, to, false).unwrap();
+        assert!((t.mean_scale() - 1.0).abs() < 1e-9);
+        assert!(close(t.apply(from[0].lerp(from[1], 0.5)), to[0].lerp(to[1], 0.5)));
+        let (e0, e1) = (t.apply(from[0]).distance(to[0]), t.apply(from[1]).distance(to[1]));
+        assert!((e0 - 0.5).abs() < 1e-6 && (e1 - 0.5).abs() < 1e-6, "{e0} {e1}");
+        assert!((t.rotation_deg() - 0.05f64.to_degrees()).abs() < 1e-9);
+        assert!(Affine::from_point_pairs([from[0], from[0]], to, true).is_none());
     }
 
     #[test]

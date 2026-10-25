@@ -649,6 +649,10 @@ impl VectorLumeApp {
             );
         }
 
+        if self.print_cut.open {
+            crate::print_cut::draw(&self.print_cut, &clip, &tf, pal);
+        }
+
         // Auswahlrahmen und Griffe
         let sel_bounds = self.selection_bounds();
         let sel_screen =
@@ -778,6 +782,28 @@ impl VectorLumeApp {
         let snap_tol = SNAP_PX * ppm;
         if self.tool == Tool::Node {
             self.node_interaction(ctx, resp, tf, space, tol, snap_tol);
+            return;
+        }
+        // Drucken & Schneiden: Marke per Klick setzen (Entwurfsmarken fangen an Mitten und Knoten)
+        if let Some(pick) = self.print_cut.picking {
+            if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+                self.print_cut.picking = None;
+                return;
+            }
+            let design = matches!(pick, crate::print_cut::Pick::Design(_));
+            if let Some(hover) = resp.hover_pos().filter(|_| !space) {
+                ctx.set_cursor_icon(CursorIcon::Crosshair);
+                if design {
+                    self.snap_cursor(tf.to_doc(hover), snap_tol);
+                }
+            }
+            if resp.clicked_by(PointerButton::Primary)
+                && let Some(p) = resp.interact_pointer_pos()
+            {
+                let p = if design { self.snap_cursor(tf.to_doc(p), snap_tol) } else { tf.to_doc(p) };
+                self.print_cut.set(pick, p);
+                self.snap_hint = None;
+            }
             return;
         }
         // Fangpunkt schon vor dem Zeichnen anzeigen

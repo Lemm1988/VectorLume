@@ -13,6 +13,7 @@ mod i18n_en;
 mod icon_art;
 mod materials;
 mod node_tool;
+mod print_cut;
 mod rotary_ui;
 mod settings;
 mod shape_ops;
