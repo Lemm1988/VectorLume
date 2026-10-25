@@ -981,6 +981,8 @@ pub static EN: &[(&str, &str)] = &[
     ("Alle zusammen", "All together"),
     ("Gruppen einzeln", "Groups individually"),
     ("Formen einzeln", "Shapes individually"),
+    ("Punktbreite", "Dot width"),
+    ("Punktbreiten-Korrektur: Jede gebrannte Strecke wird an beiden Enden um die halbe Breite des Laserpunkts gekürzt, damit gerasterte Bilder nicht zulaufen. Für Diodenlaser meist 0,05–0,1 mm, 0 = aus.", "Dot width correction: each burned run is shortened at both ends by half the width of the laser dot so rastered images do not fill in. Usually 0.05–0.1 mm for diode lasers, 0 = off."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

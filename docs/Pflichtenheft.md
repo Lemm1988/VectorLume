@@ -109,7 +109,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-31 | Modi | Linie, Füllen, Versatz-Füllen, Bild; **Unterebenen**: beliebig viele weitere Bearbeitungen derselben Objekte je Ebene (z. B. Füllen, dann Kontur schneiden) mit eigenen Werten und eigenem Ausgabe-Schalter, Reiter in den Ebeneneinstellungen, „Gravieren vor Schneiden“ gilt je Bearbeitung; eine Unterebene im Modus Bild rastert nur die Bilder; LightBurn „Füllen + Linie“ wird als Füllen mit Linien-Unterebene übernommen | ✅ |
 | LF-32 | Basiswerte | Geschwindigkeit, Leistung max./min., Durchgänge, Ausgabe, Luft (M8/M9); **Leistung je Objekt** in Prozent der Ebenenleistung (Eigenschaftenleiste, z. B. für Materialtests auf einer Ebene) | ✅ |
 | LF-33 | Füllen | Zeilenabstand (mit dpi-Anzeige), Winkel, bidirektional, Kreuzschraffur, Overscan; Gerade-Ungerade-Regel (Löcher bleiben frei); Füllreihenfolge alle zusammen / Gruppen einzeln / Formen einzeln (Außenkontur mit ihren Löchern, nächstgelegenes Teil zuerst, gemeinsames Zeilenraster; aus LightBurn `scanOpt`) | ✅ |
-| LF-34 | Bildmodi | Schwellwert, Floyd-Steinberg, Jarvis, Stucki, Atkinson, Burkes, Sierra, Bayer 8×8, Graustufen; Negativ; **Halbton** (runde Punkte, deren Fläche dem Grauwert entspricht, Rasterweite in mm und Winkel einstellbar) und **zusätzlich Linienraster** (Linien mit grauwertabhängiger Breite, Kupferstich-Optik) | ✅ |
+| LF-34 | Bildmodi | Schwellwert, Floyd-Steinberg, Jarvis, Stucki, Atkinson, Burkes, Sierra, Bayer 8×8, Graustufen; Negativ; **Halbton** (runde Punkte, deren Fläche dem Grauwert entspricht, Rasterweite in mm und Winkel einstellbar) und **zusätzlich Linienraster** (Linien mit grauwertabhängiger Breite, Kupferstich-Optik); **Punktbreiten-Korrektur** (gebrannte Strecken an Übergängen zu „aus“ um die halbe Punktbreite gekürzt, Einzelpunkte bleiben als kurzer Punkt) | ✅ |
 | LF-35 | Bildanpassung | Helligkeit, Kontrast, Gamma, live in der Ansicht; **Bild mit Form zuschneiden** (Bild + geschlossene Formen auswählen, Zuschnitt wird im Bild gespeichert, außerhalb weder angezeigt noch graviert – auch im Negativ-Modus – noch nachgezeichnet; „Zuschnitt aufheben“ stellt das ganze Bild wieder her) | ✅ |
 | LF-36 | Reihenfolge | Ebenen verschieben; **zusätzlich „Gravieren vor Schneiden“** (Bild/Füllen vor Schnitten) | ✅ |
 | LF-37 | Materialbibliothek | Material/Stärke/Titel/Notiz, Suche, Import/Export (`.vlmat`), Übernehmen auf Ebene | ✅ |
@@ -218,7 +218,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (143):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (144):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,

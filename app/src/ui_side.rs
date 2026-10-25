@@ -427,6 +427,14 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
             ui.label("");
             ui.checkbox(&mut s.negative, tr("Negativ (invertieren)"));
             ui.end_row();
+            ui.label(tr("Punktbreite"));
+            ui.add(DragValue::new(&mut s.dot_width).speed(0.005).range(0.0..=1.0).max_decimals(3).suffix(" mm"))
+                .on_hover_text(tr(
+                    "Punktbreiten-Korrektur: Jede gebrannte Strecke wird an beiden Enden um die halbe Breite des \
+                     Laserpunkts gekürzt, damit gerasterte Bilder nicht zulaufen. Für Diodenlaser meist 0,05–0,1 mm, \
+                     0 = aus.",
+                ));
+            ui.end_row();
         }
         ui.label("");
         ui.checkbox(&mut s.air_assist, tr("Luftunterstützung"));

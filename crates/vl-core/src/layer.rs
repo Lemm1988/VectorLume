@@ -171,6 +171,8 @@ pub struct CutSettings {
     pub screen_angle: f64,
     /// Füllen: alle Formen gemeinsam, je Gruppe oder je Form.
     pub fill_grouping: FillGrouping,
+    /// Bild: Breite des Laserpunkts (mm); jede gebrannte Strecke wird an beiden Enden um die Hälfte gekürzt.
+    pub dot_width: f64,
 }
 
 /// Wie mehrere Formen einer Füll-Ebene zeilenweise abgefahren werden.
@@ -239,6 +241,7 @@ impl CutSettings {
             screen_cell: 0.8,
             screen_angle: 45.0,
             fill_grouping: FillGrouping::All,
+            dot_width: 0.0,
         }
     }
 

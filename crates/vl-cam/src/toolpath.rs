@@ -296,6 +296,31 @@ pub fn raster_ops(r: &RasterResult, settings: &CutSettings, scan_shift: f64) -> 
             c = e + 1;
         }
 
+        // Gebrannte Strecken (von, bis, Leistung); Punktbreiten-Korrektur nur an Übergängen zu „aus“
+        let half_dot = (settings.dot_width.max(0.0) / 2.0).min(r.dx);
+        let mut segs: Vec<(f64, f64, f32)> = Vec::with_capacity(runs.len());
+        for (k, &(s, e, p)) in runs.iter().enumerate() {
+            if p <= 0.0 {
+                continue;
+            }
+            let (mut a, mut b) = (x_at(s), x_at(e + 1));
+            if half_dot > 0.0 {
+                if k == 0 || runs[k - 1].2 <= 0.0 {
+                    a += half_dot;
+                }
+                if k + 1 == runs.len() || runs[k + 1].2 <= 0.0 {
+                    b -= half_dot;
+                }
+                // Einzelne Punkte bleiben als kurzer Punkt erhalten
+                let min = (r.dx * 0.1).max(0.005);
+                if b - a < min {
+                    let c = (x_at(s) + x_at(e + 1)) / 2.0;
+                    (a, b) = (c - min / 2.0, c + min / 2.0);
+                }
+            }
+            segs.push((a, b, p));
+        }
+
         let forward = !settings.bidirectional || emitted.is_multiple_of(2);
         let dir = if forward { 1.0 } else { -1.0 };
         let at = |x: f64| Point::new(x - dir * scan_shift, y);
@@ -310,16 +335,25 @@ pub fn raster_ops(r: &RasterResult, settings: &CutSettings, scan_shift: f64) -> 
         if overscan > 0.0 {
             ops.push(Op::Move { to: at(edge_x), power: 0.0 });
         }
+        let mut cursor = edge_x;
         if forward {
-            for &(_, e, p) in &runs {
-                ops.push(Op::Move { to: at(x_at(e + 1)), power: p });
+            for &(a, b, p) in &segs {
+                if a > cursor + 1e-9 {
+                    ops.push(Op::Move { to: at(a), power: 0.0 });
+                }
+                ops.push(Op::Move { to: at(b), power: p });
+                cursor = b;
             }
             if overscan > 0.0 {
                 ops.push(Op::Move { to: at(x_at(last + 1) + overscan), power: 0.0 });
             }
         } else {
-            for &(s, _, p) in runs.iter().rev() {
-                ops.push(Op::Move { to: at(x_at(s)), power: p });
+            for &(a, b, p) in segs.iter().rev() {
+                if b < cursor - 1e-9 {
+                    ops.push(Op::Move { to: at(b), power: 0.0 });
+                }
+                ops.push(Op::Move { to: at(a), power: p });
+                cursor = a;
             }
             if overscan > 0.0 {
                 ops.push(Op::Move { to: at(x_at(first) - overscan), power: 0.0 });
@@ -419,6 +453,39 @@ mod tests {
         let shifted = raster_ops(&r, &settings, 0.1);
         assert_eq!(shifted[0], Op::Rapid(Point::new(0.9, 1.5)));
         assert_eq!(shifted[2].target(), Point::new(4.1, 2.5));
+    }
+
+    #[test]
+    fn dot_width_shortens_burned_runs() {
+        // eine Zeile: an an aus an aus aus an
+        let r = RasterResult {
+            origin: Point::ZERO,
+            dx: 1.0,
+            dy: 1.0,
+            cols: 7,
+            rows: 1,
+            intensity: vec![1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0],
+        };
+        let base = CutSettings { overscan: 0.0, dither: DitherMode::Threshold, ..CutSettings::default() };
+        assert!((burned_length(&raster_ops(&r, &base, 0.0)) - 4.0).abs() < 1e-9);
+        let corrected = CutSettings { dot_width: 0.4, ..base.clone() };
+        let ops = raster_ops(&r, &corrected, 0.0);
+        assert!((burned_length(&ops) - 2.8).abs() < 1e-9, "{ops:?}");
+        // Brennstrecken liegen innerhalb der Pixel, um die halbe Punktbreite eingerückt
+        let burns: Vec<(f64, f64)> = ops
+            .windows(2)
+            .filter_map(|w| match w[1] {
+                Op::Move { to, power } if power > 0.0 => Some((w[0].target().x, to.x)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(burns.len(), 3);
+        assert!((burns[0].0 - 0.2).abs() < 1e-9 && (burns[0].1 - 1.8).abs() < 1e-9, "{burns:?}");
+        assert!((burns[2].0 - 6.2).abs() < 1e-9 && (burns[2].1 - 6.8).abs() < 1e-9, "{burns:?}");
+        // Punktbreite größer als ein Pixel: kurzer Punkt in der Mitte bleibt
+        let wide = CutSettings { dot_width: 3.0, ..base };
+        let ops = raster_ops(&r, &wide, 0.0);
+        assert!(burned_length(&ops) > 0.0);
     }
 
     #[test]
