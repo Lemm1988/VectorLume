@@ -17,6 +17,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     crate::center_finder::show(app, ctx);
     crate::box_gen::show(app, ctx);
     crate::hinge_tool::show(app, ctx);
+    crate::puzzle_tool::show(app, ctx);
     crate::warp_tool::show(app, ctx);
     device_settings(app, ctx);
     about(app, ctx);

@@ -16,6 +16,7 @@ pub mod ops;
 pub mod path;
 pub mod primitive;
 pub mod project;
+pub mod puzzle;
 pub mod slots;
 pub mod stencil;
 pub mod text;

@@ -253,6 +253,7 @@ pub struct VectorLumeApp {
     pub center_finder: crate::center_finder::CenterFinder,
     pub box_gen: crate::box_gen::BoxGen,
     pub hinge: crate::hinge_tool::HingeTool,
+    pub puzzle: crate::puzzle_tool::PuzzleTool,
     /// Laufendes Verzerren der Auswahl.
     pub warp: Option<crate::warp_tool::WarpSession>,
     pub library: crate::library::Library,
@@ -350,6 +351,7 @@ impl VectorLumeApp {
             center_finder: Default::default(),
             box_gen: Default::default(),
             hinge: Default::default(),
+            puzzle: Default::default(),
             warp: None,
             library: Default::default(),
             measure: None,

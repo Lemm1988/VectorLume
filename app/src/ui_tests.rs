@@ -514,6 +514,51 @@ fn stencil_bridges_for_text() {
     assert!(h.state_mut().history.can_undo());
 }
 
+/// Puzzle: übernimmt Lage und Größe der Auswahl, „Puzzle erzeugen“ legt Schnittlinien und Rahmen als Gruppe an.
+fn puzzle_flow(render: bool) {
+    let mut h = harness(render);
+    let photo = add(&mut h, VectorPath::rect(30.0, 40.0, 120.0, 90.0, 0.0));
+    h.state_mut().selection = vec![photo];
+    h.state_mut().open_puzzle();
+    h.state_mut().puzzle.spec.cols = 4;
+    h.state_mut().puzzle.spec.rows = 3;
+    h.run_ok();
+    if render {
+        save(&mut h, "puzzle");
+    }
+    h.get_by_label_contains("Neu würfeln").click();
+    h.run_ok();
+    assert_eq!(h.state().puzzle.spec.seed, 2);
+    h.get_by_label_contains("Puzzle erzeugen").click();
+    h.run_ok();
+    let app = h.state();
+    assert!(!app.puzzle.open);
+    assert_eq!(app.selection.len(), 2);
+    let cuts = app.doc.get(app.selection[0]).unwrap();
+    let Shape::Path(p) = &cuts.shape else { panic!() };
+    assert_eq!(p.subpaths.len(), 3 + 2);
+    let frame = app.doc.get(app.selection[1]).unwrap().bounds();
+    assert!((frame.min.x - 30.0).abs() < 1e-9 && (frame.max.y - 130.0).abs() < 1e-9, "{frame:?}");
+    assert!(cuts.group.is_some() && cuts.group == app.doc.get(app.selection[1]).unwrap().group);
+    if render {
+        h.state_mut().doc.remove(&[photo]);
+        h.state_mut().view.request_fit(Some(vl_core::Rect::new(Point::new(25.0, 35.0), Point::new(155.0, 135.0))));
+        h.run_ok();
+        save(&mut h, "puzzle_ergebnis");
+    }
+}
+
+#[test]
+fn puzzle_takes_selection_area() {
+    puzzle_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_puzzle() {
+    puzzle_flow(true);
+}
+
 /// Kamerabild übernehmen: dunkles Quadrat in der Bildmitte landet an der passenden Stelle der Arbeitsfläche,
 /// auf einer Ebene ohne Ausgabe.
 #[test]

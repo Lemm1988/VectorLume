@@ -18,6 +18,7 @@ mod library;
 mod materials;
 mod node_tool;
 mod print_cut;
+mod puzzle_tool;
 mod rotary_ui;
 mod settings;
 mod shape_ops;

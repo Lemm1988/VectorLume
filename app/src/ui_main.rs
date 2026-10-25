@@ -524,6 +524,9 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Biegescharnier…"), "", has) {
         app.hinge.open = true;
     }
+    if menu_item(ui, tr("Puzzle…"), "", true) {
+        app.open_puzzle();
+    }
     if menu_item(ui, tr("Gummiband-Umriss"), "", has) {
         app.rubber_band_outline();
     }
