@@ -275,6 +275,7 @@ impl VectorLumeApp {
         crate::theme::install(&cc.egui_ctx);
         let settings = AppSettings::load();
         crate::i18n::set_language(settings.language);
+        crate::units::set_units(settings.units);
         apply_theme(&cc.egui_ctx, settings.theme);
         let ctx = cc.egui_ctx.clone();
         let wake = ctx.clone();
@@ -390,6 +391,12 @@ impl VectorLumeApp {
     }
 
     // ---------------------------------------------------------------- Meldungen
+
+    pub fn set_units(&mut self, u: crate::units::Units) {
+        self.settings.units = u;
+        crate::units::set_units(u);
+        self.settings.save();
+    }
 
     pub fn set_language(&mut self, lang: crate::i18n::Language) {
         self.settings.language = lang;
@@ -772,10 +779,10 @@ impl VectorLumeApp {
             Ok(()) => self.toast(
                 ToastKind::Success,
                 trs(&format!(
-                    "PDF gespeichert: {} ({:.0} × {:.0} mm, in 100 % drucken)",
+                    "PDF gespeichert: {} ({} × {}, in 100 % drucken)",
                     file_name(&path),
-                    page.width(),
-                    page.height()
+                    crate::units::num(page.width(), 0),
+                    crate::units::len(page.height(), 0)
                 )),
             ),
             Err(e) => self.toast(ToastKind::Error, trs(&format!("PDF konnte nicht gespeichert werden: {e}"))),

@@ -30,6 +30,8 @@ fn harness_sized(render: bool, size: egui::Vec2) -> Harness<'static, VectorLumeA
     {
         let app = h.state_mut();
         app.doc = Document::new();
+        app.settings.units = crate::units::Units::Mm;
+        crate::units::set_units(crate::units::Units::Mm);
         app.selection.clear();
         app.modal = None;
     }
@@ -201,6 +203,34 @@ fn primitive_fields_flow(render: bool) {
 #[test]
 fn primitive_fields_follow_selection() {
     primitive_fields_flow(false);
+}
+
+/// Anzeige in Zoll: Maße in der Statusleiste umgerechnet, das Dokument bleibt in mm.
+fn inch_flow(render: bool) {
+    let mut h = harness(render);
+    let id = h.state_mut().doc.add_path("R", 0, vl_core::VectorPath::rect(50.8, 50.8, 25.4, 12.7, 0.0));
+    h.state_mut().selection = vec![id];
+    h.state_mut().set_units(crate::units::Units::Inch);
+    h.run_ok();
+    assert!(h.query_by_label_contains("1 ausgewählt · 1.000 × 0.500 in").is_some());
+    if render {
+        save(&mut h, "zoll_ansicht");
+    }
+    assert!((h.state().doc.bounds().width() - 25.4).abs() < 1e-9);
+    h.state_mut().set_units(crate::units::Units::Mm);
+    h.run_ok();
+    assert!(h.query_by_label_contains("1 ausgewählt · 25.40 × 12.70 mm").is_some());
+}
+
+#[test]
+fn units_switch_to_inch() {
+    inch_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_inch() {
+    inch_flow(true);
 }
 
 #[test]

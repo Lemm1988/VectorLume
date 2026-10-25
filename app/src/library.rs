@@ -235,10 +235,10 @@ pub fn library_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 pal.text,
             );
             let resp = resp.on_hover_text(format!(
-                "{} – {:.1} × {:.1} mm\n{}",
+                "{} – {} × {}\n{}",
                 item.name,
-                item.bounds.width(),
-                item.bounds.height(),
+                crate::units::num(item.bounds.width(), 1),
+                crate::units::len(item.bounds.height(), 1),
                 tr("Klicken zum Einfügen, Rechtsklick für mehr")
             ));
             if resp.clicked() {

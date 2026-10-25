@@ -24,6 +24,8 @@ pub struct AppSettings {
     pub theme: ThemeChoice,
     /// Sprache der Oberfläche; beim ersten Start die des Systems.
     pub language: crate::i18n::Language,
+    /// Maßeinheit der Anzeige (intern immer mm); beim ersten Start Zoll nur in den USA.
+    pub units: crate::units::Units,
     pub recent_files: Vec<PathBuf>,
     pub last_port: String,
     /// Adresse für „Netzwerk“, z. B. `192.168.4.1:23`.
@@ -57,6 +59,7 @@ impl Default for AppSettings {
             job: JobSettings::default(),
             theme: ThemeChoice::Dark,
             language: crate::i18n::Language::from_system(),
+            units: crate::units::Units::from_system(),
             recent_files: Vec::new(),
             last_port: String::new(),
             network_address: String::new(),

@@ -3,6 +3,7 @@
 use crate::app::VectorLumeApp;
 use crate::i18n::{tr, trs};
 use crate::theme;
+use crate::units::UnitField;
 use egui::{Align2, Button, DragValue, RichText, Ui, vec2};
 use egui_phosphor::regular as icon;
 use std::f64::consts::PI;
@@ -54,18 +55,16 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     ui.end_row();
                     if r.kind == RotaryKind::Roller {
                         ui.label(tr("Rollendurchmesser"));
-                        ui.add(DragValue::new(&mut r.roller_diameter).speed(0.1).range(1.0..=500.0).suffix(" mm"))
+                        ui.add(DragValue::new(&mut r.roller_diameter).speed(0.1).range(1.0..=500.0).mm())
                             .on_hover_text(tr("Durchmesser der angetriebenen Rolle, auf der das Werkstück liegt"));
                         ui.end_row();
                     }
                     ui.label(tr("Werkstück Ø"));
                     ui.horizontal(|ui| {
-                        ui.add(DragValue::new(&mut r.object_diameter).speed(0.1).range(1.0..=1000.0).suffix(" mm"));
+                        ui.add(DragValue::new(&mut r.object_diameter).speed(0.1).range(1.0..=1000.0).mm());
                         let mut u = r.circumference();
                         ui.label(tr("Umfang"));
-                        if ui
-                            .add(DragValue::new(&mut u).speed(0.2).range(3.0..=3200.0).max_decimals(1).suffix(" mm"))
-                            .changed()
+                        if ui.add(DragValue::new(&mut u).speed(0.2).range(3.0..=3200.0).max_decimals(1).mm()).changed()
                         {
                             r.object_diameter = u / PI;
                         }
@@ -176,7 +175,7 @@ pub fn job_row(app: &mut VectorLumeApp, ui: &mut Ui) {
         if on {
             let r = &app.settings.profile.rotary;
             ui.label(
-                RichText::new(format!("Ø {} mm · {}", vl_cam::gcode::fmt_mm(r.object_diameter), tr(r.kind.label())))
+                RichText::new(format!("Ø {} · {}", crate::units::len(r.object_diameter, 1), tr(r.kind.label())))
                     .small()
                     .color(pal.accent),
             );

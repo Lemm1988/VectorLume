@@ -3,6 +3,7 @@
 use crate::app::{ToastKind, VectorLumeApp};
 use crate::i18n::{tr, trs};
 use crate::theme;
+use crate::units::UnitField;
 use egui::{Align2, Button, Color32, CornerRadius, DragValue, RichText, Sense, Stroke, Ui, pos2, vec2};
 use egui_phosphor::regular as icon;
 use std::path::PathBuf;
@@ -227,7 +228,7 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         ui.horizontal(|ui| {
                             ui.add_enabled(
                                 !fs,
-                                DragValue::new(&mut t.base.speed).speed(10.0).range(1.0..=100000.0).suffix(" mm/min"),
+                                DragValue::new(&mut t.base.speed).speed(10.0).range(1.0..=100000.0).mm_per_min(),
                             );
                             ui.add_enabled(
                                 !fp,
@@ -241,7 +242,7 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                                         .speed(0.005)
                                         .range(0.02..=2.0)
                                         .fixed_decimals(2)
-                                        .suffix(" mm"),
+                                        .mm(),
                                 );
                             }
                         });
@@ -259,7 +260,7 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                                         .speed(0.1)
                                         .range(0.0..=20.0)
                                         .prefix(tr("Overscan "))
-                                        .suffix(" mm"),
+                                        .mm(),
                                 );
                             });
                             ui.end_row();
@@ -269,11 +270,11 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         ui.end_row();
                         ui.label(tr("Felder"));
                         ui.horizontal(|ui| {
-                            ui.add(DragValue::new(&mut t.cell_width).speed(0.1).range(1.0..=100.0).suffix(" mm"));
+                            ui.add(DragValue::new(&mut t.cell_width).speed(0.1).range(1.0..=100.0).mm());
                             ui.label("×");
-                            ui.add(DragValue::new(&mut t.cell_height).speed(0.1).range(1.0..=100.0).suffix(" mm"));
+                            ui.add(DragValue::new(&mut t.cell_height).speed(0.1).range(1.0..=100.0).mm());
                             ui.label(tr("Abstand"));
-                            ui.add(DragValue::new(&mut t.gap).speed(0.1).range(0.0..=50.0).suffix(" mm"));
+                            ui.add(DragValue::new(&mut t.gap).speed(0.1).range(0.0..=50.0).mm());
                         });
                         ui.end_row();
                         ui.label(tr("Beschriftung"));
@@ -285,13 +286,10 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                                         .speed(0.1)
                                         .range(1.0..=20.0)
                                         .prefix(tr("Höhe "))
-                                        .suffix(" mm"),
+                                        .mm(),
                                 );
                                 ui.add(
-                                    DragValue::new(&mut t.label_speed)
-                                        .speed(10.0)
-                                        .range(1.0..=100000.0)
-                                        .suffix(" mm/min"),
+                                    DragValue::new(&mut t.label_speed).speed(10.0).range(1.0..=100000.0).mm_per_min(),
                                 );
                                 ui.add(DragValue::new(&mut t.label_power).speed(0.5).range(0.0..=100.0).suffix(" %"));
                             });
@@ -320,8 +318,8 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         if js.start_from == StartFrom::Absolute {
                             ui.label(tr("Position"));
                             ui.horizontal(|ui| {
-                                ui.add(DragValue::new(&mut t.position.x).speed(0.5).prefix("X ").suffix(" mm"));
-                                ui.add(DragValue::new(&mut t.position.y).speed(0.5).prefix("Y ").suffix(" mm"));
+                                ui.add(DragValue::new(&mut t.position.x).speed(0.5).prefix("X ").mm());
+                                ui.add(DragValue::new(&mut t.position.y).speed(0.5).prefix("Y ").mm());
                                 ui.label(RichText::new(tr("linke untere Ecke")).small().color(pal.text_weak));
                             });
                             ui.end_row();
@@ -337,10 +335,10 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         }
                         let b = job.design_bounds;
                         ui.label(trs(&format!(
-                            "{} Felder · {:.0} × {:.0} mm · ca. {}",
+                            "{} Felder · {} × {} · ca. {}",
                             t.cell_count(),
-                            b.width(),
-                            b.height(),
+                            crate::units::num(b.width(), 0),
+                            crate::units::len(b.height(), 0),
                             job.estimate.format_duration()
                         )));
                         for w in &job.warnings {
@@ -357,7 +355,7 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
                             ui.label(RichText::new(trs(&format!("Feld Zeile {}, Spalte {}", r + 1, c + 1))).strong());
                             ui.label(trs(&cs.summary()));
                             if cs.mode == LayerMode::Fill {
-                                ui.label(trs(&format!("Zeilenabstand {:.2} mm", cs.interval)));
+                                ui.label(trs(&format!("Zeilenabstand {}", crate::units::len(cs.interval, 2))));
                             }
                             ui.horizontal(|ui| {
                                 if ui
@@ -588,7 +586,7 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         });
                         ui.end_row();
                         ui.label(tr("Stärke"));
-                        ui.add(DragValue::new(&mut d.thickness).speed(0.1).range(0.0..=100.0).suffix(" mm"))
+                        ui.add(DragValue::new(&mut d.thickness).speed(0.1).range(0.0..=100.0).mm())
                             .on_hover_text(tr("0 = beliebige Stärke (z. B. Gravur)"));
                         ui.end_row();
                         ui.label(tr("Bezeichnung"));

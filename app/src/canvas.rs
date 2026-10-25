@@ -321,15 +321,6 @@ fn handle_positions(r: egui::Rect) -> Vec<(Handle, Pos2)> {
     ]
 }
 
-fn nice_step(min_mm: f64) -> f64 {
-    for s in [0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0] {
-        if s >= min_mm {
-            return s;
-        }
-    }
-    1000.0
-}
-
 fn snap_angle(a: f64, step_deg: f64) -> f64 {
     let s = step_deg.to_radians();
     (a / s).round() * s
@@ -345,8 +336,11 @@ impl VectorLumeApp {
         if !self.settings.snap_to_grid || self.snapping_suspended() {
             return p;
         }
-        let g = self.settings.grid_snap_mm.max(0.01);
-        Point::new((p.x / g).round() * g, (p.y / g).round() * g)
+        // in Maschinenkoordinaten runden, damit gespiegelte Achsen auf runden Werten landen
+        let g = crate::units::snap_grid(self.settings.grid_snap_mm);
+        let profile = &self.settings.profile;
+        let m = profile.doc_to_machine(p);
+        profile.machine_to_doc(Point::new((m.x / g).round() * g, (m.y / g).round() * g))
     }
 
     /// Fängt `p` an den Objekten in `targets` (Knoten, Mitten, Ausrichtung), sonst am Raster.
@@ -625,24 +619,19 @@ impl VectorLumeApp {
         let bed_screen = tf.rect(&bed);
         clip.rect_filled(bed_screen, 2.0, pal.bed);
         crate::camera::paint_overlay(self, &clip, bed_screen);
-        let minor = nice_step(8.0 / tf.zoom as f64);
-        let major = nice_step(minor * 4.9);
+        let minor = crate::units::nice_step(8.0 / tf.zoom as f64);
+        let major = crate::units::nice_step(minor * (crate::units::subdivisions() as f64 - 0.1));
         let visible = DRect::from_points(tf.to_doc(work.min), tf.to_doc(work.max));
+        let (flip_x, flip_y) = axis_flips(&profile);
         let draw_lines = |step: f64, color: Color32| {
             if step * tf.zoom as f64 >= 6.0 {
-                let x0 = (visible.min.x.max(0.0) / step).ceil() as i64;
-                let x1 = (visible.max.x.min(bed.max.x) / step).floor() as i64;
-                for i in x0..=x1 {
-                    let x = i as f64 * step;
+                for (_, x) in machine_ticks(visible.min.x.max(0.0), visible.max.x.min(bed.max.x), step, &flip_x) {
                     clip.line_segment(
                         [tf.to_screen(Point::new(x, 0.0)), tf.to_screen(Point::new(x, bed.max.y))],
                         Stroke::new(1.0, color),
                     );
                 }
-                let y0 = (visible.min.y.max(0.0) / step).ceil() as i64;
-                let y1 = (visible.max.y.min(bed.max.y) / step).floor() as i64;
-                for i in y0..=y1 {
-                    let y = i as f64 * step;
+                for (_, y) in machine_ticks(visible.min.y.max(0.0), visible.max.y.min(bed.max.y), step, &flip_y) {
                     clip.line_segment(
                         [tf.to_screen(Point::new(0.0, y)), tf.to_screen(Point::new(bed.max.x, y))],
                         Stroke::new(1.0, color),
@@ -858,7 +847,7 @@ impl VectorLumeApp {
                     clip.text(
                         cur + vec2(14.0, 14.0),
                         egui::Align2::LEFT_TOP,
-                        format!("{:.1} × {:.1} mm", size.width(), size.height()),
+                        format!("{} × {}", crate::units::num(size.width(), 1), crate::units::len(size.height(), 1)),
                         egui::FontId::proportional(11.5),
                         pal.text,
                     );
@@ -1406,49 +1395,43 @@ impl VectorLumeApp {
         painter.line_segment([top.left_bottom(), top.right_bottom()], Stroke::new(1.0, pal.border));
         painter.line_segment([left.right_top(), left.right_bottom()], Stroke::new(1.0, pal.border));
         let profile = &self.settings.profile;
-        let step = nice_step(60.0 / tf.zoom as f64);
-        let sub = step / 5.0;
+        let step = crate::units::nice_step(60.0 / tf.zoom as f64);
+        let parts = crate::units::subdivisions();
+        let sub = step / parts as f64;
+        let (flip_x, flip_y) = axis_flips(profile);
         let font = egui::FontId::proportional(10.0);
         let text_color = pal.text_weak;
         let tick = Stroke::new(1.0, pal.text_weak.gamma_multiply(0.6));
         let visible = DRect::from_points(tf.to_doc(work.min), tf.to_doc(work.max));
-        let fmt = |v: f64| if step < 1.0 { format!("{v:.1}") } else { format!("{v:.0}") };
+        let fmt = |v: f64| crate::units::trim(v / crate::units::per_unit(), 2);
 
         let top_clip = painter.with_clip_rect(top);
-        let i0 = (visible.min.x / sub).floor() as i64;
-        let i1 = (visible.max.x / sub).ceil() as i64;
-        for i in i0..=i1 {
-            let x = i as f64 * sub;
+        for (i, x) in machine_ticks(visible.min.x - sub, visible.max.x + sub, sub, &flip_x) {
             let sx = tf.to_screen(Point::new(x, 0.0)).x;
-            let is_major = (i % 5) == 0;
+            let is_major = i.rem_euclid(parts) == 0;
             let h = if is_major { 9.0 } else { 4.0 };
             top_clip.line_segment([pos2(sx, top.bottom() - h), pos2(sx, top.bottom())], tick);
             if is_major {
-                let mx = profile.doc_to_machine(Point::new(x, 0.0)).x;
                 top_clip.text(
                     pos2(sx + 3.0, top.top() + 2.0),
                     egui::Align2::LEFT_TOP,
-                    fmt(mx),
+                    fmt(i as f64 * sub),
                     font.clone(),
                     text_color,
                 );
             }
         }
         let left_clip = painter.with_clip_rect(left);
-        let j0 = (visible.min.y / sub).floor() as i64;
-        let j1 = (visible.max.y / sub).ceil() as i64;
-        for j in j0..=j1 {
-            let y = j as f64 * sub;
+        for (j, y) in machine_ticks(visible.min.y - sub, visible.max.y + sub, sub, &flip_y) {
             let sy = tf.to_screen(Point::new(0.0, y)).y;
-            let is_major = (j % 5) == 0;
+            let is_major = j.rem_euclid(parts) == 0;
             let w = if is_major { 9.0 } else { 4.0 };
             left_clip.line_segment([pos2(left.right() - w, sy), pos2(left.right(), sy)], tick);
             if is_major {
-                let my = profile.doc_to_machine(Point::new(0.0, y)).y;
                 left_clip.text(
                     pos2(left.left() + 2.0, sy + 2.0),
                     egui::Align2::LEFT_TOP,
-                    fmt(my),
+                    fmt(j as f64 * sub),
                     font.clone(),
                     text_color,
                 );
@@ -1463,11 +1446,25 @@ impl VectorLumeApp {
     }
 }
 
+/// Dokument- ↔ Maschinenkoordinate je Achse (die Abbildung ist ihre eigene Umkehrung).
+fn axis_flips(profile: &vl_cam::machine::MachineProfile) -> (impl Fn(f64) -> f64 + '_, impl Fn(f64) -> f64 + '_) {
+    (move |x| profile.doc_to_machine(Point::new(x, 0.0)).x, move |y| profile.doc_to_machine(Point::new(0.0, y)).y)
+}
+
+/// Vielfache von `step` in Maschinenkoordinaten zwischen den Dokumentwerten `a` und `b`, als (Nummer, Dokumentwert);
+/// so liegen Raster und Lineal auch bei gespiegelten Achsen und Zoll auf runden Maschinenwerten.
+fn machine_ticks(a: f64, b: f64, step: f64, flip: &impl Fn(f64) -> f64) -> impl Iterator<Item = (i64, f64)> + '_ {
+    let (p, q) = (flip(a), flip(b));
+    let (i0, i1) = ((p.min(q) / step).ceil() as i64, (p.max(q) / step).floor() as i64);
+    (i0..=i1).map(move |i| (i, flip(i as f64 * step)))
+}
+
 /// Abstand, Achsabstände und Winkel einer Messstrecke (Winkel gegen den Uhrzeigersinn wie auf dem Bildschirm).
 pub fn measure_text(a: Point, b: Point) -> String {
     let d = b - a;
     let angle = (-d.y).atan2(d.x).to_degrees();
-    format!("{:.2} mm · ΔX {:.2} · ΔY {:.2} · {:.1}°", d.length(), d.x.abs(), d.y.abs(), angle)
+    let n = |v: f64| crate::units::num(v, 2);
+    format!("{} · ΔX {} · ΔY {} · {angle:.1}°", crate::units::len(d.length(), 2), n(d.x.abs()), n(d.y.abs()))
 }
 
 /// Messstrecke mit Achsabständen (gestrichelt) und Beschriftung.

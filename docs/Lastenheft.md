@@ -60,7 +60,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 |---|---|---|
 | LF-10 | Arbeitsfläche mit Raster, Linealen in Maschinenkoordinaten, Zoom und Verschieben | M |
 | LF-11 | Auswählen (Klick, Mehrfachauswahl, Rahmenauswahl), Verschieben, Skalieren, Drehen | M |
-| LF-12 | Zahleneingabe für Position, Größe, Drehung | M |
+| LF-12 | Zahleneingabe für Position, Größe, Drehung; Anzeige und Eingabe wahlweise in mm oder Zoll | M |
 | LF-13 | Grundformen: Rechteck (mit Eckenradius), Ellipse/Kreis, Linie, Polygon, Stern | M / S |
 | LF-14 | Text mit installierten Schriften, Text auf Pfad, variabler Text (Seriennummern, CSV) | M (Text) / S |
 | LF-15 | Spiegeln, 90°-Drehung, Ausrichten, Verteilen und Andocken | M |

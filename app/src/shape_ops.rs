@@ -3,6 +3,7 @@
 use crate::app::{ToastKind, VectorLumeApp};
 use crate::i18n::{tr, trs};
 use crate::theme;
+use crate::units::UnitField;
 use egui::{Align2, Button, Color32, DragValue, RichText, vec2};
 use egui_phosphor::regular as icon;
 use vl_cam::OriginCorner;
@@ -431,7 +432,10 @@ impl VectorLumeApp {
             }
         }
         if changed.is_empty() {
-            self.toast(ToastKind::Info, trs(&format!("Keine Schlitze mit {from} mm Breite gefunden.")));
+            self.toast(
+                ToastKind::Info,
+                trs(&format!("Keine Schlitze mit {} Breite gefunden.", crate::units::len(from, 2))),
+            );
             return;
         }
         self.checkpoint();
@@ -648,7 +652,10 @@ impl VectorLumeApp {
         let (joined, closed): (usize, usize) =
             results.iter().fold((0, 0), |(j, c), (_, _, r)| (j + r.joined, c + r.closed));
         if joined == 0 && closed == 0 {
-            self.toast(ToastKind::Info, trs(&format!("Keine offenen Enden näher als {tol} mm gefunden.")));
+            self.toast(
+                ToastKind::Info,
+                trs(&format!("Keine offenen Enden näher als {} gefunden.", crate::units::len(tol, 2))),
+            );
             return;
         }
         self.checkpoint();
@@ -914,10 +921,8 @@ fn corners_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
             });
             egui::Grid::new("corners").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
                 ui.label(if d.corner_style == CornerStyle::Round { tr("Radius") } else { tr("Fasenlänge") });
-                ui.add(
-                    DragValue::new(&mut d.corner_size).speed(0.05).range(0.01..=500.0).max_decimals(2).suffix(" mm"),
-                )
-                .on_hover_text(tr("Bei Fasen: Abstand von der Ecke entlang jeder Kante"));
+                ui.add(DragValue::new(&mut d.corner_size).speed(0.05).range(0.01..=500.0).max_decimals(2).mm())
+                    .on_hover_text(tr("Bei Fasen: Abstand von der Ecke entlang jeder Kante"));
                 ui.end_row();
                 ui.label(tr("Ab Knickwinkel"));
                 ui.add(
@@ -970,17 +975,15 @@ fn slots_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
             let d = &mut app.shape_dialogs;
             egui::Grid::new("slots").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
                 ui.label(tr("Breite jetzt"));
-                ui.add(DragValue::new(&mut d.slots_from).speed(0.05).range(0.1..=100.0).max_decimals(2).suffix(" mm"))
+                ui.add(DragValue::new(&mut d.slots_from).speed(0.05).range(0.1..=100.0).max_decimals(2).mm())
                     .on_hover_text(tr("Breite der vorhandenen Schlitze, meist die alte Materialstärke"));
                 ui.end_row();
                 ui.label(tr("Neue Breite"));
-                ui.add(DragValue::new(&mut d.slots_to).speed(0.05).range(0.1..=100.0).max_decimals(2).suffix(" mm"))
+                ui.add(DragValue::new(&mut d.slots_to).speed(0.05).range(0.1..=100.0).max_decimals(2).mm())
                     .on_hover_text(tr("Gemessene Stärke des neuen Materials, ggf. plus etwas Spiel"));
                 ui.end_row();
                 ui.label(tr("Toleranz"));
-                ui.add(
-                    DragValue::new(&mut d.slots_tolerance).speed(0.01).range(0.0..=2.0).max_decimals(2).suffix(" mm"),
-                );
+                ui.add(DragValue::new(&mut d.slots_tolerance).speed(0.01).range(0.0..=2.0).max_decimals(2).mm());
                 ui.end_row();
             });
             ui.label(
@@ -1029,11 +1032,11 @@ fn nest_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
             let d = &mut app.shape_dialogs;
             egui::Grid::new("nest").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
                 ui.label(tr("Abstand"));
-                ui.add(DragValue::new(&mut d.nest.spacing).speed(0.1).range(0.0..=50.0).suffix(" mm"))
+                ui.add(DragValue::new(&mut d.nest.spacing).speed(0.1).range(0.0..=50.0).mm())
                     .on_hover_text(tr("Mindestabstand zwischen den Teilen (Schnittbreite und Stege bedenken)"));
                 ui.end_row();
                 ui.label(tr("Rand"));
-                ui.add(DragValue::new(&mut d.nest.margin).speed(0.1).range(0.0..=50.0).suffix(" mm"))
+                ui.add(DragValue::new(&mut d.nest.margin).speed(0.1).range(0.0..=50.0).mm())
                     .on_hover_text(tr("Abstand zum Rand der Platte"));
                 ui.end_row();
                 ui.label(tr("Drehen"));
@@ -1105,14 +1108,8 @@ fn simplify_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
             let d = &mut app.shape_dialogs;
             egui::Grid::new("simplify").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
                 ui.label(tr("Toleranz"));
-                ui.add(
-                    DragValue::new(&mut d.simplify_tolerance)
-                        .speed(0.005)
-                        .range(0.001..=5.0)
-                        .max_decimals(3)
-                        .suffix(" mm"),
-                )
-                .on_hover_text(tr("So weit dürfen die neuen Linien von der alten Form abweichen"));
+                ui.add(DragValue::new(&mut d.simplify_tolerance).speed(0.005).range(0.001..=5.0).max_decimals(3).mm())
+                    .on_hover_text(tr("So weit dürfen die neuen Linien von der alten Form abweichen"));
                 ui.end_row();
                 ui.label(tr("Glätten"));
                 ui.add(egui::Slider::new(&mut d.simplify_smoothing, 0.0..=1.0).fixed_decimals(2))
@@ -1169,7 +1166,9 @@ fn bitmap_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.horizontal(|ui| {
                     ui.add(DragValue::new(&mut o.dpi).speed(1.0).range(25.0..=1200.0).max_decimals(0).suffix(" dpi"));
                     ui.label(
-                        RichText::new(trs(&format!("{:.3} mm je Pixel", o.pixel_mm()))).small().color(pal.text_weak),
+                        RichText::new(trs(&format!("{} je Pixel", crate::units::len(o.pixel_mm(), 3))))
+                            .small()
+                            .color(pal.text_weak),
                     );
                 });
                 ui.end_row();
@@ -1180,7 +1179,7 @@ fn bitmap_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 });
                 ui.end_row();
                 ui.label(tr("Strichbreite"));
-                ui.add(DragValue::new(&mut o.line_width).speed(0.01).range(0.01..=10.0).suffix(" mm"))
+                ui.add(DragValue::new(&mut o.line_width).speed(0.01).range(0.01..=10.0).mm())
                     .on_hover_text(tr("Für Konturen und offene Pfade"));
                 ui.end_row();
                 ui.label("");
@@ -1242,7 +1241,7 @@ fn offset_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
             let d = &mut app.shape_dialogs;
             egui::Grid::new("offset").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
                 ui.label(tr("Abstand"));
-                ui.add(DragValue::new(&mut d.offset_distance).speed(0.05).range(0.01..=200.0).suffix(" mm"));
+                ui.add(DragValue::new(&mut d.offset_distance).speed(0.05).range(0.01..=200.0).mm());
                 ui.end_row();
                 ui.label(tr("Richtung"));
                 ui.horizontal(|ui| {
@@ -1327,8 +1326,8 @@ fn array_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     ui.end_row();
                     ui.label(tr("Abstand X / Y"));
                     ui.horizontal(|ui| {
-                        ui.add(DragValue::new(&mut d.gap_x).speed(0.1).range(-500.0..=500.0).suffix(" mm"));
-                        ui.add(DragValue::new(&mut d.gap_y).speed(0.1).range(-500.0..=500.0).suffix(" mm"));
+                        ui.add(DragValue::new(&mut d.gap_x).speed(0.1).range(-500.0..=500.0).mm());
+                        ui.add(DragValue::new(&mut d.gap_y).speed(0.1).range(-500.0..=500.0).mm());
                     });
                     ui.end_row();
                 }
@@ -1337,7 +1336,7 @@ fn array_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     ui.add(DragValue::new(&mut d.circle_count).range(2..=360));
                     ui.end_row();
                     ui.label(tr("Radius"));
-                    ui.add(DragValue::new(&mut d.circle_radius).speed(0.2).range(0.1..=2000.0).suffix(" mm"));
+                    ui.add(DragValue::new(&mut d.circle_radius).speed(0.2).range(0.1..=2000.0).mm());
                     ui.end_row();
                     ui.label(tr("Winkelbereich"));
                     ui.add(DragValue::new(&mut d.circle_angle).speed(1.0).range(1.0..=360.0).suffix("°"));

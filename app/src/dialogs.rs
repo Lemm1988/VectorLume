@@ -3,6 +3,7 @@
 use crate::app::{Modal, ToastKind, VectorLumeApp};
 use crate::i18n::{tr, trs};
 use crate::theme;
+use crate::units::UnitField;
 use egui::{Align2, Button, Color32, CornerRadius, DragValue, Frame, Margin, RichText, Stroke, vec2};
 use egui_phosphor::regular as icon;
 use std::time::Instant;
@@ -57,9 +58,9 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.end_row();
                 ui.label(tr("Arbeitsfläche"));
                 ui.horizontal(|ui| {
-                    ui.add(DragValue::new(&mut p.bed_width).speed(1.0).range(10.0..=3000.0).suffix(" mm"));
+                    ui.add(DragValue::new(&mut p.bed_width).speed(1.0).range(10.0..=3000.0).mm());
                     ui.label("×");
-                    ui.add(DragValue::new(&mut p.bed_height).speed(1.0).range(10.0..=3000.0).suffix(" mm"));
+                    ui.add(DragValue::new(&mut p.bed_height).speed(1.0).range(10.0..=3000.0).mm());
                 });
                 ui.end_row();
                 ui.label(tr("Nullpunkt"));
@@ -85,7 +86,7 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 });
                 ui.end_row();
                 ui.label(tr("Eilgang"));
-                ui.add(DragValue::new(&mut p.rapid_rate).speed(50.0).range(100.0..=100000.0).suffix(" mm/min"));
+                ui.add(DragValue::new(&mut p.rapid_rate).speed(50.0).range(100.0..=100000.0).mm_per_min());
                 ui.end_row();
                 ui.label(tr("Beschleunigung"));
                 ui.add(DragValue::new(&mut p.acceleration).speed(10.0).range(10.0..=50000.0).suffix(" mm/s²"));
@@ -126,7 +127,7 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.end_row();
                 ui.label(tr("Rahmen"));
                 ui.horizontal(|ui| {
-                    ui.add(DragValue::new(&mut p.frame_speed).speed(50.0).range(100.0..=30000.0).suffix(" mm/min"));
+                    ui.add(DragValue::new(&mut p.frame_speed).speed(50.0).range(100.0..=30000.0).mm_per_min());
                     ui.add(DragValue::new(&mut p.frame_power).speed(0.1).range(0.0..=5.0).suffix(" %"))
                         .on_hover_text(tr("0 % = Laser aus. Höchstens 5 %, nur mit Schutzbrille!"));
                 });
@@ -399,8 +400,8 @@ fn scan_offsets_ui(ui: &mut egui::Ui, rows: &mut Vec<vl_cam::ScanOffset>) {
         let mut remove = None;
         for (i, row) in rows.iter_mut().enumerate() {
             ui.horizontal(|ui| {
-                ui.add(DragValue::new(&mut row.speed).speed(50.0).range(1.0..=100_000.0).suffix(" mm/min"));
-                ui.add(DragValue::new(&mut row.offset).speed(0.005).range(-5.0..=5.0).max_decimals(3).suffix(" mm"));
+                ui.add(DragValue::new(&mut row.speed).speed(50.0).range(1.0..=100_000.0).mm_per_min());
+                ui.add(DragValue::new(&mut row.offset).speed(0.005).range(-5.0..=5.0).max_decimals(3).mm());
                 if ui.small_button(icon::X).on_hover_text(tr("Eintrag entfernen")).clicked() {
                     remove = Some(i);
                 }

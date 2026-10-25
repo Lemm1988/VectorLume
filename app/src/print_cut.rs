@@ -4,6 +4,7 @@ use crate::app::{ToastKind, VectorLumeApp};
 use crate::canvas::ViewTf;
 use crate::i18n::{tr, trs};
 use crate::theme;
+use crate::units::UnitField;
 use egui::{Align2, Button, Color32, DragValue, RichText, Stroke, Ui, vec2};
 use egui_phosphor::regular as icon;
 use vl_cam::{MachineProfile, StartFrom};
@@ -232,8 +233,8 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     let moved = pc.design[0].zip(pc.design[1]).map(|(a, b)| t.apply(a.lerp(b, 0.5)) - a.lerp(b, 0.5));
                     let moved = moved.unwrap_or(Point::ZERO);
                     ui.label(trs(&format!(
-                        "Verschiebung {:.2} mm, Drehung {:.2}°, Maßstab {:.2} %",
-                        moved.length(),
+                        "Verschiebung {}, Drehung {:.2}°, Maßstab {:.2} %",
+                        crate::units::len(moved.length(), 2),
                         t.rotation_deg(),
                         s * 100.0
                     )));
@@ -251,7 +252,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                         let err = (a.distance(b) - marks).abs() / 2.0;
                         if err > 0.2 {
                             ui.label(
-                                RichText::new(trs(&format!("Ohne Skalieren bleibt je Marke {err:.2} mm Abweichung.")))
+                                RichText::new(trs(&format!("Ohne Skalieren bleibt je Marke {} Abweichung.", crate::units::len(err, 2))))
                                     .small()
                                     .color(pal.warning),
                             );
@@ -303,9 +304,8 @@ fn point_fields(ui: &mut Ui, profile: &MachineProfile, p: &mut Option<Point>) {
             let mut m = profile.doc_to_machine(*doc);
             let mut changed = false;
             for (axis, v) in [("X", &mut m.x), ("Y", &mut m.y)] {
-                changed |= ui
-                    .add(DragValue::new(v).speed(0.05).max_decimals(2).prefix(format!("{axis} ")).suffix(" mm"))
-                    .changed();
+                changed |=
+                    ui.add(DragValue::new(v).speed(0.05).max_decimals(2).prefix(format!("{axis} ")).mm()).changed();
             }
             if changed {
                 *doc = profile.machine_to_doc(m);

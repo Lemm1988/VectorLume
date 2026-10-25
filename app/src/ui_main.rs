@@ -4,6 +4,7 @@ use crate::app::{ToastKind, Tool, VectorLumeApp};
 use crate::i18n::{tr, trs};
 use crate::settings::ThemeChoice;
 use crate::theme;
+use crate::units::UnitField;
 use egui::{
     Align, Button, Color32, CornerRadius, DragValue, Frame, Key, KeyboardShortcut, Layout, Margin, Modifiers, RichText,
     Sense, Stroke, Ui, vec2,
@@ -412,7 +413,7 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
                         .speed(0.05)
                         .range(0.0..=100.0)
                         .max_decimals(2)
-                        .suffix(" mm"),
+                        .mm(),
                 );
             });
         });
@@ -478,7 +479,7 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
                     .speed(0.01)
                     .range(0.001..=5.0)
                     .max_decimals(3)
-                    .suffix(" mm"),
+                    .mm(),
             );
         });
         if menu_item(ui, tr("Offene Pfade verbinden und schließen"), "", true) {
@@ -548,7 +549,8 @@ fn view_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if ui.checkbox(&mut app.settings.show_travel, tr("Leerfahrten in der Vorschau")).changed() {
         app.settings.save();
     }
-    if ui.checkbox(&mut app.settings.snap_to_grid, tr("Am Raster fangen (1 mm)")).changed() {
+    let grid = crate::units::snap_grid_label(app.settings.grid_snap_mm);
+    if ui.checkbox(&mut app.settings.snap_to_grid, trs(&format!("Am Raster fangen ({grid})"))).changed() {
         app.settings.save();
     }
     if ui
@@ -573,6 +575,14 @@ fn view_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     for lang in crate::i18n::Language::ALL {
         if ui.radio(app.settings.language == lang, lang.label()).clicked() {
             app.set_language(lang);
+            ui.close();
+        }
+    }
+    ui.separator();
+    ui.label(RichText::new(tr("Einheit")).small());
+    for u in crate::units::Units::ALL {
+        if ui.radio(app.settings.units == u, u.label()).clicked() {
+            app.set_units(u);
             ui.close();
         }
     }
@@ -648,7 +658,7 @@ fn properties(app: &mut VectorLumeApp, ui: &mut Ui) {
     ui.add_enabled_ui(has, |ui| {
         let field = |ui: &mut Ui, label: &str, v: &mut f64| {
             ui.label(RichText::new(label).color(theme::of(ui).text_weak));
-            ui.add(DragValue::new(v).speed(0.2).max_decimals(2).suffix(" mm").range(-10000.0..=10000.0))
+            ui.add(DragValue::new(v).speed(0.2).max_decimals(2).mm().range(-10000.0..=10000.0))
         };
         let rx = field(ui, "X", &mut x);
         let ry = field(ui, "Y", &mut y);
@@ -718,7 +728,7 @@ fn primitive_fields(app: &mut VectorLumeApp, ui: &mut Ui) {
             let mut r = obj.corner_radius().unwrap_or(0.0);
             ui.label(RichText::new(icon::FRAME_CORNERS).color(weak)).on_hover_text(tr("Eckenradius"));
             let resp = ui
-                .add(DragValue::new(&mut r).speed(0.1).range(0.0..=1000.0).max_decimals(2).suffix(" mm"))
+                .add(DragValue::new(&mut r).speed(0.1).range(0.0..=1000.0).max_decimals(2).mm())
                 .on_hover_text(tr("Eckenradius des Rechtecks"));
             if resp.changed() {
                 app.checkpoint_coalesced("primitive");
@@ -838,7 +848,7 @@ fn tool_options(app: &mut VectorLumeApp, ui: &mut Ui) {
     match app.tool {
         Tool::Rect => {
             ui.label(tr("Eckenradius"));
-            ui.add(DragValue::new(&mut o.corner_radius).speed(0.1).range(0.0..=1000.0).suffix(" mm"));
+            ui.add(DragValue::new(&mut o.corner_radius).speed(0.1).range(0.0..=1000.0).mm());
         }
         Tool::Polygon => {
             ui.label(tr("Ecken"));
@@ -911,7 +921,8 @@ pub fn bottom_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
                 match app.view.cursor {
                     Some(c) => {
                         let m = app.settings.profile.doc_to_machine(c);
-                        ui.label(small(format!("X {:>7.2}  Y {:>7.2} mm", m.x, m.y)));
+                        let (x, y) = (crate::units::num(m.x, 2), crate::units::num(m.y, 2));
+                        ui.label(small(format!("X {x:>7}  Y {y:>7} {}", crate::units::unit())));
                     }
                     None => {
                         ui.label(small("X –  Y –".into()));
@@ -923,10 +934,10 @@ pub fn bottom_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
                     ui.label(small(trs(&format!("{} Objekte", app.doc.objects.len()))));
                 } else {
                     ui.label(small(trs(&format!(
-                        "{} ausgewählt · {:.2} × {:.2} mm",
+                        "{} ausgewählt · {} × {}",
                         app.selection.len(),
-                        b.width(),
-                        b.height()
+                        crate::units::num(b.width(), 2),
+                        crate::units::len(b.height(), 2)
                     ))));
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {

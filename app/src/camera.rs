@@ -4,6 +4,7 @@
 use crate::app::{ToastKind, VectorLumeApp};
 use crate::i18n::{tr, trs};
 use crate::theme;
+use crate::units::UnitField;
 use egui::{Align2, Button, Color32, DragValue, RichText, Sense, Stroke, TextureOptions, pos2, vec2};
 use egui_phosphor::regular as icon;
 use nokhwa::pixel_format::RgbFormat;
@@ -390,8 +391,8 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     let bed = app.settings.camera.points[i].bed;
                     ui.label(format!("{} ({})", i + 1, place_label(app, bed)));
                     let p = &mut app.settings.camera.points[i];
-                    ui.add(DragValue::new(&mut p.bed[0]).speed(0.5).range(-10_000.0..=10_000.0).prefix("X ").suffix(" mm"));
-                    ui.add(DragValue::new(&mut p.bed[1]).speed(0.5).range(-10_000.0..=10_000.0).prefix("Y ").suffix(" mm"));
+                    ui.add(DragValue::new(&mut p.bed[0]).speed(0.5).range(-10_000.0..=10_000.0).prefix("X ").mm());
+                    ui.add(DragValue::new(&mut p.bed[1]).speed(0.5).range(-10_000.0..=10_000.0).prefix("Y ").mm());
                     let picking = app.camera.picking == Some(i);
                     let label = if picking { tr("Klick ins Bild…") } else { tr("Im Bild setzen") };
                     if ui.add_enabled(app.camera.frame.is_some(), Button::selectable(picking, label)).clicked() {
@@ -413,7 +414,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     action = Some("marks");
                 }
                 ui.add(DragValue::new(&mut app.settings.camera.mark_power).speed(0.5).range(1.0..=100.0).suffix(" %"));
-                ui.add(DragValue::new(&mut app.settings.camera.mark_speed).speed(10.0).range(60.0..=30_000.0).suffix(" mm/min"));
+                ui.add(DragValue::new(&mut app.settings.camera.mark_speed).speed(10.0).range(60.0..=30_000.0).mm_per_min());
                 if ui.button(tr("Punkte zurücksetzen")).clicked() {
                     for p in &mut app.settings.camera.points {
                         p.image = None;

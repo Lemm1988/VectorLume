@@ -3,6 +3,7 @@
 use crate::app::VectorLumeApp;
 use crate::i18n::{tr, trs};
 use crate::theme;
+use crate::units::UnitField;
 use egui::{Align, Button, Color32, CornerRadius, DragValue, Frame, Layout, Margin, RichText, Sense, Stroke, Ui, vec2};
 use egui_phosphor::regular as icon;
 use vl_cam::{Anchor, StartFrom};
@@ -179,8 +180,8 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                         });
                         ui.label(
                             RichText::new(format!(
-                                "{:.0} mm/min · {:.0} % · {}× {}",
-                                layer.settings.speed,
+                                "{} · {:.0} % · {}× {}",
+                                crate::units::speed(layer.settings.speed),
                                 layer.settings.power_max,
                                 layer.settings.passes,
                                 if layer.settings.air_assist { tr("· Luft") } else { "" }
@@ -292,7 +293,7 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
         ui.end_row();
 
         ui.label(tr("Geschwindigkeit"));
-        ui.add(DragValue::new(&mut s.speed).speed(10.0).range(1.0..=60000.0).suffix(" mm/min"));
+        ui.add(DragValue::new(&mut s.speed).speed(10.0).range(1.0..=60000.0).mm_per_min());
         ui.end_row();
 
         ui.label(tr("Leistung max."));
@@ -316,12 +317,12 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
 
         if z_axis {
             ui.label(tr("Z-Versatz"));
-            ui.add(DragValue::new(&mut s.z_offset).speed(0.05).range(-50.0..=50.0).max_decimals(2).suffix(" mm"))
+            ui.add(DragValue::new(&mut s.z_offset).speed(0.05).range(-50.0..=50.0).max_decimals(2).mm())
                 .on_hover_text(tr("Fokus gegenüber der eingestellten Fokushöhe: positiv = Kopf höher (weicherer Strahl)"));
             ui.end_row();
             if s.passes > 1 {
                 ui.label(tr("Z je Durchgang"));
-                ui.add(DragValue::new(&mut s.z_step).speed(0.05).range(-20.0..=20.0).max_decimals(2).suffix(" mm"))
+                ui.add(DragValue::new(&mut s.z_step).speed(0.05).range(-20.0..=20.0).max_decimals(2).mm())
                     .on_hover_text(tr("Ab dem zweiten Durchgang wird der Fokus um diesen Wert tiefer gelegt"));
                 ui.end_row();
             }
@@ -330,7 +331,7 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
         if s.mode != LayerMode::Line || has_images {
             ui.label(if s.mode == LayerMode::OffsetFill { tr("Linienabstand") } else { tr("Zeilenabstand") });
             ui.horizontal(|ui| {
-                ui.add(DragValue::new(&mut s.interval).speed(0.005).range(0.02..=2.0).max_decimals(3).suffix(" mm"));
+                ui.add(DragValue::new(&mut s.interval).speed(0.005).range(0.02..=2.0).max_decimals(3).mm());
                 ui.label(
                     RichText::new(format!("≙ {:.0} dpi", 25.4 / s.interval.max(0.001)))
                         .small()
@@ -341,7 +342,7 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
         }
         if matches!(s.mode, LayerMode::Fill | LayerMode::Image) || has_images {
             ui.label(tr("Overscan"));
-            ui.add(DragValue::new(&mut s.overscan).speed(0.1).range(0.0..=20.0).suffix(" mm"));
+            ui.add(DragValue::new(&mut s.overscan).speed(0.1).range(0.0..=20.0).mm());
             ui.end_row();
             ui.label("");
             ui.checkbox(&mut s.bidirectional, tr("Bidirektional"));
@@ -349,7 +350,7 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
         }
         if s.mode == LayerMode::Line {
             ui.label(tr("Schnittbreite"));
-            ui.add(DragValue::new(&mut s.kerf).speed(0.005).range(0.0..=2.0).max_decimals(3).suffix(" mm"))
+            ui.add(DragValue::new(&mut s.kerf).speed(0.005).range(0.0..=2.0).max_decimals(3).mm())
                 .on_hover_text(
                     tr("Kerf-Ausgleich: Außenkonturen wandern um die halbe Schnittbreite nach außen, Löcher nach innen. 0 = aus."),
                 );
@@ -360,7 +361,7 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
                     if v == 0.0 { tr("aus").into() } else { trs(&format!("{v:.0} je Kontur")) }
                 }));
                 if s.tab_count > 0 {
-                    ui.add(DragValue::new(&mut s.tab_width).speed(0.05).range(0.1..=10.0).suffix(" mm"));
+                    ui.add(DragValue::new(&mut s.tab_width).speed(0.05).range(0.1..=10.0).mm());
                 }
             })
             .response
@@ -373,19 +374,19 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
             }
             ui.label(tr("Überschnitt"));
             ui.add(DragValue::new(&mut s.overcut).speed(0.05).range(0.0..=20.0).max_decimals(2).custom_formatter(
-                |v, _| if v == 0.0 { tr("aus").into() } else { format!("{v:.2} mm") },
-            ))
+                |v, _| if v == 0.0 { tr("aus").into() } else { crate::units::len(v, 2) },
+            ).custom_parser(crate::units::parse_len_or_off))
             .on_hover_text(tr(
                 "Geschlossene Konturen laufen um diese Strecke über den Startpunkt hinaus, damit sich Anfang und Ende sicher überlappen und das Teil ganz herausfällt.",
             ));
             ui.end_row();
             ui.label(tr("Ein-/Auslauf"));
             ui.horizontal(|ui| {
-                let off = |v: f64, _| if v == 0.0 { tr("aus").into() } else { format!("{v:.1} mm") };
-                ui.add(DragValue::new(&mut s.lead_in).speed(0.05).range(0.0..=20.0).custom_formatter(off))
+                let off = |v: f64, _| if v == 0.0 { tr("aus").into() } else { crate::units::len(v, 1) };
+                ui.add(DragValue::new(&mut s.lead_in).speed(0.05).range(0.0..=20.0).custom_formatter(off).custom_parser(crate::units::parse_len_or_off))
                     .on_hover_text(tr("Einlauf: Der Laser setzt so weit im Abfall an (außen bei Teilen, innen bei Löchern) und fährt zur Kontur – die Einbrandstelle bleibt nicht am Werkstück."));
                 ui.label("/");
-                ui.add(DragValue::new(&mut s.lead_out).speed(0.05).range(0.0..=20.0).custom_formatter(off))
+                ui.add(DragValue::new(&mut s.lead_out).speed(0.05).range(0.0..=20.0).custom_formatter(off).custom_parser(crate::units::parse_len_or_off))
                     .on_hover_text(tr("Auslauf: Nach der Kontur fährt der Laser so weit in den Abfall hinaus."));
                 if s.lead_in > 0.0 || s.lead_out > 0.0 {
                     ui.add(DragValue::new(&mut s.lead_angle).speed(1.0).range(0.0..=90.0).suffix("°"))
@@ -400,9 +401,9 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
             if s.perforate {
                 ui.label(tr("Schnitt / Lücke"));
                 ui.horizontal(|ui| {
-                    ui.add(DragValue::new(&mut s.perf_cut).speed(0.05).range(0.05..=100.0).suffix(" mm"));
+                    ui.add(DragValue::new(&mut s.perf_cut).speed(0.05).range(0.05..=100.0).mm());
                     ui.label("/");
-                    ui.add(DragValue::new(&mut s.perf_gap).speed(0.05).range(0.05..=100.0).suffix(" mm"));
+                    ui.add(DragValue::new(&mut s.perf_gap).speed(0.05).range(0.05..=100.0).mm());
                 });
                 ui.end_row();
             }
@@ -431,7 +432,7 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
             ui.end_row();
             ui.label(tr("Rampe"));
             ui.horizontal(|ui| {
-                ui.add(DragValue::new(&mut s.ramp_length).speed(0.05).range(0.0..=20.0).max_decimals(2).suffix(" mm"))
+                ui.add(DragValue::new(&mut s.ramp_length).speed(0.05).range(0.0..=20.0).max_decimals(2).mm())
                     .on_hover_text(tr(
                         "Für Stempel: Die Leistung steigt vom Rand aus über diese Strecke von der Mindest- zur \
                          Höchstleistung, so entstehen schräge, stabile Flanken. 0 = aus.",
@@ -493,7 +494,7 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
             if s.dither.is_screen() {
                 ui.label(tr("Rasterweite"));
                 ui.horizontal(|ui| {
-                    ui.add(DragValue::new(&mut s.screen_cell).speed(0.01).range(0.1..=20.0).suffix(" mm"))
+                    ui.add(DragValue::new(&mut s.screen_cell).speed(0.01).range(0.1..=20.0).mm())
                         .on_hover_text(tr("Abstand der Punkte bzw. Linien. Ein Vielfaches des Zeilenabstands wirkt am saubersten."));
                     ui.label(
                         RichText::new(format!("≙ {:.0} lpi", 25.4 / s.screen_cell.max(0.001)))
@@ -510,7 +511,7 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
             ui.checkbox(&mut s.negative, tr("Negativ (invertieren)"));
             ui.end_row();
             ui.label(tr("Punktbreite"));
-            ui.add(DragValue::new(&mut s.dot_width).speed(0.005).range(0.0..=1.0).max_decimals(3).suffix(" mm"))
+            ui.add(DragValue::new(&mut s.dot_width).speed(0.005).range(0.0..=1.0).max_decimals(3).mm())
                 .on_hover_text(tr(
                     "Punktbreiten-Korrektur: Jede gebrannte Strecke wird an beiden Enden um die halbe Breite des \
                      Laserpunkts gekürzt, damit gerasterte Bilder nicht zulaufen. Für Diodenlaser meist 0,05–0,1 mm, \
@@ -551,7 +552,7 @@ fn image_adjust_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             ui.add(egui::Slider::new(&mut adj.gamma, 0.2..=5.0).logarithmic(true).fixed_decimals(2));
             ui.end_row();
             ui.label(tr("Entrauschen"));
-            ui.add(egui::Slider::new(&mut adj.denoise, 0.0..=1.0).fixed_decimals(2).suffix(" mm")).on_hover_text(tr(
+            ui.add(egui::Slider::new(&mut adj.denoise, 0.0..=1.0).fixed_decimals(2).mm()).on_hover_text(tr(
                 "Medianfilter: entfernt Bildrauschen und einzelne Störpixel, Kanten bleiben scharf. Radius auf dem \
                  Werkstück, etwa 1–2 × Zeilenabstand (0 = aus).",
             ));
@@ -564,11 +565,7 @@ fn image_adjust_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             if adj.sharpens() {
                 ui.label(tr("Radius"));
                 ui.add(
-                    egui::DragValue::new(&mut adj.sharpen_radius)
-                        .range(0.05..=5.0)
-                        .speed(0.01)
-                        .fixed_decimals(2)
-                        .suffix(" mm"),
+                    egui::DragValue::new(&mut adj.sharpen_radius).range(0.05..=5.0).speed(0.01).fixed_decimals(2).mm(),
                 )
                 .on_hover_text(tr("Größe der Details, die verstärkt werden (etwa 2–4 × Zeilenabstand)"));
                 ui.end_row();
@@ -818,8 +815,8 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             if js.start_from == StartFrom::UserOrigin {
                 ui.label(tr("Ursprung"));
                 ui.horizontal(|ui| {
-                    ui.add(DragValue::new(&mut js.user_origin.x).speed(0.5).prefix("X ").suffix(" mm"));
-                    ui.add(DragValue::new(&mut js.user_origin.y).speed(0.5).prefix("Y ").suffix(" mm"));
+                    ui.add(DragValue::new(&mut js.user_origin.x).speed(0.5).prefix("X ").mm());
+                    ui.add(DragValue::new(&mut js.user_origin.y).speed(0.5).prefix("Y ").mm());
                 });
                 ui.end_row();
             }
@@ -980,23 +977,19 @@ fn jog_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.label(tr("Schritt"));
-            for s in [0.1, 1.0, 5.0, 10.0, 50.0] {
-                if ui.selectable_label((app.settings.jog_step - s).abs() < 1e-9, format!("{s}")).clicked() {
+            for s in crate::units::jog_steps() {
+                let text = crate::units::trim(s / crate::units::per_unit(), 2);
+                if ui.selectable_label((app.settings.jog_step - s).abs() < 1e-9, text).clicked() {
                     app.settings.jog_step = s;
                     app.settings.save();
                 }
             }
-            ui.label("mm");
+            ui.label(crate::units::unit());
         });
         ui.horizontal(|ui| {
             ui.label(tr("Geschwindigkeit"));
             if ui
-                .add(
-                    DragValue::new(&mut app.settings.profile.jog_speed)
-                        .speed(50.0)
-                        .range(10.0..=30000.0)
-                        .suffix(" mm/min"),
-                )
+                .add(DragValue::new(&mut app.settings.profile.jog_speed).speed(50.0).range(10.0..=30000.0).mm_per_min())
                 .changed()
             {
                 app.settings.save();

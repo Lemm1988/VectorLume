@@ -4,6 +4,7 @@
 use crate::app::{ToastKind, VectorLumeApp};
 use crate::i18n::{tr, trs};
 use crate::theme;
+use crate::units::UnitField;
 use egui::{Align2, Button, DragValue, RichText, vec2};
 use egui_phosphor::regular as icon;
 use vl_core::DataList;
@@ -354,10 +355,10 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 });
                 ui.end_row();
                 ui.label(tr("Höhe"));
-                ui.add(DragValue::new(&mut d.spec.height_mm).speed(0.1).range(0.5..=500.0).suffix(" mm"));
+                ui.add(DragValue::new(&mut d.spec.height_mm).speed(0.1).range(0.5..=500.0).mm());
                 ui.end_row();
                 ui.label(tr("Zeichenabstand"));
-                ui.add(DragValue::new(&mut d.spec.letter_spacing).speed(0.05).range(-20.0..=100.0).suffix(" mm"));
+                ui.add(DragValue::new(&mut d.spec.letter_spacing).speed(0.05).range(-20.0..=100.0).mm());
                 ui.end_row();
                 if d.on_path.is_none() {
                     ui.label(tr("Zeilenabstand"));
@@ -374,10 +375,10 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.end_row();
                 if let Some(on) = &mut d.on_path {
                     ui.label(tr("Versatz entlang"));
-                    ui.add(DragValue::new(&mut on.offset).speed(0.2).range(-10000.0..=10000.0).suffix(" mm"));
+                    ui.add(DragValue::new(&mut on.offset).speed(0.2).range(-10000.0..=10000.0).mm());
                     ui.end_row();
                     ui.label(tr("Abstand zum Pfad"));
-                    ui.add(DragValue::new(&mut on.distance).speed(0.05).range(-500.0..=500.0).suffix(" mm"));
+                    ui.add(DragValue::new(&mut on.distance).speed(0.05).range(-500.0..=500.0).mm());
                     ui.end_row();
                     ui.label("");
                     ui.checkbox(&mut on.reverse, tr("Richtung umkehren (andere Seite)"));
@@ -466,9 +467,9 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     Ok(info) => {
                         let (w, h) = info.size_mm;
                         let text = if b.kind.is_2d() {
-                            trs(&format!("{} × {} Module · {w:.1} × {h:.1} mm", info.modules.0, info.modules.1))
+                            trs(&format!("{} × {} Module · {} × {}", info.modules.0, info.modules.1, crate::units::num(w, 1), crate::units::len(h, 1)))
                         } else {
-                            trs(&format!("{} Module · {w:.1} × {h:.1} mm", info.modules.0))
+                            trs(&format!("{} Module · {} × {}", info.modules.0, crate::units::num(w, 1), crate::units::len(h, 1)))
                         };
                         ui.label(RichText::new(text).small().color(pal.text_weak));
                     }
@@ -551,7 +552,7 @@ fn barcode_options(
 ) {
     egui::Grid::new("barcode_grid").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
         ui.label(tr("Modulgröße")).on_hover_text(tr("Breite eines Punktes bzw. des schmalsten Strichs"));
-        ui.add(DragValue::new(&mut b.module_mm).speed(0.01).range(0.05..=10.0).fixed_decimals(2).suffix(" mm"));
+        ui.add(DragValue::new(&mut b.module_mm).speed(0.01).range(0.05..=10.0).fixed_decimals(2).mm());
         ui.end_row();
         if b.kind == BarcodeKind::Qr {
             ui.label(tr("Fehlerkorrektur")).on_hover_text(tr(
@@ -566,7 +567,7 @@ fn barcode_options(
         }
         if !b.kind.is_2d() {
             ui.label(tr("Strichhöhe"));
-            ui.add(DragValue::new(&mut b.height_mm).speed(0.1).range(1.0..=300.0).suffix(" mm"));
+            ui.add(DragValue::new(&mut b.height_mm).speed(0.1).range(1.0..=300.0).mm());
             ui.end_row();
             ui.label(tr("Klartext"));
             ui.checkbox(&mut b.show_text, tr("unter den Strichen"));
@@ -581,7 +582,7 @@ fn barcode_options(
             "Gravierte Flächen um diesen Betrag schmaler machen, weil der Laserpunkt über die Kontur hinaus brennt. Richtwert: Breite des Laserpunkts (etwa 0,05–0,1 mm).",
         );
         ui.label(tr("Strichbreiten-Ausgleich")).on_hover_text(help);
-        ui.add(DragValue::new(&mut b.shrink_mm).speed(0.005).range(0.0..=1.0).fixed_decimals(3).suffix(" mm"))
+        ui.add(DragValue::new(&mut b.shrink_mm).speed(0.005).range(0.0..=1.0).fixed_decimals(3).mm())
             .on_hover_text(help);
         ui.end_row();
         ui.label("");

@@ -97,7 +97,11 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
             }
             ui.add_space(6.0);
             match head {
-                Some(p) => ui.label(trs(&format!("Laserkopf: X {:.2} Y {:.2}", p.x, p.y))),
+                Some(p) => ui.label(trs(&format!(
+                    "Laserkopf: X {} Y {}",
+                    crate::units::num(p.x, 2),
+                    crate::units::len(p.y, 2)
+                ))),
                 None => ui.label(RichText::new(tr("Position unbekannt – ist der Laser verbunden?")).color(pal.warning)),
             };
             let room = cf.mode == CenterMode::Circle || cf.points.len() < 2;
@@ -113,7 +117,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 egui::Grid::new("center_points").num_columns(3).spacing(vec2(12.0, 2.0)).show(ui, |ui| {
                     for (i, p) in cf.points.iter().enumerate() {
                         ui.label(format!("{}.", i + 1));
-                        ui.label(format!("X {:.2}   Y {:.2}", p.x, p.y));
+                        ui.label(format!("X {}   Y {}", crate::units::num(p.x, 2), crate::units::num(p.y, 2)));
                         if ui.small_button(icon::X).on_hover_text(tr("Punkt entfernen")).clicked() {
                             action = Some(Action::Remove(i));
                         }
@@ -124,9 +128,10 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
             ui.separator();
             match cf.result() {
                 Some((c, r)) => {
-                    ui.label(RichText::new(trs(&format!("Mitte: X {:.2} Y {:.2}", c.x, c.y))).strong());
+                    let (x, y) = (crate::units::num(c.x, 2), crate::units::len(c.y, 2));
+                    ui.label(RichText::new(trs(&format!("Mitte: X {x} Y {y}"))).strong());
                     if let Some(r) = r {
-                        ui.label(trs(&format!("Durchmesser: {:.2} mm", 2.0 * r)));
+                        ui.label(trs(&format!("Durchmesser: {}", crate::units::len(2.0 * r, 2))));
                     }
                     ui.horizontal_wrapped(|ui| {
                         if ui

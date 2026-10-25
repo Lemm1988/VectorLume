@@ -5,6 +5,7 @@ use crate::canvas::{Drag, HANDLE, ViewTf};
 use crate::i18n::tr;
 use crate::snapping::{SnapKind, SnapTargets};
 use crate::theme;
+use crate::units::UnitField;
 use egui::{CursorIcon, PointerButton, Pos2, RichText, Stroke, Ui, vec2};
 use egui_phosphor::regular as icon;
 use vl_core::nodes::{self, HandleRef, NodeRef};
@@ -432,7 +433,7 @@ pub fn options(app: &mut VectorLumeApp, ui: &mut Ui) {
             .range(0.01..=500.0)
             .max_decimals(2)
             .prefix("r ")
-            .suffix(" mm"),
+            .mm(),
     )
     .on_hover_text(tr("Radius bzw. Fasenlänge für „Abrunden“ und „Abschrägen“"));
     let hint = if app.node_edit.target.is_none() {
