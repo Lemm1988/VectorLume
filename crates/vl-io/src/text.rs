@@ -89,7 +89,18 @@ fn with_face(
         let face = ttf_parser::Face::parse(data, index).map_err(|e| format!("Schrift unlesbar: {e}"))?;
         f(&face)
     });
-    result.ok_or_else(|| "Schriftdaten konnten nicht geladen werden.".to_string())?
+    let path = result.ok_or_else(|| "Schriftdaten konnten nicht geladen werden.".to_string())??;
+    Ok(if spec.weld { welded(&path) } else { path })
+}
+
+/// Verschweißt überlappende Glyphen (Nicht-Null-Regel der Schriften); das Ergebnis besteht aus Polygonen.
+fn welded(path: &VectorPath) -> VectorPath {
+    let polys = path.flatten(&Affine::IDENTITY, 0.01);
+    let mut out = VectorPath::default();
+    for p in vl_core::ops::union_nonzero(&polys) {
+        out.append(VectorPath::polygon(&p.points, true));
+    }
+    out
 }
 
 fn layout(face: &ttf_parser::Face, spec: &TextSpec) -> Result<VectorPath, String> {
@@ -244,6 +255,21 @@ mod tests {
         // Großbuchstaben ohne Unterlänge: Höhe entspricht ungefähr der gewünschten Höhe.
         assert!((b.height() - 10.0).abs() < 1.5, "{b:?}");
         assert!(b.min.y > -1.0, "{b:?}");
+    }
+
+    #[test]
+    fn welding_merges_overlapping_letters() {
+        let db = system_fonts();
+        let Some(family) = any_family(&db) else { return };
+        let spec = TextSpec { text: "OO".into(), family, height_mm: 10.0, letter_spacing: -3.0, ..Default::default() };
+        let plain = text_to_path(&db, &spec).unwrap();
+        let welded = text_to_path(&db, &TextSpec { weld: true, ..spec }).unwrap();
+        let closed = |p: &VectorPath| p.subpaths.iter().filter(|s| s.closed).count();
+        assert_eq!(closed(&plain), 4, "zwei O mit je einem Loch");
+        // eine gemeinsame Außenkontur, die Löcher bleiben
+        assert!(closed(&welded) == 3, "{}", closed(&welded));
+        let b = |p: &VectorPath| p.bounds(&Affine::IDENTITY);
+        assert!((b(&plain).width() - b(&welded).width()).abs() < 0.05);
     }
 
     #[test]

@@ -122,6 +122,13 @@ pub fn weld(objects: &[Vec<Polyline>]) -> Vec<Polyline> {
     to_polylines(all.simplify_shape(FillRule::NonZero))
 }
 
+/// Vereinigt Konturen nach der Nicht-Null-Regel (wie Schriften gefüllt werden): überlappende Buchstaben werden eine
+/// Fläche, Löcher bleiben.
+pub fn union_nonzero(polys: &[Polyline]) -> Vec<Polyline> {
+    let c = contours(polys);
+    if c.is_empty() { Vec::new() } else { to_polylines(c.simplify_shape(FillRule::NonZero)) }
+}
+
 /// Versatz: positive Werte vergrößern Flächen (Löcher werden kleiner), negative verkleinern sie.
 /// Offene Pfade werden mit dem Betrag des Abstands umrandet.
 pub fn offset(polys: &[Polyline], distance: f64, corner: Corner) -> Vec<Polyline> {

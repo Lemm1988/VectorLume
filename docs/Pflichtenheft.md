@@ -88,7 +88,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-11 | Auswählen und Transformieren | Klick, Umschalt-Klick, Rahmenauswahl (links→rechts: vollständig, rechts→links: berührend), Verschieben, 8 Griffe zum Skalieren, Drehgriff (Umschalt = 15°); Auswahl umkehren, alles auf der aktuellen Ebene, offene Formen auswählen | ✅ |
 | LF-12 | Zahleneingabe | X/Y/B/H in Maschinenkoordinaten, Seitenverhältnis sperren, Drehen um Winkel | ✅ |
 | LF-13 | Grundformen | Rechteck mit Eckenradius, Ellipse/Kreis, Linie (Umschalt = 45°), Vieleck, Stern | ✅ |
-| LF-14 | Text | Installierte Schriften, fett/kursiv, Höhe, Zeichen-/Zeilenabstand, Ausrichtung, Kerning; Text bleibt bearbeitbar (Doppelklick); Text auf Pfad (Versatz, Abstand, Seite); variabler Text mit `{n}` (zählt nach jedem fertigen Job weiter), `{datum}`, `{zeit}`, `{jahr}`; Datenliste aus CSV (Spalten als Platzhalter, `{zeile}`, nächste Zeile nach jedem fertigen Job; `,` `;` Tab, UTF-8/Windows-1252); Umwandeln in Kurven | ✅ |
+| LF-14 | Text | Installierte Schriften, fett/kursiv, Höhe, Zeichen-/Zeilenabstand, Ausrichtung, Kerning; Text bleibt bearbeitbar (Doppelklick); Text auf Pfad (Versatz, Abstand, Seite); variabler Text mit `{n}` (zählt nach jedem fertigen Job weiter), `{datum}`, `{zeit}`, `{jahr}`; Datenliste aus CSV (Spalten als Platzhalter, `{zeile}`, nächste Zeile nach jedem fertigen Job; `,` `;` Tab, UTF-8/Windows-1252); Umwandeln in Kurven; **Verschweißen** überlappender Buchstaben (Nicht-Null-Regel der Schrift, Löcher bleiben) | ✅ |
 | LF-15 | Spiegeln, Drehen, Ausrichten, Verteilen | inkl. „Auf Arbeitsfläche zentrieren“, gleiche Breite/Höhe (Maß der zuerst gewählten Form), Gruppen werden als Einheit behandelt | ✅ |
 | LF-16 | Gruppen, Zerlegen, Ausblenden | Gruppieren/Lösen, Zerlegen (ein Objekt je Teilpfad, auch Texte), Gummiband-Umriss (konvexe Hülle der Auswahl als neue Form), Ebenen ausblenden und sperren | ✅ |
 | LF-17 | Knotenbearbeitung | Knotenwerkzeug (N): Knoten/Kurvengriffe ziehen, Doppelklick fügt ein, Entf löscht, Segment → Linie/Kurve, Pfad öffnen/schließen | ✅ |
@@ -219,7 +219,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (147):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (148):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,

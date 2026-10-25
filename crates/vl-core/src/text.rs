@@ -27,6 +27,8 @@ pub struct TextSpec {
     /// Zeilenabstand als Faktor der Schrifthöhe.
     pub line_spacing: f64,
     pub align: TextAlign,
+    /// Überlappende Buchstaben zu einer Kontur verschweißen (z. B. Schreibschrift).
+    pub weld: bool,
 }
 
 impl Default for TextSpec {
@@ -40,6 +42,7 @@ impl Default for TextSpec {
             letter_spacing: 0.0,
             line_spacing: 1.0,
             align: TextAlign::Left,
+            weld: false,
         }
     }
 }

@@ -337,6 +337,10 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.horizontal(|ui| {
                     ui.toggle_value(&mut d.spec.bold, RichText::new("F").strong());
                     ui.toggle_value(&mut d.spec.italic, RichText::new("K").italics());
+                    ui.checkbox(&mut d.spec.weld, tr("Verschweißen")).on_hover_text(tr(
+                        "Überlappende Buchstaben (z. B. Schreibschrift) zu einer Kontur vereinen, damit beim Schneiden \
+                         und Füllen nichts doppelt gebrannt wird",
+                    ));
                 });
                 ui.end_row();
                 ui.label(tr("Höhe"));
