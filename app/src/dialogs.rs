@@ -353,6 +353,8 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     (tr("Pfeiltasten (+Umschalt)"), tr("Auswahl 1 mm (10 mm) verschieben")),
                     ("Alt+P", tr("Vorschau")),
                     ("F", tr("Arbeitsfläche einpassen")),
+                    (tr("Strg+Umschalt+V"), tr("An Ort und Stelle einfügen")),
+                    (tr("Bild↑ / Bild↓ (+Strg)"), tr("Auswahl eins (ganz) nach vorne / hinten")),
                 ] {
                     ui.label(RichText::new(k).monospace());
                     ui.label(d);

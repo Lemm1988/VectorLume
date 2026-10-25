@@ -54,8 +54,20 @@ pub fn shortcuts(app: &mut VectorLumeApp, ctx: &egui::Context) {
     if pressed(sc(Modifiers::COMMAND, Key::X)) {
         app.cut();
     }
-    if pressed(sc(Modifiers::COMMAND, Key::V)) {
+    if pressed(sc(cs, Key::V)) {
+        app.paste_in_place();
+    } else if pressed(sc(Modifiers::COMMAND, Key::V)) {
         app.paste();
+    }
+    for (m, k, how) in [
+        (Modifiers::COMMAND, Key::PageUp, vl_core::ZOrder::Front),
+        (Modifiers::COMMAND, Key::PageDown, vl_core::ZOrder::Back),
+        (Modifiers::NONE, Key::PageUp, vl_core::ZOrder::Forward),
+        (Modifiers::NONE, Key::PageDown, vl_core::ZOrder::Backward),
+    ] {
+        if pressed(sc(m, k)) {
+            app.reorder_selection(how);
+        }
     }
     if pressed(sc(cs, Key::G)) {
         app.ungroup();
@@ -285,6 +297,9 @@ fn edit_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Einfügen"), "Strg+V", !app.clipboard.is_empty()) {
         app.paste();
     }
+    if menu_item(ui, tr("An Ort und Stelle einfügen"), tr("Strg+Umschalt+V"), !app.clipboard.is_empty()) {
+        app.paste_in_place();
+    }
     if menu_item(ui, tr("Duplizieren"), "Strg+D", has) {
         app.duplicate();
     }
@@ -355,6 +370,25 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
         });
     });
     ui.add_enabled_ui(has, |ui| {
+        ui.menu_button(tr("Reihenfolge"), |ui| {
+            ui.label(
+                RichText::new(tr(
+                    "Vorne liegende Objekte werden oben gezeichnet und ohne Optimierung zuletzt gelasert",
+                ))
+                .small()
+                .color(theme::of(ui).text_weak),
+            );
+            for (label, keys, how) in [
+                (tr("Ganz nach vorne"), tr("Strg+Bild↑"), vl_core::ZOrder::Front),
+                (tr("Eins nach vorne"), tr("Bild↑"), vl_core::ZOrder::Forward),
+                (tr("Eins nach hinten"), tr("Bild↓"), vl_core::ZOrder::Backward),
+                (tr("Ganz nach hinten"), tr("Strg+Bild↓"), vl_core::ZOrder::Back),
+            ] {
+                if menu_item(ui, label, keys, true) {
+                    app.reorder_selection(how);
+                }
+            }
+        });
         ui.menu_button(tr("Andocken"), |ui| {
             ui.label(
                 RichText::new(tr("Schiebt die Auswahl, bis sie eine andere Form oder den Rand berührt"))

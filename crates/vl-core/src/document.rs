@@ -307,6 +307,19 @@ fn box_columns(a: &mut [f32], cols: usize, rows: usize, r: usize, src: &mut Vec<
     }
 }
 
+/// Verschieben in der Objektreihenfolge.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ZOrder {
+    /// ganz nach vorne (zuletzt)
+    Front,
+    /// eine Stelle nach vorne
+    Forward,
+    /// eine Stelle nach hinten
+    Backward,
+    /// ganz nach hinten (zuerst)
+    Back,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ImageObject {
     pub image: Arc<RasterImage>,
@@ -612,6 +625,37 @@ impl Document {
     }
 
     /// Kopiert Objekte mit neuen IDs (Gruppen bleiben als neue Gruppen erhalten) und gibt die neuen IDs zurück.
+    /// Ändert die Reihenfolge der Objekte (weiter hinten in der Liste = oben gezeichnet und ohne Optimierung später
+    /// bearbeitet); die gewählten behalten untereinander ihre Reihenfolge. `true`, wenn sich etwas geändert hat.
+    pub fn reorder(&mut self, ids: &[ObjectId], how: ZOrder) -> bool {
+        let sel = |o: &Object| ids.contains(&o.id);
+        let before: Vec<ObjectId> = self.objects.iter().map(|o| o.id).collect();
+        let n = self.objects.len();
+        match how {
+            ZOrder::Front | ZOrder::Back => {
+                let (picked, rest): (Vec<Object>, Vec<Object>) =
+                    std::mem::take(&mut self.objects).into_iter().partition(|o| sel(o));
+                let (first, second) = if how == ZOrder::Front { (rest, picked) } else { (picked, rest) };
+                self.objects = first.into_iter().chain(second).collect();
+            }
+            ZOrder::Forward => {
+                for i in (0..n.saturating_sub(1)).rev() {
+                    if sel(&self.objects[i]) && !sel(&self.objects[i + 1]) {
+                        self.objects.swap(i, i + 1);
+                    }
+                }
+            }
+            ZOrder::Backward => {
+                for i in 1..n {
+                    if sel(&self.objects[i]) && !sel(&self.objects[i - 1]) {
+                        self.objects.swap(i, i - 1);
+                    }
+                }
+            }
+        }
+        self.objects.iter().map(|o| o.id).ne(before)
+    }
+
     pub fn duplicate(&mut self, objects: &[Object], offset: Point) -> Vec<ObjectId> {
         let mut group_map: Vec<(GroupId, GroupId)> = Vec::new();
         let mut ids = Vec::new();
@@ -737,5 +781,22 @@ mod tests {
         let mut g: Vec<f32> = mask.iter().map(|&m| if m { 0.5 } else { 0.0 }).collect();
         a.denoise_grid(&mut g, Some(&mask), cols, rows, 0.1);
         assert!(g.iter().zip(&mask).all(|(v, m)| if *m { (v - 0.5).abs() < 0.003 } else { *v == 0.0 }));
+    }
+
+    #[test]
+    fn reorder_moves_selection_as_block() {
+        let mut doc = Document::new();
+        let ids: Vec<ObjectId> =
+            (0..5).map(|k| doc.add_path(format!("{k}"), 0, VectorPath::rect(0.0, 0.0, 1.0, 1.0, 0.0))).collect();
+        let order = |d: &Document| d.objects.iter().map(|o| o.name.clone()).collect::<Vec<_>>().join("");
+        assert!(doc.reorder(&[ids[1], ids[2]], ZOrder::Forward));
+        assert_eq!(order(&doc), "03124");
+        assert!(doc.reorder(&[ids[1], ids[2]], ZOrder::Front));
+        assert_eq!(order(&doc), "03412");
+        assert!(!doc.reorder(&[ids[1], ids[2]], ZOrder::Front), "schon vorne");
+        assert!(doc.reorder(&[ids[4]], ZOrder::Back));
+        assert_eq!(order(&doc), "40312");
+        assert!(doc.reorder(&[ids[3]], ZOrder::Backward));
+        assert_eq!(order(&doc), "43012");
     }
 }

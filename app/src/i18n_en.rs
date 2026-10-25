@@ -1153,6 +1153,20 @@ pub static EN: &[(&str, &str)] = &[
     ("Bildgravur", "Image engraving"),
     ("Weiße Lücken im Eilgang überfahren", "Cross white gaps at rapid speed"),
     ("Lange weiße Stellen innerhalb einer Bildzeile werden nicht mit Gravurgeschwindigkeit, sondern im Eilgang (G0) überfahren – mit Aus- und Anlauf um den Overscan. Spart bei Logos und Schriften viel Zeit. Nur Lücken über 5 mm plus zweimal Overscan.", "Long white stretches within an image line are crossed at rapid speed (G0) instead of engraving speed – leaving and re-entering with the overscan. Saves a lot of time on logos and lettering. Only gaps longer than 5 mm plus twice the overscan."),
+    ("Strg+Umschalt+V", "Ctrl+Shift+V"),
+    ("An Ort und Stelle einfügen", "Paste in place"),
+    ("Bild↑ / Bild↓ (+Strg)", "PgUp / PgDn (+Ctrl)"),
+    ("Auswahl eins (ganz) nach vorne / hinten", "Move selection one step (all the way) forward / back"),
+    ("Reihenfolge", "Order"),
+    ("Vorne liegende Objekte werden oben gezeichnet und ohne Optimierung zuletzt gelasert", "Objects in front are drawn on top and, without optimization, lasered last"),
+    ("Ganz nach vorne", "Bring to front"),
+    ("Strg+Bild↑", "Ctrl+PgUp"),
+    ("Eins nach vorne", "Bring forward"),
+    ("Bild↑", "PgUp"),
+    ("Eins nach hinten", "Send backward"),
+    ("Bild↓", "PgDn"),
+    ("Ganz nach hinten", "Send to back"),
+    ("Strg+Bild↓", "Ctrl+PgDn"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

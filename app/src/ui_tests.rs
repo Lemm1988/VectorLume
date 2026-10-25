@@ -139,6 +139,37 @@ fn node_tool_extends_open_end_to_wall() {
     assert_eq!(p.subpaths.len(), 1);
 }
 
+#[test]
+fn keys_reorder_and_paste_in_place() {
+    let mut h = harness(false);
+    let ids: Vec<ObjectId> =
+        (0..3).map(|k| add(&mut h, VectorPath::rect(10.0 + 20.0 * k as f64, 10.0, 10.0, 10.0, 0.0))).collect();
+    let order = |h: &Harness<'static, VectorLumeApp>| h.state().doc.objects.iter().map(|o| o.id).collect::<Vec<_>>();
+    h.state_mut().selection = vec![ids[0]];
+    h.key_press(egui::Key::PageUp);
+    h.run_ok();
+    assert_eq!(order(&h), vec![ids[1], ids[0], ids[2]]);
+    h.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::PageUp);
+    h.run_ok();
+    assert_eq!(order(&h), vec![ids[1], ids[2], ids[0]]);
+    h.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::PageDown);
+    h.run_ok();
+    assert_eq!(order(&h), ids);
+
+    let before = h.state().doc.bounds_of(&[ids[0]]);
+    h.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::C);
+    h.run_ok();
+    h.key_press_modifiers(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::V);
+    h.run_ok();
+    let app = h.state();
+    assert_eq!(app.doc.objects.len(), 4);
+    assert_eq!(app.doc.bounds_of(&app.selection), before, "an Ort und Stelle");
+    h.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::V);
+    h.run_ok();
+    let app = h.state();
+    assert_eq!(app.doc.bounds_of(&app.selection).min.x, before.min.x + 5.0, "normal versetzt");
+}
+
 /// Grundformen zeigen ihre Parameter in der oberen Leiste, gewöhnliche Pfade nicht.
 fn primitive_fields_flow(render: bool) {
     use vl_core::primitive::Primitive;

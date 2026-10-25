@@ -229,6 +229,8 @@ pub struct VectorLumeApp {
     pub dirty: bool,
     pub revision: u64,
     pub clipboard: Vec<Object>,
+    /// Versatz des letzten Einfügens; wächst mit jedem Einfügen, damit Kopien nicht übereinander liegen.
+    pub paste_offset: f64,
     pub preview: PreviewState,
     pub jobs: JobWorker,
     pub toasts: Vec<Toast>,
@@ -318,6 +320,7 @@ impl VectorLumeApp {
             dirty: false,
             revision: 1,
             clipboard: Vec::new(),
+            paste_offset: 0.0,
             preview: PreviewState { progress: 1.0, ..Default::default() },
             jobs: JobWorker { tx, rx, next_id: 1, busy: 0, preview_in_flight: false },
             toasts: Vec::new(),
@@ -916,6 +919,7 @@ impl VectorLumeApp {
 
     pub fn copy(&mut self) {
         self.clipboard = self.selected_objects();
+        self.paste_offset = 0.0;
     }
 
     pub fn cut(&mut self) {
@@ -923,18 +927,41 @@ impl VectorLumeApp {
         self.delete_selection();
     }
 
+    /// Einfügen, jedes Mal um weitere 5 mm versetzt.
     pub fn paste(&mut self) {
+        self.paste_shifted(true);
+    }
+
+    /// Einfügen an der Stelle des Originals.
+    pub fn paste_in_place(&mut self) {
+        self.paste_shifted(false);
+    }
+
+    fn paste_shifted(&mut self, shifted: bool) {
         if self.clipboard.is_empty() {
             return;
         }
         self.checkpoint();
-        let objs = self.clipboard.clone();
-        self.selection = self.doc.duplicate(&objs, Point::new(5.0, 5.0));
-        // Beim nächsten Einfügen weiter versetzen.
-        for o in &mut self.clipboard {
-            o.transform = o.transform.then(&Affine::translate(5.0, 5.0));
+        if shifted {
+            self.paste_offset += 5.0;
         }
+        let d = if shifted { self.paste_offset } else { 0.0 };
+        let objs = self.clipboard.clone();
+        self.selection = self.doc.duplicate(&objs, Point::new(d, d));
         self.mark_changed();
+    }
+
+    /// Verschiebt die Auswahl in der Objektreihenfolge (Zeichen- und, ohne Optimierung, Schnittreihenfolge).
+    pub fn reorder_selection(&mut self, how: vl_core::ZOrder) {
+        if self.selection.is_empty() {
+            return;
+        }
+        self.checkpoint();
+        if self.doc.reorder(&self.selection, how) {
+            self.mark_changed();
+        } else {
+            self.history.discard_if_unchanged(&self.doc);
+        }
     }
 
     pub fn duplicate(&mut self) {

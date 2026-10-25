@@ -18,7 +18,9 @@ pub mod slots;
 pub mod text;
 pub mod trim;
 
-pub use document::{Document, GroupId, ImageAdjust, ImageObject, Object, ObjectId, ProjectNotes, RasterImage, Shape};
+pub use document::{
+    Document, GroupId, ImageAdjust, ImageObject, Object, ObjectId, ProjectNotes, RasterImage, Shape, ZOrder,
+};
 pub use firmware::Firmware;
 pub use geom::{Affine, Point, Rect};
 pub use layer::{CutSettings, DitherMode, FillGrouping, LAYER_COUNT, Layer, LayerMode, PALETTE};
