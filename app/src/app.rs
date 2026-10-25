@@ -86,7 +86,8 @@ impl Default for ToolOptions {
 pub enum JobPurpose {
     Preview,
     Start,
-    Frame,
+    /// Rahmen fahren; `true` = konvexe Hülle statt Rechteck.
+    Frame(bool),
     Export(PathBuf),
 }
 
@@ -1019,8 +1020,8 @@ impl VectorLumeApp {
                     }
                     Err(e) => self.toast(ToastKind::Error, e),
                 },
-                JobPurpose::Frame => match result {
-                    Ok(job) => self.run_frame(&job),
+                JobPurpose::Frame(hull) => match result {
+                    Ok(job) => self.run_frame(&job, hull),
                     Err(e) => self.toast(ToastKind::Error, e),
                 },
                 JobPurpose::Export(path) => match result {
@@ -1077,8 +1078,8 @@ impl VectorLumeApp {
         self.device.send(Command::StartJob { name, lines: lines.to_vec() });
     }
 
-    pub fn run_frame(&mut self, job: &Job) {
-        let lines = strip_for_streaming(&vl_cam::frame_gcode(job, &self.settings.profile));
+    pub fn run_frame(&mut self, job: &Job, hull: bool) {
+        let lines = strip_for_streaming(&vl_cam::frame_gcode(job, &self.settings.profile, hull));
         self.device.send(Command::StartJob { name: tr("Rahmen").into(), lines });
     }
 
@@ -1142,9 +1143,9 @@ impl VectorLumeApp {
         }
     }
 
-    pub fn frame_job(&mut self) {
+    pub fn frame_job(&mut self, hull: bool) {
         if self.ready_to_frame() {
-            self.request_job(JobPurpose::Frame);
+            self.request_job(JobPurpose::Frame(hull));
         }
     }
 

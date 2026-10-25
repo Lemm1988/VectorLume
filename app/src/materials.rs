@@ -423,7 +423,7 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
     match (action, app.test.job.clone()) {
         (Some("frame"), Some(job)) => {
             if app.ready_to_frame() {
-                app.run_frame(&job);
+                app.run_frame(&job, false);
             }
         }
         (Some("start"), Some(job)) => {

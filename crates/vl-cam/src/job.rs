@@ -410,10 +410,17 @@ fn apply_tabs(polys: Vec<Polyline>, count: usize, width: f64, outer_only: bool) 
     out
 }
 
-/// G-Code zum Abfahren des Job-Umrisses (Laser aus oder mit geringer Leistung laut Profil).
-pub fn frame_gcode(job: &Job, profile: &MachineProfile) -> Vec<String> {
+/// G-Code zum Abfahren des Job-Umrisses (Laser aus oder mit geringer Leistung laut Profil): das umgebende
+/// Rechteck oder mit `hull` die konvexe Hülle aller gelaserten Strecken, die sich runden und schrägen Formen anpasst.
+pub fn frame_gcode(job: &Job, profile: &MachineProfile, hull: bool) -> Vec<String> {
     let r = job.design_bounds;
-    let corners = [r.min, Point::new(r.max.x, r.min.y), r.max, Point::new(r.min.x, r.max.y)];
+    let mut corners = vec![r.min, Point::new(r.max.x, r.min.y), r.max, Point::new(r.min.x, r.max.y)];
+    if hull {
+        let outline = vl_core::ops::convex_hull(&burn_points(&job.toolpath));
+        if outline.len() >= 3 {
+            corners = outline;
+        }
+    }
     let power = (profile.frame_power / 100.0).clamp(0.0, 0.1) as f32;
     // Zur ersten Ecke im Eilgang (Laser aus), sonst entstünde bei Rahmen-Leistung > 0 eine Linie vom Startpunkt.
     let mut ops = vec![Op::Rapid(corners[0])];
@@ -453,6 +460,22 @@ pub fn frame_gcode(job: &Job, profile: &MachineProfile) -> Vec<String> {
     emit(&tp, &|p| job.mapping.map(p), &opts)
 }
 
+/// Anfangs- und Endpunkte aller Bewegungen mit Laser an.
+fn burn_points(tp: &Toolpath) -> Vec<Point> {
+    let mut pts = Vec::new();
+    let mut cur: Option<Point> = None;
+    for op in tp.blocks.iter().flat_map(|b| &b.ops) {
+        if let Op::Move { to, power } = *op
+            && power > 0.0
+        {
+            pts.extend(cur);
+            pts.push(to);
+        }
+        cur = Some(op.target());
+    }
+    pts
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -479,6 +502,24 @@ mod tests {
             Point::new(100.0, 100.0),
         );
         doc
+    }
+
+    #[test]
+    fn hull_frame_follows_round_shapes() {
+        let mut doc = Document::new();
+        doc.add_path("Kreis", 0, VectorPath::ellipse(Point::new(50.0, 50.0), 20.0, 20.0));
+        let profile = MachineProfile::default();
+        let job = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
+        // Vorschubbewegungen (G1 ist modal, Folgezeilen beginnen mit der Koordinate)
+        let g1 = |lines: Vec<String>| {
+            lines.iter().filter(|l| l.starts_with("G1") || l.starts_with('X') || l.starts_with('Y')).count()
+        };
+        assert_eq!(g1(frame_gcode(&job, &profile, false)), 4);
+        let hull = frame_gcode(&job, &profile, true);
+        assert!(g1(hull.clone()) > 16, "{hull:?}");
+        // alle Ecken der Hülle liegen auf dem Kreis
+        let pts = vl_core::ops::convex_hull(&burn_points(&job.toolpath));
+        assert!(pts.iter().all(|p| (p.distance(Point::new(50.0, 50.0)) - 20.0).abs() < 0.1));
     }
 
     #[test]
@@ -592,7 +633,7 @@ mod tests {
         assert_eq!(code[1], "G91");
         assert!(job.warnings.is_empty());
         let lit = MachineProfile { frame_power: 1.0, ..Default::default() };
-        let frame = strip_for_streaming(&frame_gcode(&job, &lit));
+        let frame = strip_for_streaming(&frame_gcode(&job, &lit, false));
         assert_eq!(frame[1], "G91");
         assert_eq!(frame.last().unwrap(), "G90");
         // Erste Bewegung ist ein Eilgang, erst danach wird mit geringer Leistung abgefahren.

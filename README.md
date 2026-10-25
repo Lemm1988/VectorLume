@@ -25,7 +25,7 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
   Scan-Versatz-Ausgleich für saubere Kanten beim beidseitigen Gravieren (*Maschineneinstellungen*)
 - **Kamera:** Webcam oder Foto der Arbeitsfläche, über vier Passpunkte entzerrt und halbtransparent unter dem
   Entwurf angezeigt (*Laser → Kamera…*)
-- **Laser:** USB- oder Netzwerkverbindung (TCP/Telnet, z. B. FluidNC), Status, Konsole, Referenzfahrt, Verfahren, Rahmen, Start/Pause/Stopp,
+- **Laser:** USB- oder Netzwerkverbindung (TCP/Telnet, z. B. FluidNC), Status, Konsole, Referenzfahrt, Verfahren, Rahmen (Rechteck oder Umriss), Start/Pause/Stopp,
   fertige G-Code-Dateien senden, Job-Ursprung (absolut, Benutzer-Ursprung, aktuelle Position, 9 Ankerpunkte), Drehachse (Rollen/Futter, Y oder A)
 - **Vorschau** mit Laufzeitschätzung, Leerfahrten und Abspielregler
 - **Optimierung:** kürzeste Wege, innen vor außen, Gravieren vor Schneiden

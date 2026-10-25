@@ -597,16 +597,28 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             }
         });
         ui.horizontal(|ui| {
+            let spacing = ui.spacing().item_spacing.x;
+            ui.spacing_mut().item_spacing.x = 4.0;
             if ui
                 .add_enabled(
                     connected && !running,
-                    Button::new(trs(&format!("{} Rahmen", icon::FRAME_CORNERS))).min_size(vec2(w, 28.0)),
+                    Button::new(trs(&format!("{} Rahmen", icon::FRAME_CORNERS))).min_size(vec2(w - 34.0, 28.0)),
                 )
-                .on_hover_text(tr("Den Umriss des Jobs abfahren (Laser aus)"))
+                .on_hover_text(tr("Das umgebende Rechteck des Jobs abfahren (Laser aus)"))
                 .clicked()
             {
-                app.frame_job();
+                app.frame_job(false);
             }
+            if ui
+                .add_enabled(connected && !running, Button::new(icon::POLYGON).min_size(vec2(30.0, 28.0)))
+                .on_hover_text(tr(
+                    "Umriss-Rahmen: die konvexe Hülle des Jobs abfahren – folgt runden und schrägen Formen enger als das Rechteck",
+                ))
+                .clicked()
+            {
+                app.frame_job(true);
+            }
+            ui.spacing_mut().item_spacing.x = spacing;
             if ui
                 .add_enabled(
                     connected && !running,

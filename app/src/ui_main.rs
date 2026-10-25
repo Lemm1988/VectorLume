@@ -439,7 +439,10 @@ fn laser_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
         app.unlock();
     }
     if menu_item(ui, tr("Rahmen fahren"), "", connected) {
-        app.frame_job();
+        app.frame_job(false);
+    }
+    if menu_item(ui, tr("Umriss-Rahmen fahren"), "", connected) {
+        app.frame_job(true);
     }
     if menu_item(ui, tr("Job starten"), "", connected && !app.machine.job_running) {
         app.start_job();

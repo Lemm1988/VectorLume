@@ -148,6 +148,33 @@ pub fn offset(polys: &[Polyline], distance: f64, corner: Corner) -> Vec<Polyline
     out
 }
 
+/// Konvexe Hülle (Andrew-Verfahren), gegen den Uhrzeigersinn im mathematischen Sinn, ohne doppelte und
+/// kollineare Punkte. Bei weniger als drei verschiedenen Punkten kommen diese unverändert zurück.
+pub fn convex_hull(points: &[Point]) -> Vec<Point> {
+    let mut pts: Vec<Point> = points.to_vec();
+    pts.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));
+    pts.dedup_by(|a, b| (a.x - b.x).abs() < 1e-9 && (a.y - b.y).abs() < 1e-9);
+    if pts.len() < 3 {
+        return pts;
+    }
+    let cross = |o: Point, a: Point, b: Point| (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+    // untere Kette von links nach rechts, obere zurück; der jeweils letzte Punkt beginnt die andere Kette
+    let half = |it: &mut dyn Iterator<Item = Point>| {
+        let mut h: Vec<Point> = Vec::new();
+        for p in it {
+            while h.len() >= 2 && cross(h[h.len() - 2], h[h.len() - 1], p) <= 1e-12 {
+                h.pop();
+            }
+            h.push(p);
+        }
+        h.pop();
+        h
+    };
+    let mut hull = half(&mut pts.iter().copied());
+    hull.extend(half(&mut pts.iter().rev().copied()));
+    hull
+}
+
 /// Konzentrische Linien nach innen im Abstand `interval` (Modus „Versatz-Füllen“), von außen nach innen.
 /// Die erste Linie liegt einen halben Abstand innerhalb der Kontur.
 pub fn offset_fill(polys: &[Polyline], interval: f64, max_rings: usize) -> Vec<Polyline> {
@@ -303,6 +330,16 @@ pub fn position_at(poly: &Polyline, s: f64) -> Option<(Point, f64)> {
 mod tests {
     use super::*;
     use crate::path::point_in_polylines;
+
+    #[test]
+    fn convex_hull_of_points() {
+        let p = |x: f64, y: f64| Point::new(x, y);
+        let pts =
+            [p(2.0, 2.0), p(0.0, 0.0), p(4.0, 0.0), p(2.0, 0.0), p(4.0, 4.0), p(1.0, 3.0), p(0.0, 4.0), p(4.0, 4.0)];
+        assert_eq!(convex_hull(&pts), [p(0.0, 0.0), p(4.0, 0.0), p(4.0, 4.0), p(0.0, 4.0)]);
+        assert_eq!(convex_hull(&[p(1.0, 1.0), p(1.0, 1.0), p(2.0, 1.0)]).len(), 2);
+        assert!(convex_hull(&[]).is_empty());
+    }
 
     #[test]
     fn position_at_wraps_and_extends() {

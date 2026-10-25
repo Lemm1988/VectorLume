@@ -98,7 +98,7 @@ fn relative_job_and_frame_return_to_start() {
     let profile = MachineProfile::default();
     let settings = JobSettings { start_from: StartFrom::CurrentPosition, ..Default::default() };
     let job = build_job(&doc, &[], &profile, &settings).unwrap();
-    for lines in [strip_for_streaming(&job.gcode), strip_for_streaming(&frame_gcode(&job, &profile))] {
+    for lines in [strip_for_streaming(&job.gcode), strip_for_streaming(&frame_gcode(&job, &profile, false))] {
         let (oks, errors, pos) = stream(&lines);
         assert!(errors.is_empty(), "{errors:?}");
         assert_eq!(oks, lines.len());
