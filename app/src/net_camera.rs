@@ -77,6 +77,8 @@ pub fn fetch_image(url: &str, timeout: Duration) -> Result<Vec<u8>, String> {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 16 * 1024];
     let mut header_end = None;
+    let mut multipart = false;
+    let mut jpeg_start = None;
     loop {
         let n = match s.read(&mut chunk) {
             Ok(n) => n,
@@ -84,9 +86,12 @@ pub fn fetch_image(url: &str, timeout: Duration) -> Result<Vec<u8>, String> {
             // Zeitüberschreitung mitten im Strom: mit dem Vorhandenen weiterarbeiten
             Err(_) => 0,
         };
+        // Gesucht wird nur im neuen Teil (plus Überlappung für Marken auf der Grenze) – sonst würde ein Strom ohne
+        // Bildende den Puffer bis zur Obergrenze immer wieder ganz durchsuchen (quadratischer Aufwand).
+        let old = buf.len();
         buf.extend_from_slice(&chunk[..n]);
         if header_end.is_none() {
-            header_end = find(&buf, b"\r\n\r\n", 0).map(|i| i + 4);
+            header_end = find(&buf, b"\r\n\r\n", old.saturating_sub(3)).map(|i| i + 4);
             if let Some(end) = header_end {
                 let head = String::from_utf8_lossy(&buf[..end]).to_string();
                 let status = head.split_whitespace().nth(1).unwrap_or("");
@@ -94,15 +99,19 @@ pub fn fetch_image(url: &str, timeout: Duration) -> Result<Vec<u8>, String> {
                     let line = head.lines().next().unwrap_or("").trim().to_string();
                     return Err(format!("Die Kamera meldet „{line}“."));
                 }
+                multipart = head.to_ascii_lowercase().contains("multipart/");
             }
         }
         // MJPEG-Strom: sobald ein Bild vollständig ist, aufhören
         if let Some(end) = header_end
-            && let Some(start) = find(&buf, &[0xFF, 0xD8], end)
-            && let Some(stop) = find(&buf, &[0xFF, 0xD9], start + 2)
+            && multipart
         {
-            let head = String::from_utf8_lossy(&buf[..end]).to_ascii_lowercase();
-            if head.contains("multipart/") {
+            if jpeg_start.is_none() {
+                jpeg_start = find(&buf, &[0xFF, 0xD8], end.max(old.saturating_sub(1)));
+            }
+            if let Some(start) = jpeg_start
+                && let Some(stop) = find(&buf, &[0xFF, 0xD9], (start + 2).max(old.saturating_sub(1)))
+            {
                 return Ok(buf[start..stop + 2].to_vec());
             }
         }
@@ -141,8 +150,9 @@ mod tests {
             let (mut c, _) = listener.accept().unwrap();
             let mut req = vec![0u8; 4096];
             let n = c.read(&mut req).unwrap();
-            c.write_all(head.as_bytes()).unwrap();
-            c.write_all(&body).unwrap();
+            // der Client darf vorzeitig auflegen
+            let _ = c.write_all(head.as_bytes());
+            let _ = c.write_all(&body);
             if keep_open {
                 // Strom läuft weiter, bis der Client auflegt
                 std::thread::sleep(Duration::from_millis(1500));
@@ -179,6 +189,24 @@ mod tests {
         assert_eq!(got, img);
         assert!(started.elapsed() < Duration::from_secs(1), "nicht auf das Ende des Stroms warten");
         t.join().unwrap();
+    }
+
+    /// Ströme ohne Kopfende oder ohne Bildende enden an der Obergrenze – schnell, ohne den Puffer immer wieder
+    /// ganz zu durchsuchen.
+    #[test]
+    fn endless_streams_are_cut_off_quickly() {
+        let mjpeg = "HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=frame\r\n\r\n".to_string();
+        let mut frame = b"--frame\r\n\r\n\xFF\xD8".to_vec();
+        frame.resize(MAX_BYTES + 64 * 1024, 0x55);
+        let no_header = vec![b'x'; MAX_BYTES + 64 * 1024];
+        for (head, body) in [(mjpeg, frame), ("HTTP/1.0 200 OK\r\n".to_string(), no_header)] {
+            let (url, t) = serve(head, body, false);
+            let started = std::time::Instant::now();
+            let e = fetch_image(&url, Duration::from_secs(5)).unwrap_err();
+            assert!(e.contains("kein vollständiges Bild"), "{e}");
+            assert!(started.elapsed() < Duration::from_secs(5), "{:?}", started.elapsed());
+            t.join().unwrap();
+        }
     }
 
     #[test]
