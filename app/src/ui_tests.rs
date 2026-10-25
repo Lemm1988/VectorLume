@@ -969,6 +969,67 @@ fn center_finder_takes_points_and_inserts_circle() {
     center_finder_flow(false);
 }
 
+/// Bearbeitungsverlauf: Menü öffnet das Fenster, jeder Schritt ist beschriftet, Klicks springen zurück und vor.
+fn history_window_flow(render: bool) {
+    let mut h = harness(render);
+    let (a, b) = {
+        let app = h.state_mut();
+        app.checkpoint();
+        let a = app.doc.add_path("A", 0, VectorPath::rect(10.0, 10.0, 20.0, 20.0, 0.0));
+        app.checkpoint();
+        let b = app.doc.add_path("B", 0, VectorPath::rect(40.0, 10.0, 20.0, 20.0, 0.0));
+        app.checkpoint();
+        app.doc.transform_objects(&[b], &vl_core::Affine::translate(30.0, 0.0));
+        app.checkpoint();
+        app.doc.get_mut(a).unwrap().layer = 2;
+        app.doc.get_mut(b).unwrap().layer = 2;
+        app.mark_changed();
+        (a, b)
+    };
+    h.get_by_label("Bearbeiten").click();
+    h.run_ok();
+    h.get_by_label("Bearbeitungsverlauf…").click();
+    h.run_ok();
+    assert!(h.state().history_window.open);
+    for text in ["Ausgangszustand", "Hinzugefügt: A", "Hinzugefügt: B", "Verschoben: B", "Ebene gewechselt: 2"] {
+        assert!(h.query_by_label_contains(text).is_some(), "{text} fehlt");
+    }
+    if render {
+        save(&mut h, "bearbeitungsverlauf");
+    }
+    h.get_by_label_contains("Hinzugefügt: A").click();
+    h.run_ok();
+    {
+        let app = h.state();
+        assert_eq!(app.history.undo_len(), 1);
+        assert_eq!(app.doc.objects.iter().map(|o| o.id).collect::<Vec<_>>(), [a]);
+    }
+    // spätere Schritte bleiben sichtbar und lassen sich wiederherstellen
+    h.get_by_label_contains("Verschoben: B").click();
+    h.run_ok();
+    {
+        let app = h.state();
+        assert_eq!(app.history.undo_len(), 3);
+        assert_eq!(app.doc.get(b).unwrap().layer, 0);
+        assert!(app.doc.bounds().max.x > 89.0);
+    }
+    h.get_by_label_contains("Ebene gewechselt").click();
+    h.run_ok();
+    assert_eq!(h.state().doc.get(a).unwrap().layer, 2);
+    assert!(!h.state().history.can_redo());
+}
+
+#[test]
+fn history_window_lists_steps_and_jumps() {
+    history_window_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_history_window() {
+    history_window_flow(true);
+}
+
 #[test]
 #[ignore = "rendert Bilder zur Sichtprüfung"]
 fn render_center_finder() {

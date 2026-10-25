@@ -14,6 +14,7 @@ mod gear_tool;
 mod grbl_params;
 mod hinge_tool;
 mod history;
+mod history_window;
 mod i18n;
 mod i18n_en;
 mod icon_art;

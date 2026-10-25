@@ -299,6 +299,9 @@ fn edit_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Wiederholen"), "Strg+Y", app.history.can_redo()) {
         app.redo();
     }
+    if menu_item(ui, tr("Bearbeitungsverlauf…"), "", true) {
+        app.history_window.open = !app.history_window.open;
+    }
     ui.separator();
     if menu_item(ui, tr("Ausschneiden"), "Strg+X", has) {
         app.cut();

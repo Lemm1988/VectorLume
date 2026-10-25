@@ -218,6 +218,7 @@ mod tests {
             translate("Verbindung fehlgeschlagen: Lesefehler: x").as_deref(),
             Some("Connection failed: Read error: x")
         );
+        assert_eq!(translate("Ebene gewechselt: 3 Objekte").as_deref(), Some("Layer changed: 3 objects"));
         assert_eq!(translate("Mein eigener Ebenenname"), None);
         for (de, en) in crate::i18n_en::EN {
             assert!(!en.is_empty() && !de.is_empty());

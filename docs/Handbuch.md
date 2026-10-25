@@ -87,6 +87,8 @@ Im Menü *Anordnen* findest du:
 - **Verschachteln**: Teile platzsparend auf die Arbeitsfläche oder ein Reststück legen.
 - **Reihen-Kopien**: als Raster, im Kreis oder entlang eines Pfades.
 
+*Bearbeiten → Bearbeitungsverlauf…* listet die letzten 200 Schritte mit ihrer Änderung (z. B. „Verschoben: Kreis“ oder „Ebene gewechselt: 3 Objekte“). Ein Klick auf einen Eintrag stellt diesen Stand wieder her. Spätere Schritte bleiben in der Liste, bis du etwas Neues änderst.
+
 ## Generatoren
 
 Unter *Anordnen → Generatoren*:

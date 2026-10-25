@@ -87,6 +87,8 @@ The *Arrange* menu contains:
 - **Nest parts**: place parts compactly on the work area or on a scrap piece.
 - **Array**: as a grid, in a circle or along a path.
 
+*Edit → Undo history…* lists the last 200 steps with what each one changed (e.g. "Moved: Circle" or "Layer changed: 3 objects"). Click an entry to restore that state. Later steps stay in the list until you change something new.
+
 ## Generators
 
 Under *Arrange → Generators*:
