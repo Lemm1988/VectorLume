@@ -580,6 +580,31 @@ fn modal(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     }
                 });
             }
+            Modal::Crash { path, running } => {
+                ui.label(RichText::new(trs(&format!("{} Programmfehler", icon::BUG))).font(theme::strong_font(18.0)));
+                ui.add_space(6.0);
+                ui.label(if *running {
+                    tr("Im Hintergrund ist ein Programmfehler aufgetreten. Bitte das Projekt speichern und VectorLume neu starten.")
+                } else {
+                    tr("VectorLume wurde beim letzten Mal durch einen Programmfehler beendet.")
+                });
+                ui.label(
+                    RichText::new(tr(
+                        "Der Fehlerbericht enthält Version, System, Fehlermeldung und Programmstelle, aber keine Zeichnungen. Bitte bei einer Fehlermeldung mitschicken.",
+                    ))
+                    .small()
+                    .color(pal.text_weak),
+                );
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button(trs(&format!("{} Bericht öffnen", icon::FILE_TEXT))).clicked() {
+                        crate::crash::open(path);
+                    }
+                    if ui.button("OK").clicked() {
+                        keep = false;
+                    }
+                });
+            }
             Modal::Message { title, text } => {
                 ui.label(RichText::new(trs(title)).font(theme::strong_font(18.0)));
                 ui.add_space(6.0);

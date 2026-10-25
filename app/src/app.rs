@@ -205,6 +205,11 @@ pub enum Modal {
         path: PathBuf,
         meta: crate::autosave::Meta,
     },
+    /// Fehlerbericht: aus der letzten Sitzung oder (`running`) gerade eben in einem Hintergrund-Thread.
+    Crash {
+        path: PathBuf,
+        running: bool,
+    },
 }
 
 pub struct VectorLumeApp {
@@ -245,6 +250,8 @@ pub struct VectorLumeApp {
     pub snap_hint: Option<crate::snapping::SnapHint>,
     pub snap_all: Option<(u64, Arc<crate::snapping::SnapTargets>)>,
     pub modal: Option<Modal>,
+    /// Fehlerbericht, der gemeldet wird, sobald kein anderer Hinweis offen ist.
+    pub pending_crash: Option<(PathBuf, bool)>,
     pub text_dialog: crate::text_tool::TextDialog,
     pub font_families: Arc<Mutex<Option<Vec<String>>>>,
     pub show_device_settings: bool,
@@ -345,6 +352,7 @@ impl VectorLumeApp {
             snap_hint: None,
             snap_all: None,
             modal: None,
+            pending_crash: None,
             text_dialog: Default::default(),
             font_families,
             show_device_settings: false,
@@ -381,6 +389,7 @@ impl VectorLumeApp {
         if let Some((path, meta)) = crate::autosave::take_previous() {
             app.modal = Some(Modal::Recover { path, meta });
         }
+        app.pending_crash = crate::crash::take_previous().map(|p| (p, false));
         // Dateien aus der Befehlszeile öffnen bzw. importieren („Öffnen mit …“).
         for arg in std::env::args_os().skip(1) {
             let path = PathBuf::from(arg);
@@ -1787,6 +1796,14 @@ impl eframe::App for VectorLumeApp {
         crate::camera::tick(self, &ctx);
         self.handle_close_request(&ctx);
         crate::ui_main::shortcuts(self, &ctx);
+        if let Some(path) = crate::crash::take_new() {
+            self.pending_crash = Some((path, true));
+        }
+        if self.modal.is_none()
+            && let Some((path, running)) = self.pending_crash.take()
+        {
+            self.modal = Some(Modal::Crash { path, running });
+        }
 
         crate::ui_main::top_bar(self, ui);
         crate::ui_main::bottom_bar(self, ui);

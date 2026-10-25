@@ -8,6 +8,7 @@ mod box_gen;
 mod camera;
 mod canvas;
 mod center_finder;
+mod crash;
 mod dialogs;
 mod gear_tool;
 mod hinge_tool;
@@ -49,6 +50,7 @@ fn main() -> eframe::Result {
         unsafe { std::env::set_var("WGPU_BACKEND", "dx12") };
     }
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
+    crash::install();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("VectorLume")

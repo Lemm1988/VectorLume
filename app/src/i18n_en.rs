@@ -1341,6 +1341,11 @@ pub static EN: &[(&str, &str)] = &[
     ("Flankenspiel: 0 bis 1 Modul.", "Backlash: 0 to 1 module."),
     ("Die Zähne werden spitz – mehr Zähne oder kleineren Eingriffswinkel wählen.", "The teeth become pointed – choose more teeth or a smaller pressure angle."),
     ("Die Bohrung ist zu groß für das Zahnrad.", "The bore is too large for the gear."),
+    ("Im Hintergrund ist ein Programmfehler aufgetreten. Bitte das Projekt speichern und VectorLume neu starten.", "A program error occurred in the background. Please save the project and restart VectorLume."),
+    ("VectorLume wurde beim letzten Mal durch einen Programmfehler beendet.", "VectorLume was closed by a program error last time."),
+    ("Der Fehlerbericht enthält Version, System, Fehlermeldung und Programmstelle, aber keine Zeichnungen. Bitte bei einer Fehlermeldung mitschicken.", "The error report contains the version, system, error message and program location, but no drawings. Please include it when reporting a bug."),
+    ("{} Programmfehler", "{} Program error"),
+    ("{} Bericht öffnen", "{} Open report"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
@@ -1353,6 +1358,7 @@ pub static SOURCES: &[(&str, &str)] = &[
     ("camera.rs", include_str!("camera.rs")),
     ("canvas.rs", include_str!("canvas.rs")),
     ("center_finder.rs", include_str!("center_finder.rs")),
+    ("crash.rs", include_str!("crash.rs")),
     ("dialogs.rs", include_str!("dialogs.rs")),
     ("gear_tool.rs", include_str!("gear_tool.rs")),
     ("hinge_tool.rs", include_str!("hinge_tool.rs")),

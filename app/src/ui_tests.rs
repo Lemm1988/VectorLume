@@ -34,6 +34,7 @@ fn harness_sized(render: bool, size: egui::Vec2) -> Harness<'static, VectorLumeA
         crate::units::set_units(crate::units::Units::Mm);
         app.selection.clear();
         app.modal = None;
+        app.pending_crash = None;
     }
     h.run_ok();
     h
@@ -538,6 +539,36 @@ fn stencil_bridges_for_text() {
         assert_eq!(inside % 2, 0, "Kontur {i} ist noch ein Loch");
     }
     assert!(h.state_mut().history.can_undo());
+}
+
+/// Fehlerbericht aus der letzten Sitzung: Hinweis erscheint, sobald kein anderer offen ist, und lässt sich schließen.
+fn crash_notice_flow(render: bool) {
+    let mut h = harness(render);
+    h.state_mut().modal = Some(crate::app::Modal::Message { title: "Hinweis".into(), text: "Erst dieser".into() });
+    h.state_mut().pending_crash = Some((std::env::temp_dir().join("crash-letzter.log"), false));
+    h.run_ok();
+    assert!(matches!(h.state().modal, Some(crate::app::Modal::Message { .. })));
+    h.get_by_label("OK").click();
+    h.run_ok();
+    assert!(matches!(h.state().modal, Some(crate::app::Modal::Crash { running: false, .. })));
+    if render {
+        save(&mut h, "fehlerbericht");
+    }
+    h.get_by_label_contains("Bericht öffnen");
+    h.get_by_label("OK").click();
+    h.run_ok();
+    assert!(h.state().modal.is_none() && h.state().pending_crash.is_none());
+}
+
+#[test]
+fn crash_notice_after_other_modal() {
+    crash_notice_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_crash_notice() {
+    crash_notice_flow(true);
 }
 
 /// Zahnräder: Paar erzeugen; die Räder liegen nebeneinander ohne Berührung und bilden eine Gruppe.
