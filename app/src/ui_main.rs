@@ -810,6 +810,10 @@ fn tool_options(app: &mut VectorLumeApp, ui: &mut Ui) {
         crate::node_tool::options(app, ui);
         return;
     }
+    if app.tool == Tool::Tabs {
+        crate::tab_tool::options(app, ui);
+        return;
+    }
     if app.tool == Tool::Trim {
         ui.label(
             RichText::new(tr(

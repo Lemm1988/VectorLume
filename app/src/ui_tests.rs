@@ -295,6 +295,74 @@ fn render_centerline() {
     centerline_flow(true);
 }
 
+/// Laschen von Hand: Klick auf die Kontur setzt eine, Klick darauf entfernt sie wieder; der Job lässt die Lücke aus.
+fn tabs_flow(render: bool) {
+    let mut h = harness(render);
+    let id = add(&mut h, VectorPath::rect(40.0, 40.0, 60.0, 30.0, 0.0));
+    h.state_mut().tool = crate::app::Tool::Tabs;
+    h.state_mut().selection.clear();
+    h.state_mut().doc.layers[0].settings.tab_width = 2.0;
+    h.run_ok();
+    let click = |h: &mut Harness<'static, VectorLumeApp>, p: Point| {
+        let pos = h.state().view.tf.expect("Ansicht").to_screen(p);
+        h.hover_at(pos);
+        h.run_ok();
+        h.drag_at(pos);
+        h.run_ok();
+        h.drop_at(pos);
+        h.run_ok();
+    };
+    // knapp neben der oberen Kante: landet auf der Kontur
+    click(&mut h, Point::new(70.0, 40.4));
+    click(&mut h, Point::new(100.0, 55.0));
+    let tabs = h.state().doc.get(id).unwrap().tabs.clone();
+    assert_eq!(tabs.len(), 2, "{tabs:?}");
+    assert!(tabs[0].distance(Point::new(70.0, 40.0)) < 1e-9, "{tabs:?}");
+    if render {
+        h.hover_at(h.state().view.tf.unwrap().to_screen(Point::new(55.0, 70.0)));
+        h.run_ok();
+        save(&mut h, "laschen_setzen");
+    }
+    // wandern mit dem Objekt
+    h.state_mut().selection = vec![id];
+    h.state_mut().nudge(5.0, 0.0);
+    h.run_ok();
+    click(&mut h, Point::new(75.0, 40.0));
+    let tabs = &h.state().doc.get(id).unwrap().tabs;
+    assert_eq!(tabs.len(), 1, "entfernt: {tabs:?}");
+    // Job: Umfang 180 mm minus eine Lasche
+    let doc = h.state().doc.clone();
+    let profile = h.state().settings.profile.clone();
+    let job = vl_cam::build_job(&doc, &[], &profile, &vl_cam::JobSettings::default()).unwrap();
+    let mut cut = 0.0;
+    let mut at = job.start;
+    for b in &job.toolpath.blocks {
+        for op in &b.ops {
+            if let vl_cam::Op::Move { to, power } = *op
+                && power > 0.0
+            {
+                cut += at.distance(to);
+            }
+            at = op.target();
+        }
+    }
+    assert!((cut - 178.0).abs() < 1e-6, "{cut}");
+    h.state_mut().selection.clear();
+    h.state_mut().clear_tabs();
+    assert!(h.state().doc.get(id).unwrap().tabs.is_empty());
+}
+
+#[test]
+fn tabs_set_and_removed_by_click() {
+    tabs_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_tabs() {
+    tabs_flow(true);
+}
+
 /// Kamerabild übernehmen: dunkles Quadrat in der Bildmitte landet an der passenden Stelle der Arbeitsfläche,
 /// auf einer Ebene ohne Ausgabe.
 #[test]

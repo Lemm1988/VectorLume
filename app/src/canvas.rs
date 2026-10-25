@@ -534,7 +534,7 @@ impl VectorLumeApp {
                 primitive = Some(p);
                 (tr("Stern"), p.path())
             }
-            Tool::Select | Tool::Text | Tool::Barcode | Tool::Node | Tool::Measure | Tool::Trim => return,
+            Tool::Select | Tool::Text | Tool::Barcode | Tool::Node | Tool::Measure | Tool::Trim | Tool::Tabs => return,
         };
         let size = path.bounds(&Affine::IDENTITY);
         if size.width() < 0.2 && size.height() < 0.2 {
@@ -884,6 +884,21 @@ impl VectorLumeApp {
             }
         }
 
+        if self.tool == Tool::Tabs
+            && self.drag.is_idle()
+            && let Some(cur) = self.view.cursor
+        {
+            if self.tab_hover.as_ref().is_none_or(|(p, rev, _)| *p != cur || *rev != self.revision) {
+                let hit = self.tab_hit(cur, 6.0 * ppm);
+                self.tab_hover = Some((cur, self.revision, hit));
+            }
+        } else {
+            self.tab_hover = None;
+        }
+        if !preview_active {
+            self.draw_tabs(&clip, &tf, pal);
+        }
+
         if let Some(hint) = &self.snap_hint {
             draw_snap_hint(&clip, &tf, work, pal, hint);
         }
@@ -1000,7 +1015,7 @@ impl VectorLumeApp {
                         Drag::Band { start, additive: shift }
                     }
                 }
-                Tool::Text | Tool::Barcode | Tool::Trim => Drag::None,
+                Tool::Text | Tool::Barcode | Tool::Trim | Tool::Tabs => Drag::None,
                 t => Drag::Create { tool: t, start: self.snap_cursor(start, snap_tol) },
             };
         } else if resp.drag_started_by(PointerButton::Middle) {
@@ -1181,6 +1196,11 @@ impl VectorLumeApp {
                 Tool::Trim => {
                     if let Some(hit) = self.trim_hit(p, tol) {
                         self.apply_trim(hit);
+                    }
+                }
+                Tool::Tabs => {
+                    if let Some(hit) = self.tab_hit(p, tol) {
+                        self.apply_tab_hit(hit);
                     }
                 }
                 _ => {}

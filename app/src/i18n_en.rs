@@ -522,7 +522,6 @@ pub static EN: &[(&str, &str)] = &[
     ("Schnittbreite", "Kerf"),
     ("Kerf-Ausgleich: Außenkonturen wandern um die halbe Schnittbreite nach außen, Löcher nach innen. 0 = aus.", "Kerf compensation: outer contours move outwards by half the kerf, holes inwards. 0 = off."),
     ("Laschen", "Tabs"),
-    ("Kleine Stege, damit ausgeschnittene Teile im Material bleiben", "Small bridges that keep cut-out parts in the material"),
     ("Nur Außenkonturen", "Outer contours only"),
     ("Winkel", "Angle"),
     ("Kreuzschraffur", "Crosshatch"),
@@ -1210,6 +1209,14 @@ pub static EN: &[(&str, &str)] = &[
     ("In Großbuchstaben setzen", "Set in capital letters"),
     ("Breite", "Width"),
     ("Buchstaben schmaler (unter 100 %) oder breiter setzen, die Höhe bleibt", "Make letters narrower (below 100 %) or wider; the height stays the same"),
+    ("Laschen setzen", "Place tabs"),
+    ("Auf eine geschlossene Kontur klicken: Lasche setzen, auf eine vorhandene: entfernen. Breite laut Ebene; gilt im Modus Linie und ersetzt an dieser Kontur die automatischen Laschen.", "Click a closed outline to place a tab, click an existing one to remove it. Width as set on the layer; applies in Line mode and replaces the automatic tabs on that outline."),
+    ("{} Laschen entfernt.", "{} tabs removed."),
+    ("Kleine Stege, damit ausgeschnittene Teile im Material bleiben: Anzahl je Kontur und Breite. Mit dem Werkzeug „Laschen setzen“ lassen sie sich auch von Hand platzieren.", "Small bridges that keep cut-out parts in the material: count per outline and width. The “Place tabs” tool lets you position them by hand."),
+    ("Alle Laschen entfernen", "Remove all tabs"),
+    ("Laschen der Auswahl entfernen", "Remove tabs of selection"),
+    ("Klick auf Kontur: Lasche setzen · Klick auf Lasche: entfernen · Breite {}", "Click outline: place tab · Click tab: remove · Width {}"),
+    ("Die Breite stellt die Ebene ein (Laschen). Gesetzte Laschen gelten im Modus Linie und ersetzen an ihrer Kontur die automatisch verteilten; sie wandern mit dem Objekt.", "The width is set on the layer (Tabs). Placed tabs apply in Line mode and replace the automatically distributed ones on their outline; they move with the object."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
@@ -1233,6 +1240,7 @@ pub static SOURCES: &[(&str, &str)] = &[
     ("settings.rs", include_str!("settings.rs")),
     ("shape_ops.rs", include_str!("shape_ops.rs")),
     ("snapping.rs", include_str!("snapping.rs")),
+    ("tab_tool.rs", include_str!("tab_tool.rs")),
     ("text_tool.rs", include_str!("text_tool.rs")),
     ("theme.rs", include_str!("theme.rs")),
     ("trace_ui.rs", include_str!("trace_ui.rs")),

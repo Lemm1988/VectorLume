@@ -26,13 +26,15 @@ pub enum Tool {
     Node,
     Measure,
     Trim,
+    Tabs,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 11] = [
+    pub const ALL: [Tool; 12] = [
         Tool::Select,
         Tool::Node,
         Tool::Trim,
+        Tool::Tabs,
         Tool::Rect,
         Tool::Ellipse,
         Tool::Line,
@@ -57,6 +59,7 @@ impl Tool {
             Tool::Node => i::BEZIER_CURVE,
             Tool::Measure => i::RULER,
             Tool::Trim => i::SCISSORS,
+            Tool::Tabs => i::LINK_BREAK,
         }
     }
 
@@ -73,6 +76,7 @@ impl Tool {
             Tool::Node => tr("Knoten bearbeiten (N)"),
             Tool::Measure => tr("Messen (M)"),
             Tool::Trim => tr("Trimmen"),
+            Tool::Tabs => tr("Laschen setzen"),
         }
     }
 }
@@ -254,6 +258,8 @@ pub struct VectorLumeApp {
     pub measure: Option<(Point, Point)>,
     /// Vorschau des Trimm-Werkzeugs: Mauszeiger, Projektstand und das Stück, das ein Klick entfernt.
     pub trim_hover: Option<(Point, u64, Option<crate::canvas::TrimHit>)>,
+    /// Vorschau des Laschenwerkzeugs: Mauszeiger, Projektstand und was ein Klick bewirkt.
+    pub tab_hover: Option<(Point, u64, Option<crate::tab_tool::TabHit>)>,
     pub camera: crate::camera::CameraState,
     pub show_about: bool,
     pub show_notes: bool,
@@ -344,6 +350,7 @@ impl VectorLumeApp {
             library: Default::default(),
             measure: None,
             trim_hover: None,
+            tab_hover: None,
             camera: Default::default(),
             show_about: false,
             show_notes: false,

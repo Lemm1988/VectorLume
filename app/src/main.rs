@@ -20,6 +20,7 @@ mod rotary_ui;
 mod settings;
 mod shape_ops;
 mod snapping;
+mod tab_tool;
 mod text_tool;
 mod theme;
 mod trace_ui;

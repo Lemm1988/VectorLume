@@ -102,6 +102,28 @@ impl Polyline {
         }
         self.edges().map(|(a, b)| distance_to_segment(p, a, b)).fold(f64::INFINITY, f64::min)
     }
+
+    /// Nächster Punkt auf der Polylinie und seine Lage als Weglänge ab dem ersten Punkt.
+    pub fn closest(&self, p: Point) -> Option<(Point, f64)> {
+        let mut best: Option<(f64, Point, f64)> = None;
+        let mut pos = 0.0;
+        for (a, b) in self.edges() {
+            let ab = b - a;
+            let len_sq = ab.dot(ab);
+            let t = if len_sq <= 1e-18 { 0.0 } else { ((p - a).dot(ab) / len_sq).clamp(0.0, 1.0) };
+            let q = a + ab * t;
+            let d = p.distance(q);
+            let len = len_sq.sqrt();
+            if best.is_none_or(|b| d < b.0) {
+                best = Some((d, q, pos + t * len));
+            }
+            pos += len;
+        }
+        match best {
+            Some((_, q, s)) => Some((q, s)),
+            None => self.points.first().map(|&q| (q, 0.0)),
+        }
+    }
 }
 
 pub fn distance_to_segment(p: Point, a: Point, b: Point) -> f64 {

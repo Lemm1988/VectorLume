@@ -400,6 +400,10 @@ pub struct Object {
     /// Parameter einer Grundform (Eckenradius, Ecken, Zacken); gilt nur, solange der Pfad daraus besteht.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub primitive: Option<crate::primitive::Primitive>,
+    /// Von Hand gesetzte Laschen (Punkte auf der Kontur, Objektkoordinaten); an ihrer Kontur ersetzen sie die
+    /// automatisch verteilten.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tabs: Vec<Point>,
 }
 
 fn full_power() -> f64 {
@@ -411,6 +415,14 @@ fn is_full_power(v: &f64) -> bool {
 }
 
 impl Object {
+    /// Nachdem die Transformation in die Form eingerechnet wurde: Transformation zurücksetzen, Laschen wandern mit.
+    pub fn reset_transform(&mut self) {
+        for t in &mut self.tabs {
+            *t = self.transform.apply(*t);
+        }
+        self.transform = Affine::IDENTITY;
+    }
+
     pub fn is_image(&self) -> bool {
         matches!(self.shape, Shape::Image(_))
     }
@@ -518,6 +530,7 @@ impl Document {
             text: None,
             power_scale: 100.0,
             primitive: None,
+            tabs: Vec::new(),
         });
         id
     }

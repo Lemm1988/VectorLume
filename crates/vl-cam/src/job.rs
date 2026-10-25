@@ -389,6 +389,8 @@ fn layer_blocks(
     let mut polys: Vec<Polyline> = Vec::new();
     // Konturen je Gruppe (ungruppierte Objekte einzeln) für „Gruppen einzeln füllen“
     let mut units: Vec<(Option<u64>, Vec<Polyline>)> = Vec::new();
+    // Von Hand gesetzte Laschen, auf die Kontur ihres Objekts gelegt
+    let mut manual_tabs: Vec<Point> = Vec::new();
     for o in objs {
         match &o.shape {
             Shape::Image(img) => {
@@ -410,6 +412,7 @@ fn layer_blocks(
             }
             Shape::Path(p) => {
                 let flat = p.flatten(&o.transform, OUTPUT_TOLERANCE);
+                manual_tabs.extend(o.tabs.iter().filter_map(|t| on_outline(&flat, o.transform.apply(*t))));
                 if cs.mode == LayerMode::Fill && cs.fill_grouping == FillGrouping::Groups {
                     match units.iter_mut().find(|u| o.group.is_some() && u.0 == o.group) {
                         Some(u) => u.1.extend(flat.iter().cloned()),
@@ -428,8 +431,8 @@ fn layer_blocks(
             }
             let mut ordered =
                 if settings.optimize_order { order_polylines(polys, *cur, settings.inner_first) } else { polys };
-            if cs.tab_count > 0 && cs.tab_width > 0.0 {
-                ordered = apply_tabs(ordered, cs.tab_count as usize, cs.tab_width, cs.tabs_outer_only);
+            if cs.tab_width > 0.0 && (cs.tab_count > 0 || !manual_tabs.is_empty()) {
+                ordered = apply_tabs(ordered, cs, &manual_tabs);
             }
             let leads = (cs.lead_in > 0.0 || cs.lead_out > 0.0).then_some(Leads {
                 lead_in: cs.lead_in,
@@ -534,9 +537,38 @@ fn apply_kerf(polys: Vec<Polyline>, kerf: f64) -> Vec<Polyline> {
     out
 }
 
-/// Unterbricht geschlossene Konturen für Laschen; die Reihenfolge der Konturen bleibt erhalten.
-fn apply_tabs(polys: Vec<Polyline>, count: usize, width: f64, outer_only: bool) -> Vec<Polyline> {
+/// Nächster Punkt auf einer geschlossenen Kontur.
+fn on_outline(polys: &[Polyline], p: Point) -> Option<Point> {
+    polys
+        .iter()
+        .filter(|q| q.closed)
+        .filter_map(|q| q.closest(p).map(|c| c.0))
+        .min_by(|a, b| a.distance(p).total_cmp(&b.distance(p)))
+}
+
+/// So weit darf eine von Hand gesetzte Lasche (zusätzlich zur halben Schnittbreite) neben der Kontur liegen.
+const MANUAL_TAB_REACH: f64 = 0.5;
+
+/// Unterbricht geschlossene Konturen für Laschen; die Reihenfolge der Konturen bleibt erhalten. Von Hand gesetzte
+/// Laschen gehören zur nächstgelegenen Kontur und ersetzen dort die automatisch verteilten.
+fn apply_tabs(polys: Vec<Polyline>, cs: &CutSettings, manual: &[Point]) -> Vec<Polyline> {
+    let (count, width) = (cs.tab_count as usize, cs.tab_width);
     let bounds: Vec<Rect> = polys.iter().map(|p| p.bounds()).collect();
+    let reach = MANUAL_TAB_REACH + cs.kerf.abs() / 2.0;
+    let mut at: Vec<Vec<f64>> = vec![Vec::new(); polys.len()];
+    for &t in manual {
+        let best = polys
+            .iter()
+            .enumerate()
+            .filter(|(i, p)| p.closed && bounds[*i].expanded(reach).contains(t))
+            .filter_map(|(i, p)| p.closest(t).map(|(q, s)| (i, q.distance(t), s)))
+            .min_by(|a, b| a.1.total_cmp(&b.1));
+        if let Some((i, d, s)) = best
+            && d <= reach
+        {
+            at[i].push(s);
+        }
+    }
     let is_inner = |i: usize| {
         let p = &polys[i];
         let Some(&probe) = p.points.first() else { return false };
@@ -550,7 +582,9 @@ fn apply_tabs(polys: Vec<Polyline>, count: usize, width: f64, outer_only: bool) 
     };
     let mut out = Vec::with_capacity(polys.len() * (count + 1));
     for (i, p) in polys.iter().enumerate() {
-        if p.closed && !(outer_only && is_inner(i)) {
+        if !at[i].is_empty() {
+            out.extend(vl_core::ops::split_at_tabs(p, &at[i], width));
+        } else if p.closed && count > 0 && !(cs.tabs_outer_only && is_inner(i)) {
             out.extend(vl_core::ops::split_for_tabs(p, count, width));
         } else {
             out.push(p.clone());
@@ -969,6 +1003,28 @@ mod tests {
         let tabs = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
         // nur die Außenkontur bekommt Laschen: 4 × 1 mm weniger
         assert!((cut_lengths(&tabs) - 196.0).abs() < 1e-6, "{}", cut_lengths(&tabs));
+    }
+
+    #[test]
+    fn manual_tabs_replace_automatic_ones() {
+        let mut doc = Document::new();
+        let plate = doc.add_path("Platte", 0, VectorPath::rect(0.0, 0.0, 40.0, 40.0, 0.0));
+        doc.add_path("Loch", 0, VectorPath::rect(20.0, 20.0, 10.0, 10.0, 0.0));
+        let o = doc.get_mut(plate).unwrap();
+        o.transform = vl_core::Affine::translate(10.0, 10.0);
+        // Objektkoordinaten; die zweite liegt etwas neben der Kante
+        o.tabs = vec![Point::new(20.0, 0.0), Point::new(40.3, 20.0)];
+        doc.layers[0].settings.tab_count = 4;
+        doc.layers[0].settings.tab_width = 1.0;
+        let profile = MachineProfile::default();
+        let job = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
+        // statt 4 automatischer nur die 2 gesetzten
+        assert!((cut_lengths(&job) - 198.0).abs() < 1e-6, "{}", cut_lengths(&job));
+        // auch ohne automatische Laschen und mit Schnittbreite
+        doc.layers[0].settings.tab_count = 0;
+        doc.layers[0].settings.kerf = 0.2;
+        let job = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
+        assert!((cut_lengths(&job) - 198.0).abs() < 1e-6, "{}", cut_lengths(&job));
     }
 
     #[test]

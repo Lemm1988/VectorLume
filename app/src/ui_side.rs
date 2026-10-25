@@ -360,12 +360,12 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
                 ui.add(DragValue::new(&mut s.tab_count).range(0..=50).custom_formatter(|v, _| {
                     if v == 0.0 { tr("aus").into() } else { trs(&format!("{v:.0} je Kontur")) }
                 }));
-                if s.tab_count > 0 {
-                    ui.add(DragValue::new(&mut s.tab_width).speed(0.05).range(0.1..=10.0).mm());
-                }
+                ui.add(DragValue::new(&mut s.tab_width).speed(0.05).range(0.1..=10.0).mm());
             })
             .response
-            .on_hover_text(tr("Kleine Stege, damit ausgeschnittene Teile im Material bleiben"));
+            .on_hover_text(tr(
+                "Kleine Stege, damit ausgeschnittene Teile im Material bleiben: Anzahl je Kontur und Breite. Mit dem Werkzeug „Laschen setzen“ lassen sie sich auch von Hand platzieren.",
+            ));
             ui.end_row();
             if s.tab_count > 0 {
                 ui.label("");

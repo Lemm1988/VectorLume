@@ -263,6 +263,7 @@ impl VectorLumeApp {
             let mut base = self.doc.objects.remove(i);
             base.text = None;
             base.transform = Affine::IDENTITY;
+            base.tabs.clear();
             for (k, piece) in pieces.iter().enumerate() {
                 let mut part = base.clone();
                 part.id = self.doc.alloc_id();
@@ -552,7 +553,7 @@ impl VectorLumeApp {
             after += path.segment_count();
             if let Some(o) = self.doc.get_mut(id) {
                 o.shape = Shape::Path(path);
-                o.transform = Affine::IDENTITY;
+                o.reset_transform();
                 self.geom.invalidate(id);
             }
         }
@@ -697,7 +698,7 @@ impl VectorLumeApp {
                 && let Some(o) = self.doc.get_mut(*id)
             {
                 o.shape = Shape::Path(after);
-                o.transform = Affine::IDENTITY;
+                o.reset_transform();
                 self.geom.invalidate(*id);
             }
         }

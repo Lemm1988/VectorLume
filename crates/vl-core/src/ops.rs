@@ -456,6 +456,64 @@ pub fn split_for_tabs(poly: &Polyline, count: usize, width: f64) -> Vec<Polyline
             (mid - width / 2.0, mid + width / 2.0)
         })
         .collect();
+    split_at_gaps(poly, &gaps, length)
+}
+
+/// Laschen an vorgegebenen Stellen einer geschlossenen Kontur (`at`: Weglänge der Laschenmitte ab dem ersten
+/// Punkt). Zu dicht liegende Laschen verschmelzen; der Startpunkt rückt in die größte Lücke, damit keine Lasche
+/// über ihn hinwegreicht.
+pub fn split_at_tabs(poly: &Polyline, at: &[f64], width: f64) -> Vec<Polyline> {
+    let length = poly.length();
+    if !poly.closed || at.is_empty() || width <= 0.0 || length <= width * 2.0 {
+        return vec![poly.clone()];
+    }
+    let mut mids: Vec<f64> = at.iter().map(|s| s.rem_euclid(length)).collect();
+    mids.sort_by(f64::total_cmp);
+    let n = mids.len();
+    let (k, space) = (0..n)
+        .map(|i| (i, if i + 1 < n { mids[i + 1] } else { mids[0] + length } - mids[i]))
+        .max_by(|a, b| a.1.total_cmp(&b.1))
+        .unwrap_or((0, length));
+    let start = mids[k] + space / 2.0;
+    let rotated = start_at(poly, start.rem_euclid(length));
+    let length = rotated.length();
+    let mut rel: Vec<f64> = mids.iter().map(|m| (m - start).rem_euclid(length)).collect();
+    rel.sort_by(f64::total_cmp);
+    let mut gaps: Vec<(f64, f64)> = Vec::new();
+    for m in rel {
+        let (a, b) = ((m - width / 2.0).max(0.0), (m + width / 2.0).min(length));
+        match gaps.last_mut() {
+            Some(g) if a <= g.1 => g.1 = g.1.max(b),
+            _ => gaps.push((a, b)),
+        }
+    }
+    split_at_gaps(&rotated, &gaps, length)
+}
+
+/// Dieselbe geschlossene Polylinie, beginnend bei der Weglänge `s`.
+fn start_at(poly: &Polyline, s: f64) -> Polyline {
+    let n = poly.points.len();
+    let mut pos = 0.0;
+    for i in 0..n {
+        let (a, b) = (poly.points[i], poly.points[(i + 1) % n]);
+        let len = a.distance(b);
+        if pos + len > s || i + 1 == n {
+            let t = if len > 1e-12 { ((s - pos) / len).clamp(0.0, 1.0) } else { 0.0 };
+            let mut pts = vec![a.lerp(b, t)];
+            pts.extend((1..=n).map(|k| poly.points[(i + k) % n]));
+            pts.dedup_by(|q, p| q.distance(*p) < 1e-9);
+            if pts.len() > 1 && pts[0].distance(pts[pts.len() - 1]) < 1e-9 {
+                pts.pop();
+            }
+            return Polyline::new(pts, true);
+        }
+        pos += len;
+    }
+    poly.clone()
+}
+
+/// Unterbricht eine geschlossene Kontur an den Bereichen `gaps` (Weglänge ab dem ersten Punkt, aufsteigend).
+fn split_at_gaps(poly: &Polyline, gaps: &[(f64, f64)], length: f64) -> Vec<Polyline> {
     let mut pts: Vec<Point> = poly.points.clone();
     pts.push(poly.points[0]);
     let mut pieces = Vec::new();
@@ -465,6 +523,9 @@ pub fn split_for_tabs(poly: &Polyline, count: usize, width: f64) -> Vec<Polyline
     for w in pts.windows(2) {
         let (a, b) = (w[0], w[1]);
         let seg = a.distance(b);
+        if seg <= 1e-12 {
+            continue;
+        }
         let end = pos + seg;
         // Alle Laschengrenzen auf diesem Segment abarbeiten
         while let Some(&(g0, g1)) = gaps.get(gap_idx) {
@@ -489,8 +550,9 @@ pub fn split_for_tabs(poly: &Polyline, count: usize, width: f64) -> Vec<Polyline
     if cur.len() >= 2 {
         pieces.push(Polyline::new(cur, false));
     }
-    // Das Stück vor der ersten Lasche schließt am Startpunkt an das letzte Stück an.
-    if pieces.len() >= 2 {
+    // Das Stück vor der ersten Lasche schließt am Startpunkt an das letzte Stück an (sofern dort keine Lasche liegt).
+    let through_start = gaps.first().is_some_and(|g| g.0 > 1e-9) && gaps.last().is_some_and(|g| g.1 < length - 1e-9);
+    if through_start && pieces.len() >= 2 {
         let first = pieces.remove(0);
         pieces.last_mut().unwrap().points.extend_from_slice(&first.points[1..]);
     }
@@ -725,6 +787,30 @@ mod tests {
         assert!((cut - 36.0).abs() < 1e-9, "{cut}");
         // Zu kurze Kontur bleibt unverändert
         assert_eq!(split_for_tabs(&square(0.0, 0.0, 1.0), 4, 1.0).len(), 1);
+    }
+
+    #[test]
+    fn tabs_at_given_positions() {
+        let sq = square(0.0, 0.0, 10.0);
+        let total = |v: &[Polyline]| v.iter().map(|p| p.length()).sum::<f64>();
+        // eine Lasche mitten auf der ersten Kante: ein offenes Stück
+        let one = split_at_tabs(&sq, &[5.0], 1.0);
+        assert_eq!(one.len(), 1);
+        assert!(!one[0].closed && (total(&one) - 39.0).abs() < 1e-9);
+        assert!(one[0].points.iter().all(|p| !(p.y == 0.0 && p.x > 4.5 && p.x < 5.5)));
+        // genau auf dem Startpunkt (reicht über ihn hinweg)
+        let corner = split_at_tabs(&sq, &[0.0], 1.0);
+        assert_eq!(corner.len(), 1);
+        assert!((total(&corner) - 39.0).abs() < 1e-9);
+        assert!(corner[0].points.iter().all(|p| p.distance(Point::new(0.0, 0.0)) > 0.49));
+        // zwei Laschen, zwei Stücke; zu dicht liegende verschmelzen
+        assert_eq!(split_at_tabs(&sq, &[5.0, 25.0], 1.0).len(), 2);
+        let close = split_at_tabs(&sq, &[5.0, 5.5], 1.0);
+        assert_eq!(close.len(), 1);
+        assert!((total(&close) - 38.5).abs() < 1e-9);
+        // offene Linien bleiben unverändert
+        let open = Polyline::new(vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)], false);
+        assert_eq!(split_at_tabs(&open, &[5.0], 1.0), vec![open]);
     }
 
     #[test]
