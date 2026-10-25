@@ -276,6 +276,8 @@ pub struct VectorLumeApp {
     /// Aktuelle Tastenbelegung (aus `settings.hotkeys`).
     pub keys: crate::hotkeys::Keymap,
     pub hotkey_editor: crate::hotkeys::HotkeyEditor,
+    /// Assistent „Gerät einrichten“.
+    pub setup: crate::setup_wizard::SetupWizard,
     /// Laufendes Verzerren der Auswahl.
     pub warp: Option<crate::warp_tool::WarpSession>,
     pub tangent: Option<crate::tangent_tool::TangentPick>,
@@ -389,6 +391,7 @@ impl VectorLumeApp {
             history_window: Default::default(),
             keys,
             hotkey_editor: Default::default(),
+            setup: Default::default(),
             warp: None,
             tangent: None,
             cut_order: None,
@@ -418,6 +421,9 @@ impl VectorLumeApp {
             app.modal = Some(Modal::Recover { path, meta });
         }
         app.pending_crash = crate::crash::take_previous().map(|p| (p, false));
+        if app.settings.first_run {
+            app.open_setup_wizard(true);
+        }
         // Dateien aus der Befehlszeile öffnen bzw. importieren („Öffnen mit …“).
         for arg in std::env::args_os().skip(1) {
             let path = PathBuf::from(arg);
@@ -1534,6 +1540,15 @@ impl VectorLumeApp {
     // ---------------------------------------------------------------- Gerät
 
     pub fn connect(&mut self) {
+        self.connect_with(None);
+    }
+
+    /// Verbinden mit Steuerung und Baudrate eines noch nicht gespeicherten Geräts (Einrichtungsassistent).
+    pub fn connect_as(&mut self, profile: &vl_cam::MachineProfile) {
+        self.connect_with(Some(profile));
+    }
+
+    fn connect_with(&mut self, profile: Option<&vl_cam::MachineProfile>) {
         let port = self.selected_port.clone();
         if port.is_empty() {
             self.toast(ToastKind::Error, tr("Kein Anschluss ausgewählt."));
@@ -1554,7 +1569,7 @@ impl VectorLumeApp {
         } else {
             port
         };
-        let p = &self.settings.profile;
+        let p = profile.unwrap_or(&self.settings.profile);
         self.machine.settings.clear();
         self.device.send(Command::Connect { port, baud: p.baud, rx_buffer: p.rx_buffer, firmware: p.firmware });
     }

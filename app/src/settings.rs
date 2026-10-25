@@ -45,6 +45,9 @@ pub struct AppSettings {
     pub macros: Vec<Macro>,
     /// Geänderte Tastenkürzel je Befehl (z. B. `"save": ["Ctrl+S"]`, leere Liste = keine Taste).
     pub hotkeys: BTreeMap<String, Vec<String>>,
+    /// Noch keine Einstellungsdatei vorhanden: erster Start, der Einrichtungsassistent öffnet sich.
+    #[serde(skip)]
+    pub first_run: bool,
 }
 
 /// Benannte G-Code-Zeilen, die mit einem Klick gesendet werden (z. B. Luft an/aus, Parkposition).
@@ -79,6 +82,7 @@ impl Default for AppSettings {
             camera: Default::default(),
             macros: Vec::new(),
             hotkeys: BTreeMap::new(),
+            first_run: false,
         }
     }
 }
@@ -86,10 +90,21 @@ impl Default for AppSettings {
 /// Ordner für Einstellungen, Autosicherung und Materialbibliothek. `VECTORLUME_CONFIG_DIR` setzt einen
 /// eigenen Ordner (z. B. für Tests, ohne die echten Einstellungen zu verändern).
 pub fn config_dir() -> Option<PathBuf> {
+    #[cfg(test)]
+    if let Some(dir) = TEST_CONFIG_DIR.with(|d| d.borrow().clone()) {
+        return Some(dir);
+    }
     match std::env::var_os("VECTORLUME_CONFIG_DIR") {
         Some(d) if !d.is_empty() => Some(PathBuf::from(d)),
         _ => dirs::config_dir().map(|d| d.join("VectorLume")),
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Eigener Einstellungsordner für einen einzelnen Test (die App läuft im Test-Thread); sonst teilen sich alle
+    /// Oberflächentests einen Ordner und sähen gegenseitig gespeicherte Änderungen.
+    pub static TEST_CONFIG_DIR: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
 }
 
 fn path() -> Option<PathBuf> {
@@ -98,10 +113,10 @@ fn path() -> Option<PathBuf> {
 
 impl AppSettings {
     pub fn load() -> Self {
-        let mut s: Self = path()
-            .and_then(|p| std::fs::read_to_string(p).ok())
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
+        let text = path().and_then(|p| std::fs::read_to_string(p).ok());
+        let first_run = text.is_none();
+        let mut s: Self = text.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        s.first_run = first_run;
         s.normalize_devices();
         s
     }

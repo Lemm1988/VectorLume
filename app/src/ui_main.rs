@@ -670,6 +670,9 @@ fn laser_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Drucken & Schneiden…"), "", true) {
         app.open_print_cut();
     }
+    if menu_item(ui, tr("Gerät einrichten…"), "", !app.machine.job_running) {
+        app.open_setup_wizard(false);
+    }
     if menu_item(ui, tr("Maschineneinstellungen…"), "", true) {
         app.show_device_settings = true;
     }

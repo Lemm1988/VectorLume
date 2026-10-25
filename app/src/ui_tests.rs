@@ -35,6 +35,7 @@ fn harness_sized(render: bool, size: egui::Vec2) -> Harness<'static, VectorLumeA
         app.selection.clear();
         app.modal = None;
         app.pending_crash = None;
+        app.setup.open = false;
     }
     h.run_ok();
     h
@@ -679,6 +680,75 @@ fn frame_loop_repeats_until_switched_off() {
     assert!(!app.machine.frame_loop && app.machine.frame_repeat.is_none());
     h.state_mut().disconnect();
     wait_until(&mut h, |app| !app.machine.connected);
+}
+
+/// Einrichtungsassistent beim ersten Start: Steuerung, Verbindung zum Simulator (Arbeitsfläche aus `$$`),
+/// Nullpunkt, Name. Eigener Einstellungsordner, damit das neue Gerät keine anderen Tests beeinflusst.
+fn setup_wizard_flow(render: bool) {
+    use egui_phosphor::regular as icon;
+    let dir = std::env::temp_dir().join(format!("vectorlume-ui-setup-{}-{render}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = Some(dir.clone()));
+    let mut h = harness(render);
+    assert!(h.state().settings.first_run, "ohne Einstellungsdatei");
+    h.state_mut().open_setup_wizard(true);
+    h.run_ok();
+    if render {
+        save(&mut h, "einrichtung");
+    }
+    h.get_by_label("Weiter").click();
+    h.run_ok();
+    {
+        let app = h.state_mut();
+        assert_eq!(app.setup.step, 1);
+        app.setup.profile.bed_width = 123.0;
+        app.selected_port = vl_device::SIMULATOR_PORT.into();
+    }
+    h.run_ok();
+    // derselbe Knopf steht auch in der Seitenleiste: den im Fenster (Mitte) nehmen
+    let label = format!("{} Verbinden", icon::PLUG);
+    h.query_all_by_label(&label).find(|n| n.rect().center().x < 1150.0).expect("Verbinden im Assistenten").click();
+    // aus $130/$131 gelesen (die Werte treffen zeilenweise ein)
+    wait_until(&mut h, |app| app.setup.profile.bed_width == 400.0 && app.setup.read.len() == 2);
+    h.run_ok();
+    if render {
+        save(&mut h, "einrichtung_verbindung");
+    }
+    h.get_by_label("Weiter").click();
+    h.run_ok();
+    h.get_by_label("hinten links").click();
+    h.run_ok();
+    h.get_by_label("Weiter").click();
+    h.run_ok();
+    h.state_mut().setup.profile.name = "Testlaser".into();
+    h.run_ok();
+    h.get_by_label(&format!("{} Fertig", icon::CHECK)).click();
+    h.run_ok();
+    let app = h.state();
+    assert!(!app.setup.open);
+    assert_eq!(app.settings.devices.len(), 1, "erstes Gerät ersetzt");
+    assert_eq!(app.settings.profile.name, "Testlaser");
+    assert_eq!(app.settings.profile.origin, vl_cam::OriginCorner::RearLeft);
+    assert_eq!((app.settings.profile.bed_width, app.settings.profile.s_max), (400.0, 1000.0));
+    assert!(app.machine.connected, "Verbindung bleibt bestehen");
+    h.state_mut().disconnect();
+    wait_until(&mut h, |app| !app.machine.connected);
+    // gespeichert: beim nächsten Start kein Assistent mehr
+    let again = crate::settings::AppSettings::load();
+    assert!(!again.first_run && again.profile.name == "Testlaser");
+    crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = None);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn setup_wizard_first_run() {
+    setup_wizard_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_setup_wizard() {
+    setup_wizard_flow(true);
 }
 
 #[test]

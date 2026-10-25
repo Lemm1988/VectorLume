@@ -25,6 +25,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     crate::model_tool::show(app, ctx);
     crate::history_window::show(app, ctx);
     crate::hotkeys::show(app, ctx);
+    crate::setup_wizard::show(app, ctx);
     crate::warp_tool::show(app, ctx);
     device_settings(app, ctx);
     about(app, ctx);

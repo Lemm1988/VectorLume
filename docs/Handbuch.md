@@ -7,7 +7,7 @@ VectorLume ist ein Programm zum Gestalten und Lasern für Diodenlaser mit GRBL-S
 ## Installation und erster Start
 
 1. `VectorLume-Setup-<Version>.exe` ausführen. Adminrechte sind nicht nötig; entfernen lässt sich das Programm über *Einstellungen → Apps*.
-2. VectorLume über die Verknüpfung auf dem Desktop oder im Startmenü starten.
+2. VectorLume über die Verknüpfung auf dem Desktop oder im Startmenü starten. Beim ersten Start führt der Assistent **Gerät einrichten** in vier Schritten durch Steuerung (GRBL, Marlin, Smoothieware), Verbindung, Arbeitsfläche mit Nullpunkt-Ecke und Namen. Ist der Laser angeschlossen, liest er Arbeitsfläche und S-Max direkt aus der Steuerung. Später erreichst du ihn über *Laser → Gerät einrichten…* (legt ein weiteres Gerät an).
 3. *Hilfe → Beispielprojekt laden* zeigt alle Bearbeitungsarten an einem Beispiel.
 
 Die Sprache (Deutsch/Englisch), das Design (dunkel/hell) und die Einheit (mm/Zoll) stellst du unter *Ansicht* ein. `.vlume`-Projekte öffnen sich per Doppelklick; LightBurn-Projekte (`.lbrn2`) öffnest du über *Datei → Öffnen*.

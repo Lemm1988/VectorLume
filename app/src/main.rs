@@ -31,6 +31,7 @@ mod print_cut;
 mod puzzle_tool;
 mod rotary_ui;
 mod settings;
+mod setup_wizard;
 mod shape_ops;
 mod snapping;
 mod tab_tool;
