@@ -425,6 +425,32 @@ fn box_flow(render: bool) {
     assert!(h.state().box_gen.open);
 }
 
+/// Die Generatoren liegen im Untermenü Anordnen → Generatoren.
+fn generators_menu_flow(render: bool) {
+    let mut h = harness(render);
+    h.get_by_label("Anordnen").click();
+    h.run_ok();
+    h.get_by_label_contains("Generatoren").hover();
+    h.run_ok();
+    if render {
+        save(&mut h, "menue_generatoren");
+    }
+    h.get_by_label("Box-Generator…").click();
+    h.run_ok();
+    assert!(h.state().box_gen.open);
+}
+
+#[test]
+fn generators_menu_opens_box_generator() {
+    generators_menu_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_generators_menu() {
+    generators_menu_flow(true);
+}
+
 #[test]
 fn box_generator_lays_out_panels() {
     box_flow(false);

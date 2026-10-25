@@ -1291,6 +1291,7 @@ pub static EN: &[(&str, &str)] = &[
     ("Breite und Höhe müssen größer als 0 sein.", "Width and height must be greater than 0."),
     ("Spalten und Zeilen: 1 bis 100.", "Columns and rows: 1 to 100."),
     ("Die Teile wären kleiner als 5 mm.", "The pieces would be smaller than 5 mm."),
+    ("Generatoren", "Generators"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
