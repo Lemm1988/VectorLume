@@ -175,6 +175,11 @@ These are the defaults. Change them under *Edit → Keyboard shortcuts…*: clic
 - **No port in the list**: check the USB cable and driver; some cables only charge and carry no data.
 - **The laser burns lines between shapes**: laser mode is off. Send `$32=1` (VectorLume offers this when connecting).
 - **Alarm after switching on**: run homing or clear the lock with `$X` in the console.
+- **Alarm 1 or 2 during a job** (limit switch or travel exceeded): the job is aborted and VectorLume resets the controller. Then run homing and check that the job lies completely on the work area (preview, frame).
+- **"The controller restarted during …"**: the controller rebooted in the middle of the job, usually because of a voltage drop (power supply, loose contact, a pump starting at the same time) or USB interference. VectorLume then stops sending because laser mode and position are lost. Run homing and start the job again.
+- **"The controller has not responded for …"**: check the USB cable and the laser's power supply. If the connection drops during long jobs, open the Device Manager and, for the USB port (or "USB Root Hub"), clear *Allow the computer to turn off this device* under *Power Management*; use a shorter, better shielded cable.
+- **"File probably damaged" on import**: the file contains absurd values (e.g. huge coordinates). Save it again in the original program, preferably as SVG or PDF.
+- **"… extends beyond 100 m" at start**: an object has absurd coordinates (usually from a damaged file). Delete or re-import the named object.
 - **The job is in the wrong place**: check the origin corner in the machine settings and *Start from*; run the frame before starting.
 - **Engraving too dark or too light**: run a material test; for images adjust the line interval (dpi) and image settings.
 - **Parts do not fall out**: increase passes or power, check the focus, remove tabs.

@@ -175,6 +175,11 @@ Das ist die Standardbelegung. Unter *Bearbeiten → Tastenkürzel…* änderst d
 - **Kein Anschluss in der Liste**: USB-Kabel und Treiber prüfen; manche Kabel laden nur und übertragen keine Daten.
 - **Der Laser brennt Linien zwischen den Formen**: Der Laser-Modus ist aus. `$32=1` senden (VectorLume bietet das beim Verbinden an).
 - **Alarm nach dem Einschalten**: Referenzfahrt ausführen oder die Sperre in der Konsole mit `$X` lösen.
+- **Alarm 1 oder 2 während des Jobs** (Endschalter bzw. Arbeitsbereich überschritten): Der Job wird abgebrochen und VectorLume setzt die Steuerung zurück. Danach Referenzfahrt ausführen und prüfen, ob der Job ganz auf der Arbeitsfläche liegt (Vorschau, Rahmen).
+- **„Die Steuerung hat während … neu gestartet“**: Die Steuerung ist mitten im Job neu angelaufen, meist wegen eines Spannungseinbruchs (Netzteil, Wackelkontakt, gleichzeitig startende Pumpe) oder einer USB-Störung. VectorLume schickt dann nichts mehr weiter, weil Laser-Modus und Position verloren sind. Referenzfahrt ausführen und den Job neu starten.
+- **„Die Steuerung antwortet seit … nicht mehr“**: USB-Kabel und Stromversorgung des Lasers prüfen. Bricht die Verbindung bei langen Jobs ab, im Geräte-Manager beim USB-Anschluss (bzw. „USB-Root-Hub“) unter *Energieverwaltung* „Computer kann das Gerät ausschalten“ abwählen und ein kürzeres, besser geschirmtes Kabel verwenden.
+- **„Datei vermutlich beschädigt“ beim Import**: Die Datei enthält unsinnige Werte (z. B. riesige Koordinaten). Im Ursprungsprogramm neu speichern, am besten als SVG oder PDF.
+- **„… reicht über 100 m hinaus“ beim Start**: Ein Objekt hat unsinnige Koordinaten (meist aus einer beschädigten Datei). Das genannte Objekt löschen oder neu importieren.
 - **Der Job liegt an der falschen Stelle**: Nullpunkt-Ecke in den Maschineneinstellungen und *Start von* prüfen; vor dem Start den Rahmen fahren.
 - **Gravur zu dunkel oder zu hell**: Materialtest machen; bei Bildern Zeilenabstand (dpi) und Bildeinstellungen anpassen.
 - **Teile fallen nicht heraus**: Durchgänge oder Leistung erhöhen, Fokus prüfen, Laschen entfernen.
