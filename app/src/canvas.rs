@@ -794,6 +794,7 @@ impl VectorLumeApp {
         self.canvas_interaction(&ctx, &resp, &tf, sel_screen, space, ppm);
         if !preview_active {
             self.draw_warp(&clip, &tf, pal);
+            self.draw_tangent(&clip, &tf, pal);
         }
 
         // Gummiband / Vorschau der neuen Form
@@ -931,6 +932,9 @@ impl VectorLumeApp {
             return;
         }
         if self.warp_interaction(ctx, resp, tf, space) {
+            return;
+        }
+        if self.tangent_interaction(ctx, resp, tf, space) {
             return;
         }
         // Drucken & Schneiden: Marke per Klick setzen (Entwurfsmarken fangen an Mitten und Knoten)

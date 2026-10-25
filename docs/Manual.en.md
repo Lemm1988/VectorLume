@@ -99,6 +99,7 @@ Under *Arrange → Generators*:
 - **Living hinge**: staggered cuts that make wood bendable. Select the area as a shape first.
 - **Puzzle**: puzzle cuts, e.g. over an engraved photo. If something is selected when it opens, the puzzle takes its position and size.
 - **Gears**: involute gears by module and number of teeth, optionally with a matching mating gear. The center distance is shown.
+- **Tangent circles**: select three circles. VectorLume shows every circle that touches all three as light suggestions (up to eight). Click one to add it, hold Shift for several, Esc finishes.
 - **Measure kerf**: cut a test comb, measure it, apply the result to the layer (see below).
 
 ## Setting up materials

@@ -114,6 +114,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-29f | Puzzle-Generator | *Anordnen → Generatoren → Puzzle…*: Schnittlinien für ein Puzzle (Spalten × Zeilen, Nasengröße, Unregelmäßigkeit, Rahmen mit Eckenradius), z. B. über ein graviertes Foto – übernimmt beim Öffnen Lage und Größe der Auswahl; je innerer Rasterlinie ein durchgehender Linienzug, Nasen aus kubischen Bézierkurven (eigene Form: schmaler Hals, breiter Kopf), zufällig gerichtet/verschoben, an der kleineren Teileseite ausgerichtet; reproduzierbar über einen Startwert („Neu würfeln“); Vorschau; Schnitte und Rahmen als Gruppe | ✅ |
 | LF-29g | Schnittbreite ermitteln | *Anordnen → Generatoren → Schnittbreite ermitteln…*: Testkamm (Anzahl × Breite der Streifen, Länge) auf der aktuellen Ebene erzeugen – Rahmen plus Trennschnitte, die in der Kammmitte beginnen (dadurch „innen vor außen“) und 0,5 mm über den Rahmen hinauslaufen; nach dem Schneiden die zusammengeschobenen Streifen (k = (n·w + k₀ − Messwert)/n, k₀ = beim Test schon eingestellte Schnittbreite) oder den Spalt im Rahmen (k = Spalt/(n + 1)) messen, Plausibilitätsprüfung 0–2 mm; Ergebnis mit einem Klick als Schnittbreite der Ebene übernehmen (rückgängig machbar) | ✅ |
 | LF-29h | Zahnräder | *Anordnen → Generatoren → Zahnräder…*: Stirnrad mit Evolventenverzahnung aus Modul, Zähnezahl (6–300), Eingriffswinkel (14,5°/20°/25° oder frei), Flankenspiel (je Rad zur Hälfte) und Bohrung, wahlweise mit Gegenrad gleichen Moduls; Kopfhöhe 1·m, Fußhöhe 1,25·m, unter dem Grundkreis radiale Flanke; Prüfung spitzer Zähne und zu großer Bohrung, Warnung bei Eingriffsstörung (zu wenige Zähne); Anzeige von Teilkreis-/Kopfkreis-Ø, Achsabstand und Übersetzung; Vorschau des Paars im Eingriff, auf der Arbeitsfläche mit Abstand nebeneinander als Gruppe; Test: das Paar dreht sich über eine Zahnteilung ohne Überschneidung und mit Eingriff | ✅ |
+| LF-29i | Tangentialkreise | *Anordnen → Generatoren → Tangentialkreise…* bei drei ausgewählten Kreisen (auch importierte, skalierte und verschobene Kreise; erkannt über Kreisanpassung, Ellipsen nicht): alle Kreise, die alle drei von außen oder innen berühren (Problem des Apollonius, bis zu acht Lösungen; auch bei Mittelpunkten auf einer Geraden), als helle Vorschläge auf der Arbeitsfläche; Zeiger hebt hervor, Klick übernimmt auf die aktuelle Ebene, Umschalt für mehrere, Esc beendet | ✅ |
 
 ### 4.3 Ebenen und Laser-Einstellungen
 | LF | Funktion | Umsetzung | Stand |
@@ -233,7 +234,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (265):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (270):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,

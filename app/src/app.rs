@@ -269,6 +269,7 @@ pub struct VectorLumeApp {
     pub history_window: crate::history_window::HistoryWindow,
     /// Laufendes Verzerren der Auswahl.
     pub warp: Option<crate::warp_tool::WarpSession>,
+    pub tangent: Option<crate::tangent_tool::TangentPick>,
     pub library: crate::library::Library,
     /// Letzte Messung des Messwerkzeugs (Start, Ende).
     pub measure: Option<(Point, Point)>,
@@ -375,6 +376,7 @@ impl VectorLumeApp {
             model: Default::default(),
             history_window: Default::default(),
             warp: None,
+            tangent: None,
             library: Default::default(),
             measure: None,
             trim_hover: None,

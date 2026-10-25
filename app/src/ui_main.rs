@@ -576,6 +576,9 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
         if menu_item(ui, tr("Zahnräder…"), "", true) {
             app.gear.open = true;
         }
+        if menu_item(ui, tr("Tangentialkreise…"), "", app.selection.len() == 3) {
+            app.start_tangent_circles();
+        }
         ui.separator();
         if menu_item(ui, tr("Schnittbreite ermitteln…"), "", true) {
             app.open_kerf_test();

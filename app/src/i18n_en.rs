@@ -1465,6 +1465,10 @@ pub static EN: &[(&str, &str)] = &[
     ("Koordinaten ohne gewähltes Werkzeug wurden übersprungen.", "Coordinates without a selected tool were skipped."),
     ("Werkzeug T{} hat keinen Durchmesser und wurde übersprungen.", "Tool T{} has no diameter and was skipped."),
     ("Die Bohrdatei enthält keine Bohrungen.", "The drill file contains no holes."),
+    ("Bitte genau drei Kreise auswählen.", "Please select exactly three circles."),
+    ("Zu diesen Kreisen gibt es keinen berührenden Kreis.", "There is no circle touching these circles."),
+    ("Vorschlag anklicken, um ihn zu übernehmen – mit Umschalt mehrere. Esc beendet.", "Click a suggestion to add it – hold Shift for several. Esc finishes."),
+    ("Tangentialkreise…", "Tangent circles…"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
@@ -1499,6 +1503,7 @@ pub static SOURCES: &[(&str, &str)] = &[
     ("shape_ops.rs", include_str!("shape_ops.rs")),
     ("snapping.rs", include_str!("snapping.rs")),
     ("tab_tool.rs", include_str!("tab_tool.rs")),
+    ("tangent_tool.rs", include_str!("tangent_tool.rs")),
     ("text_tool.rs", include_str!("text_tool.rs")),
     ("theme.rs", include_str!("theme.rs")),
     ("trace_ui.rs", include_str!("trace_ui.rs")),

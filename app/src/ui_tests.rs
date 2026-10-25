@@ -1055,6 +1055,69 @@ fn model_flow(render: bool) {
     assert!(app.settings.profile.bed_rect().contains_rect(&app.doc.bounds()));
 }
 
+/// Tangentialkreise: drei Kreise auswählen, Menü öffnet die Vorschläge, ein Klick auf eine Kontur übernimmt sie.
+fn tangent_flow(render: bool) {
+    let mut h = harness(render);
+    let h3 = 40.0 * 3f64.sqrt() / 2.0;
+    let centers = [Point::new(60.0, 60.0 + h3), Point::new(100.0, 60.0 + h3), Point::new(80.0, 60.0)];
+    let ids: Vec<ObjectId> = {
+        let app = h.state_mut();
+        centers.iter().map(|c| app.doc.add_path("K", 0, VectorPath::ellipse(*c, 10.0, 10.0))).collect()
+    };
+    h.state_mut().selection = ids;
+    h.run_ok();
+    h.get_by_label("Anordnen").click();
+    h.run_ok();
+    h.get_by_label_contains("Generatoren").hover();
+    h.run_ok();
+    h.get_by_label("Tangentialkreise…").click();
+    h.run_ok();
+    let candidates = h.state().tangent.as_ref().expect("Vorschläge").candidates.clone();
+    assert_eq!(candidates.len(), 8);
+    // kleinster Vorschlag: im Schwerpunkt der drei Mittelpunkte
+    let (c, r) = candidates[0];
+    let centroid = Point::new(80.0, 60.0 + 2.0 * h3 / 3.0);
+    assert!(c.distance(centroid) < 0.01 && (r - (centroid.distance(centers[0]) - 10.0)).abs() < 0.01);
+    let target = c + Point::new(0.0, r);
+    let mut pos = None;
+    for _ in 0..50 {
+        let now = h.state().view.tf.map(|t| t.to_screen(target));
+        if now.is_some() && now == pos {
+            break;
+        }
+        pos = now;
+        if let Some(q) = pos {
+            h.hover_at(q);
+        }
+        h.run_ok();
+    }
+    assert_eq!(h.state().tangent.as_ref().unwrap().hover, Some(0), "Zeiger auf der Kontur hebt sie hervor");
+    if render {
+        save(&mut h, "tangentialkreise");
+    }
+    let pos = pos.unwrap();
+    h.drag_at(pos);
+    h.drop_at(pos);
+    h.run_ok();
+    let app = h.state();
+    assert!(app.tangent.is_none(), "ohne Umschalt endet die Auswahl");
+    assert_eq!(app.doc.objects.len(), 4);
+    let (nc, nr) = crate::tangent_tool::as_circle(app.doc.get(app.selection[0]).unwrap()).unwrap();
+    assert!(nc.distance(c) < 0.01 && (nr - r).abs() < 0.01);
+    assert!(app.history.can_undo());
+}
+
+#[test]
+fn tangent_circles_pick_one() {
+    tangent_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_tangent_circles() {
+    tangent_flow(true);
+}
+
 /// Leiterplatte: Kupferlage und Bohrdatei landen deckungsgleich in der Arbeitsfläche.
 #[test]
 fn pcb_layers_stay_aligned() {

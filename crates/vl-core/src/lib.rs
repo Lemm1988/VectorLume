@@ -22,6 +22,7 @@ pub mod project;
 pub mod puzzle;
 pub mod slots;
 pub mod stencil;
+pub mod tangent;
 pub mod text;
 pub mod trim;
 pub mod warp;

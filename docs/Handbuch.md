@@ -99,6 +99,7 @@ Unter *Anordnen → Generatoren*:
 - **Biegescharnier**: versetzte Schnitte, die Holz biegsam machen. Zuerst die Fläche als Form auswählen.
 - **Puzzle**: Puzzleschnitte, z. B. über einem gravierten Foto. Ist beim Öffnen etwas ausgewählt, übernimmt das Puzzle dessen Lage und Größe.
 - **Zahnräder**: Evolventen-Zahnräder nach Modul und Zähnezahl, auf Wunsch mit passendem Gegenrad. Der Achsabstand wird angezeigt.
+- **Tangentialkreise**: Wähle drei Kreise aus. VectorLume zeigt alle Kreise, die alle drei berühren, als helle Vorschläge (bis zu acht). Ein Klick übernimmt einen, mit Umschalt mehrere, Esc beendet.
 - **Schnittbreite ermitteln**: Testkamm schneiden, messen, Ergebnis auf die Ebene übernehmen (siehe unten).
 
 ## Material einstellen
