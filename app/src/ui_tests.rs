@@ -481,6 +481,39 @@ fn render_hinge() {
     hinge_flow(true);
 }
 
+/// Schablonenstege: Text „OB“ bekommt Stege, wird zu Kurven, kein Innenteil bleibt eingeschlossen.
+#[test]
+fn stencil_bridges_for_text() {
+    let mut h = harness(false);
+    let db = vl_io::system_fonts();
+    // eine Umrissschrift (die eingebauten Einlinienschriften haben keine Löcher)
+    let Some(family) = vl_io::font_families(&db).into_iter().find(|f| f == "Arial" || f == "DejaVu Sans") else {
+        return;
+    };
+    let spec = vl_core::TextSpec { text: "OB".into(), family, height_mm: 30.0, ..Default::default() };
+    let Ok(path) = vl_io::text_to_path(&db, &spec) else { return };
+    let id = add(&mut h, path);
+    h.state_mut().doc.get_mut(id).unwrap().text = Some(Box::new(vl_core::TextData { spec, ..Default::default() }));
+    h.state_mut().shape_dialogs.stencil_open = true;
+    h.run_ok();
+    h.get_by_label("Anwenden").click();
+    h.run_ok();
+    let o = h.state().doc.get(id).unwrap();
+    assert!(o.text.is_none(), "zu Kurven");
+    let Shape::Path(p) = &o.shape else { panic!() };
+    let polys = p.flatten(&o.transform, 0.01);
+    // keine Kontur liegt mehr in einer ungeraden Anzahl anderer (also kein Loch, kein eingeschlossenes Innenteil)
+    for (i, q) in polys.iter().enumerate() {
+        let inside = polys
+            .iter()
+            .enumerate()
+            .filter(|(j, r)| *j != i && vl_core::path::point_in_polylines(q.points[0], std::slice::from_ref(*r)))
+            .count();
+        assert_eq!(inside % 2, 0, "Kontur {i} ist noch ein Loch");
+    }
+    assert!(h.state_mut().history.can_undo());
+}
+
 /// Kamerabild übernehmen: dunkles Quadrat in der Bildmitte landet an der passenden Stelle der Arbeitsfläche,
 /// auf einer Ebene ohne Ausgabe.
 #[test]

@@ -82,6 +82,10 @@ pub struct ShapeDialogs {
     pub corner_min_angle: f64,
     /// Abstand, der beim Andocken frei bleibt (mm).
     pub dock_gap: f64,
+    pub stencil_open: bool,
+    /// Breite (mm) und Richtung (Grad, 0 = senkrecht) der Schablonenstege.
+    pub stencil_width: f64,
+    pub stencil_angle: f64,
 }
 
 /// Verschachteln im Hintergrund: Einheiten, Projektstand beim Start und das Ergebnis.
@@ -132,6 +136,9 @@ impl Default for ShapeDialogs {
             corner_size: 2.0,
             corner_min_angle: 15.0,
             dock_gap: 0.0,
+            stencil_open: false,
+            stencil_width: 1.0,
+            stencil_angle: 0.0,
             path_swap: false,
         }
     }
@@ -522,6 +529,38 @@ impl VectorLumeApp {
         self.toast(ToastKind::Success, trs(&format!("{count} Ecken bearbeitet.")));
     }
 
+    /// Schablonenstege: In jeder ausgewählten Form (auch Texten, sie werden dabei zu Kurven) halten schmale Stege die
+    /// Innenteile von Löchern fest, damit sie beim Ausschneiden einer Schablone nicht herausfallen.
+    pub fn stencil_selection(&mut self) {
+        let (width, angle) = (self.shape_dialogs.stencil_width, self.shape_dialogs.stencil_angle);
+        let mut changed: Vec<(ObjectId, Vec<Polyline>)> = Vec::new();
+        let mut count = 0;
+        for o in self.doc.expand_groups(&self.selection).iter().filter_map(|id| self.doc.get(*id)) {
+            let Shape::Path(p) = &o.shape else { continue };
+            let (out, n) = vl_core::stencil::stencil_bridges(&p.flatten(&o.transform, 0.01), width, angle);
+            if n > 0 {
+                count += n;
+                changed.push((o.id, out));
+            }
+        }
+        if changed.is_empty() {
+            self.toast(ToastKind::Info, tr("Die Auswahl hat keine Innenteile, die herausfallen könnten."));
+            return;
+        }
+        self.checkpoint();
+        for (id, polys) in changed {
+            if let Some(o) = self.doc.get_mut(id) {
+                o.shape = Shape::Path(polylines_to_path(&polys));
+                o.reset_transform();
+                o.text = None;
+                o.primitive = None;
+                self.geom.invalidate(id);
+            }
+        }
+        self.mark_changed();
+        self.toast(ToastKind::Success, trs(&format!("{count} Stege eingefügt.")));
+    }
+
     /// Reduziert die Knoten der ausgewählten Pfade (Douglas-Peucker), wahlweise mit Glättung zu Kurven.
     pub fn simplify_selection(&mut self) {
         let (tol, smoothing) = (self.shape_dialogs.simplify_tolerance, self.shape_dialogs.simplify_smoothing);
@@ -899,6 +938,61 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     nest_window(app, ctx);
     slots_window(app, ctx);
     corners_window(app, ctx);
+    stencil_window(app, ctx);
+}
+
+fn stencil_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
+    if !app.shape_dialogs.stencil_open {
+        return;
+    }
+    let mut open = true;
+    let mut apply = false;
+    let has = !app.selection.is_empty();
+    egui::Window::new(trs(&format!("{} Schablonenstege", icon::BRIDGE)))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            let pal = theme::of(ui);
+            let d = &mut app.shape_dialogs;
+            egui::Grid::new("stencil").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
+                ui.label(tr("Stegbreite"));
+                ui.add(DragValue::new(&mut d.stencil_width).speed(0.02).range(0.1..=20.0).max_decimals(2).mm());
+                ui.end_row();
+                ui.label(tr("Richtung"));
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut d.stencil_angle, 0.0, tr("senkrecht"));
+                    ui.selectable_value(&mut d.stencil_angle, 90.0, tr("waagrecht"));
+                    ui.add(DragValue::new(&mut d.stencil_angle).speed(1.0).range(-90.0..=90.0).suffix("°"));
+                });
+                ui.end_row();
+            });
+            ui.label(
+                RichText::new(tr(
+                    "Innenteile von Löchern (z. B. in O, A, B) bekommen je zwei Stege durch ihre Mitte, damit sie beim \
+                     Ausschneiden einer Schablone nicht herausfallen. Texte werden dabei zu Kurven.",
+                ))
+                .small()
+                .color(pal.text_weak),
+            );
+            ui.add_space(6.0);
+            if ui
+                .add_enabled(has, Button::new(RichText::new(tr("Anwenden")).color(Color32::WHITE)).fill(pal.accent))
+                .clicked()
+            {
+                apply = true;
+            }
+            if !has {
+                ui.label(RichText::new(tr("Nichts ausgewählt")).small().color(pal.text_weak));
+            }
+        });
+    if apply {
+        app.stencil_selection();
+    }
+    if !open {
+        app.shape_dialogs.stencil_open = false;
+    }
 }
 
 fn corners_window(app: &mut VectorLumeApp, ctx: &egui::Context) {

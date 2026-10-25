@@ -81,6 +81,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 | LF-29b | Formen verzerren: perspektivisch und mit gebogener Hülle | K |
 | LF-29c | Box-Generator für Kisten mit Fingerzinken | K |
 | LF-29d | Biegescharnier (Living Hinge) für biegsame Holzteile | K |
+| LF-29e | Schablonenstege, damit Innenteile von Buchstaben nicht herausfallen | K |
 | LF-24 | QR-Codes und Strichcodes (EAN, Code 128 u. a.), auch mit fortlaufender Nummer | S |
 
 ### 5.3 Ebenen und Laser-Einstellungen

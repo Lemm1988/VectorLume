@@ -17,6 +17,7 @@ pub mod path;
 pub mod primitive;
 pub mod project;
 pub mod slots;
+pub mod stencil;
 pub mod text;
 pub mod trim;
 pub mod warp;

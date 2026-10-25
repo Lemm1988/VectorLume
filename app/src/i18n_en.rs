@@ -1266,6 +1266,12 @@ pub static EN: &[(&str, &str)] = &[
     ("Ungültige Werte.", "Invalid values."),
     ("Schnittlänge, Steg und Linienabstand müssen größer als 0 sein.", "Cut length, bridge and line spacing must be greater than 0."),
     ("Der Linienabstand ist zu klein (mindestens 0,3 mm).", "The line spacing is too small (at least 0.3 mm)."),
+    ("Die Auswahl hat keine Innenteile, die herausfallen könnten.", "The selection has no inner parts that could fall out."),
+    ("Stegbreite", "Bridge width"),
+    ("Innenteile von Löchern (z. B. in O, A, B) bekommen je zwei Stege durch ihre Mitte, damit sie beim Ausschneiden einer Schablone nicht herausfallen. Texte werden dabei zu Kurven.", "Inner parts of holes (e.g. in O, A, B) get two bridges through their middle so they don't fall out when cutting a stencil. Texts become curves."),
+    ("{} Stege eingefügt.", "{} bridges added."),
+    ("{} Schablonenstege", "{} Stencil bridges"),
+    ("Schablonenstege…", "Stencil bridges…"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

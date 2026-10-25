@@ -509,6 +509,9 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Ecken abrunden…"), "", has) {
         app.shape_dialogs.corners_open = true;
     }
+    if menu_item(ui, tr("Schablonenstege…"), "", has) {
+        app.shape_dialogs.stencil_open = true;
+    }
     if menu_item(ui, tr("Verzerren…"), "", has) {
         app.start_warp(vl_core::warp::WarpKind::Perspective);
     }
