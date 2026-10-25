@@ -207,13 +207,13 @@ fn composite_image(
         return;
     }
     let Some(inv) = transform.inverse() else { return };
-    let sharpened;
-    let src: &RasterImage = if img.adjust.sharpens() {
+    let filtered;
+    let src: &RasterImage = if img.adjust.filters() {
         let px_mm = img.width_mm * transform.mean_scale() / src.width as f64;
         let mut pixels = src.pixels.clone();
-        img.adjust.sharpen_pixels(&mut pixels, src.width as usize, src.height as usize, px_mm);
-        sharpened = RasterImage::new(src.width, src.height, pixels);
-        &sharpened
+        img.adjust.filter_pixels(&mut pixels, src.width as usize, src.height as usize, px_mm);
+        filtered = RasterImage::new(src.width, src.height, pixels);
+        &filtered
     } else {
         &img.image
     };

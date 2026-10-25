@@ -550,6 +550,12 @@ fn image_adjust_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             ui.label(tr("Gamma"));
             ui.add(egui::Slider::new(&mut adj.gamma, 0.2..=5.0).logarithmic(true).fixed_decimals(2));
             ui.end_row();
+            ui.label(tr("Entrauschen"));
+            ui.add(egui::Slider::new(&mut adj.denoise, 0.0..=1.0).fixed_decimals(2).suffix(" mm")).on_hover_text(tr(
+                "Medianfilter: entfernt Bildrauschen und einzelne Störpixel, Kanten bleiben scharf. Radius auf dem \
+                 Werkstück, etwa 1–2 × Zeilenabstand (0 = aus).",
+            ));
+            ui.end_row();
             ui.label(tr("Schärfen"));
             ui.add(egui::Slider::new(&mut adj.sharpen, 0.0..=300.0).fixed_decimals(0).suffix(" %")).on_hover_text(tr(
                 "Unscharfmaskierung: hebt Kanten und feine Details hervor, die beim Gravieren sonst verschwimmen",

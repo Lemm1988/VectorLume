@@ -77,11 +77,11 @@ impl VectorLumeApp {
         self.trace.busy = true;
         let (mut image, adjust, opts, tx, ctx) =
             (img.image.clone(), img.adjust, self.trace.opts.clone(), self.trace.tx.clone(), ctx.clone());
-        // Geschärft wie in der Ansicht (die Tonwerte rechnet `trace` selbst ein)
-        if adjust.sharpens() {
+        // Entrauscht und geschärft wie in der Ansicht (die Tonwerte rechnet `trace` selbst ein)
+        if adjust.filters() {
             let px_mm = img.width_mm * obj.transform.mean_scale() / image.width.max(1) as f64;
             let mut pixels = image.pixels.clone();
-            adjust.sharpen_pixels(&mut pixels, image.width as usize, image.height as usize, px_mm);
+            adjust.filter_pixels(&mut pixels, image.width as usize, image.height as usize, px_mm);
             image = std::sync::Arc::new(vl_core::RasterImage::new(image.width, image.height, pixels));
         }
         // Zugeschnittene Bilder: außerhalb weiß, damit dort nichts nachgezeichnet wird

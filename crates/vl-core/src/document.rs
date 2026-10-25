@@ -88,7 +88,7 @@ impl<'de> Deserialize<'de> for RasterImage {
     }
 }
 
-/// Bildanpassungen, die vor dem Dithering angewendet werden: zuerst das Schärfen, dann die Tonwerte.
+/// Bildanpassungen, die vor dem Dithering angewendet werden: zuerst Entrauschen und Schärfen, dann die Tonwerte.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ImageAdjust {
@@ -102,21 +102,91 @@ pub struct ImageAdjust {
     pub sharpen: f64,
     /// Radius der Unscharfmaskierung in mm auf dem Werkstück
     pub sharpen_radius: f64,
+    /// Radius des Medianfilters in mm auf dem Werkstück (0 = aus): entfernt Rauschen und Störpixel, Kanten
+    /// bleiben scharf
+    pub denoise: f64,
 }
 
 impl Default for ImageAdjust {
     fn default() -> Self {
-        Self { brightness: 0.0, contrast: 0.0, gamma: 1.0, sharpen: 0.0, sharpen_radius: 0.3 }
+        Self { brightness: 0.0, contrast: 0.0, gamma: 1.0, sharpen: 0.0, sharpen_radius: 0.3, denoise: 0.0 }
     }
 }
 
+/// Größter Medianradius in Rasterzellen (begrenzt die Rechenzeit bei feinen Rastern).
+const MAX_DENOISE_CELLS: usize = 25;
+
 impl ImageAdjust {
     pub fn is_identity(&self) -> bool {
-        self.brightness == 0.0 && self.contrast == 0.0 && (self.gamma - 1.0).abs() < 1e-9 && !self.sharpens()
+        self.brightness == 0.0 && self.contrast == 0.0 && (self.gamma - 1.0).abs() < 1e-9 && !self.filters()
     }
 
     pub fn sharpens(&self) -> bool {
         self.sharpen > 0.0
+    }
+
+    pub fn denoises(&self) -> bool {
+        self.denoise > 0.0
+    }
+
+    /// Wirkt ein Nachbarschaftsfilter (Entrauschen oder Schärfen)? Dann hängt das Ergebnis von der Rastergröße ab.
+    pub fn filters(&self) -> bool {
+        self.sharpens() || self.denoises()
+    }
+
+    /// Entrauschen, dann Schärfen eines Grauwertrasters (siehe [`Self::denoise_grid`], [`Self::sharpen_grid`]).
+    pub fn filter_grid(&self, gray: &mut [f32], mask: Option<&[bool]>, cols: usize, rows: usize, cell_mm: f64) {
+        self.denoise_grid(gray, mask, cols, rows, cell_mm);
+        self.sharpen_grid(gray, mask, cols, rows, cell_mm);
+    }
+
+    /// Medianfilter mit quadratischem Fenster (Radius `denoise` in mm) über ein Grauwertraster (0 … 1). Gleitendes
+    /// Histogramm auf 256 Stufen (Huang): je Zelle nur eine Spalte hinein und eine hinaus. Zellen außerhalb von
+    /// `mask` bleiben unverändert und zählen nicht mit.
+    pub fn denoise_grid(&self, gray: &mut [f32], mask: Option<&[bool]>, cols: usize, rows: usize, cell_mm: f64) {
+        let n = cols * rows;
+        if !self.denoises() || n == 0 || gray.len() < n || mask.is_some_and(|m| m.len() < n) {
+            return;
+        }
+        let r = ((self.denoise / cell_mm.max(1e-9)).round() as usize).clamp(1, MAX_DENOISE_CELLS);
+        let inside = |i: usize| mask.is_none_or(|m| m[i]);
+        let q: Vec<u8> = gray[..n].iter().map(|&g| (g.clamp(0.0, 1.0) * 255.0).round() as u8).collect();
+        for y in 0..rows {
+            let (y0, y1) = (y.saturating_sub(r), (y + r).min(rows - 1));
+            let column = |c: usize| (y0..=y1).map(move |yy| yy * cols + c).filter(move |&i| inside(i));
+            let mut hist = [0u32; 256];
+            // `m`: aktueller Median, `below`: Anzahl der Werte kleiner `m`
+            let (mut count, mut m, mut below) = (0u32, 0usize, 0u32);
+            for x in 0..cols {
+                let entering = if x == 0 { 0..(r + 1).min(cols) } else { (x + r).min(cols)..(x + r + 1).min(cols) };
+                for i in entering.flat_map(column) {
+                    hist[q[i] as usize] += 1;
+                    count += 1;
+                    below += u32::from((q[i] as usize) < m);
+                }
+                if x > r {
+                    for i in column(x - r - 1) {
+                        hist[q[i] as usize] -= 1;
+                        count -= 1;
+                        below -= u32::from((q[i] as usize) < m);
+                    }
+                }
+                let i = y * cols + x;
+                if count == 0 || !inside(i) {
+                    continue;
+                }
+                let target = (count - 1) / 2;
+                while below > target {
+                    m -= 1;
+                    below -= hist[m];
+                }
+                while below + hist[m] <= target {
+                    below += hist[m];
+                    m += 1;
+                }
+                gray[i] = m as f32 / 255.0;
+            }
+        }
     }
 
     /// Unscharfmaskierung `v + Stärke · (v − Weichzeichnung)` eines Grauwertrasters (0 … 1) mit Zellgröße
@@ -161,22 +231,22 @@ impl ImageAdjust {
         }
     }
 
-    /// Schärft 8-Bit-Grauwerte (Pixelgröße `px_mm`); die Tonwerte bleiben unberührt.
-    pub fn sharpen_pixels(&self, pixels: &mut [u8], cols: usize, rows: usize, px_mm: f64) {
-        if !self.sharpens() {
+    /// Entrauscht und schärft 8-Bit-Grauwerte (Pixelgröße `px_mm`); die Tonwerte bleiben unberührt.
+    pub fn filter_pixels(&self, pixels: &mut [u8], cols: usize, rows: usize, px_mm: f64) {
+        if !self.filters() {
             return;
         }
         let mut gray: Vec<f32> = pixels.iter().map(|&v| v as f32 / 255.0).collect();
-        self.sharpen_grid(&mut gray, None, cols, rows, px_mm);
+        self.filter_grid(&mut gray, None, cols, rows, px_mm);
         for (p, g) in pixels.iter_mut().zip(gray) {
             *p = (g * 255.0).round() as u8;
         }
     }
 
-    /// Bild mit allen Anpassungen (Schärfen und Tonwerte), `px_mm` = Pixelgröße auf dem Werkstück.
+    /// Bild mit allen Anpassungen (Filter und Tonwerte), `px_mm` = Pixelgröße auf dem Werkstück.
     pub fn adjusted_image(&self, img: &RasterImage, px_mm: f64) -> RasterImage {
         let mut pixels = img.pixels.clone();
-        self.sharpen_pixels(&mut pixels, img.width as usize, img.height as usize, px_mm);
+        self.filter_pixels(&mut pixels, img.width as usize, img.height as usize, px_mm);
         let lut: Vec<u8> = (0..=255u8).map(|v| (self.apply(v as f32 / 255.0) * 255.0).round() as u8).collect();
         for p in &mut pixels {
             *p = lut[*p as usize];
@@ -631,5 +701,28 @@ mod tests {
         let mut g: Vec<f32> = mask.iter().map(|&m| if m { 0.5 } else { 1.0 }).collect();
         a.sharpen_grid(&mut g, Some(&mask), cols, rows, 0.1);
         assert!(g.iter().zip(&mask).all(|(v, m)| if *m { (v - 0.5).abs() < 1e-4 } else { *v == 1.0 }));
+    }
+
+    #[test]
+    fn denoise_removes_specks_and_keeps_edges() {
+        // Kante 0,2 | 0,8 mit einzelnen Störpixeln, Zellen 0,1 mm, Radius 0,1 mm = 3 × 3 Fenster
+        let (cols, rows) = (30, 10);
+        let base: Vec<f32> = (0..cols * rows).map(|i| if i % cols < 15 { 0.2 } else { 0.8 }).collect();
+        let mut g = base.clone();
+        for &i in &[3 * cols + 5, 6 * cols + 22, 0, cols * rows - 1] {
+            g[i] = if base[i] < 0.5 { 1.0 } else { 0.0 };
+        }
+        let a = ImageAdjust { denoise: 0.1, ..Default::default() };
+        assert!(!a.is_identity() && a.filters());
+        a.denoise_grid(&mut g, None, cols, rows, 0.1);
+        for (i, (v, b)) in g.iter().zip(&base).enumerate() {
+            assert!((v - b).abs() < 0.003, "Zelle {i}: {v} statt {b}");
+        }
+
+        // Ausgeblendete Zellen bleiben, und ihre Werte ziehen den Median nicht
+        let mask: Vec<bool> = (0..cols * rows).map(|i| i % cols >= 10).collect();
+        let mut g: Vec<f32> = mask.iter().map(|&m| if m { 0.5 } else { 0.0 }).collect();
+        a.denoise_grid(&mut g, Some(&mask), cols, rows, 0.1);
+        assert!(g.iter().zip(&mask).all(|(v, m)| if *m { (v - 0.5).abs() < 0.003 } else { *v == 0.0 }));
     }
 }

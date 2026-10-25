@@ -161,7 +161,7 @@ fn sample(img: &ImageObject, transform: &Affine, interval: f64, raw: bool) -> Re
         }
     }
     if !raw {
-        img.adjust.sharpen_grid(&mut gray, Some(&mask), cols, rows, interval);
+        img.adjust.filter_grid(&mut gray, Some(&mask), cols, rows, interval);
         for (g, _) in gray.iter_mut().zip(&mask).filter(|(_, m)| **m) {
             *g = img.adjust.apply(*g);
         }
