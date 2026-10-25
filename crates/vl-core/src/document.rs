@@ -88,7 +88,7 @@ impl<'de> Deserialize<'de> for RasterImage {
     }
 }
 
-/// Bildanpassungen, die vor dem Dithering angewendet werden.
+/// Bildanpassungen, die vor dem Dithering angewendet werden: zuerst das Schärfen, dann die Tonwerte.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ImageAdjust {
@@ -98,17 +98,90 @@ pub struct ImageAdjust {
     pub contrast: f64,
     /// 0.2 … 5.0, 1.0 = unverändert
     pub gamma: f64,
+    /// Stärke der Unscharfmaskierung in % (0 = aus … 300)
+    pub sharpen: f64,
+    /// Radius der Unscharfmaskierung in mm auf dem Werkstück
+    pub sharpen_radius: f64,
 }
 
 impl Default for ImageAdjust {
     fn default() -> Self {
-        Self { brightness: 0.0, contrast: 0.0, gamma: 1.0 }
+        Self { brightness: 0.0, contrast: 0.0, gamma: 1.0, sharpen: 0.0, sharpen_radius: 0.3 }
     }
 }
 
 impl ImageAdjust {
     pub fn is_identity(&self) -> bool {
-        self.brightness == 0.0 && self.contrast == 0.0 && (self.gamma - 1.0).abs() < 1e-9
+        self.brightness == 0.0 && self.contrast == 0.0 && (self.gamma - 1.0).abs() < 1e-9 && !self.sharpens()
+    }
+
+    pub fn sharpens(&self) -> bool {
+        self.sharpen > 0.0
+    }
+
+    /// Unscharfmaskierung `v + Stärke · (v − Weichzeichnung)` eines Grauwertrasters (0 … 1) mit Zellgröße
+    /// `cell_mm`. Die Weichzeichnung ist ein dreifacher Kastenfilter (≈ Gauß mit σ = Radius). Zellen außerhalb
+    /// von `mask` bleiben unverändert und zählen nicht zur Umgebung, damit an Bildrändern keine Säume entstehen.
+    pub fn sharpen_grid(&self, gray: &mut [f32], mask: Option<&[bool]>, cols: usize, rows: usize, cell_mm: f64) {
+        let n = cols * rows;
+        if !self.sharpens() || n == 0 || gray.len() < n || mask.is_some_and(|m| m.len() < n) {
+            return;
+        }
+        let sigma = self.sharpen_radius.max(0.0) / cell_mm.max(1e-9);
+        // drei Kästen der Breite 2r+1 haben zusammen die Varianz (w² − 1) / 4
+        let r = ((((4.0 * sigma * sigma + 1.0).sqrt() - 1.0) / 2.0).round() as usize).clamp(1, cols.max(rows));
+        let inside = |i: usize| mask.is_none_or(|m| m[i]);
+        let mut scratch = Vec::new();
+        let mut blur = |a: &mut Vec<f32>| {
+            for _ in 0..3 {
+                box_rows(a, cols, r);
+                box_columns(a, cols, rows, r, &mut scratch);
+            }
+        };
+        let mut num: Vec<f32> = (0..n).map(|i| if inside(i) { gray[i] } else { 0.0 }).collect();
+        blur(&mut num);
+        // Anteil der Umgebung, der im Raster bzw. in der Maske liegt; ohne Maske zerfällt er in Zeile × Spalte
+        let den = mask.map(|m| {
+            let mut d: Vec<f32> = m[..n].iter().map(|&b| if b { 1.0 } else { 0.0 }).collect();
+            blur(&mut d);
+            d
+        });
+        let (mut den_x, mut den_y) = (vec![1f32; cols], vec![1f32; rows]);
+        for _ in 0..3 {
+            box_rows(&mut den_x, cols, r);
+            box_rows(&mut den_y, rows, r);
+        }
+        let amount = (self.sharpen / 100.0) as f32;
+        for i in 0..n {
+            let d = den.as_ref().map_or_else(|| den_x[i % cols] * den_y[i / cols], |d| d[i]);
+            if inside(i) && d > 1e-6 {
+                let v = gray[i];
+                gray[i] = (v + amount * (v - num[i] / d)).clamp(0.0, 1.0);
+            }
+        }
+    }
+
+    /// Schärft 8-Bit-Grauwerte (Pixelgröße `px_mm`); die Tonwerte bleiben unberührt.
+    pub fn sharpen_pixels(&self, pixels: &mut [u8], cols: usize, rows: usize, px_mm: f64) {
+        if !self.sharpens() {
+            return;
+        }
+        let mut gray: Vec<f32> = pixels.iter().map(|&v| v as f32 / 255.0).collect();
+        self.sharpen_grid(&mut gray, None, cols, rows, px_mm);
+        for (p, g) in pixels.iter_mut().zip(gray) {
+            *p = (g * 255.0).round() as u8;
+        }
+    }
+
+    /// Bild mit allen Anpassungen (Schärfen und Tonwerte), `px_mm` = Pixelgröße auf dem Werkstück.
+    pub fn adjusted_image(&self, img: &RasterImage, px_mm: f64) -> RasterImage {
+        let mut pixels = img.pixels.clone();
+        self.sharpen_pixels(&mut pixels, img.width as usize, img.height as usize, px_mm);
+        let lut: Vec<u8> = (0..=255u8).map(|v| (self.apply(v as f32 / 255.0) * 255.0).round() as u8).collect();
+        for p in &mut pixels {
+            *p = lut[*p as usize];
+        }
+        RasterImage::new(img.width, img.height, pixels)
     }
 
     /// Wendet die Anpassung auf einen Grauwert 0…1 an.
@@ -122,6 +195,45 @@ impl ImageAdjust {
         let factor = if c >= 0.0 { 1.0 / (1.0 - c) } else { 1.0 + c };
         v = (v - 0.5) * factor + 0.5;
         v.clamp(0.0, 1.0) as f32
+    }
+}
+
+/// Gleitender Mittelwert der Breite 2r+1 entlang jeder Zeile; außerhalb des Rasters zählt 0.
+fn box_rows(a: &mut [f32], cols: usize, r: usize) {
+    let norm = 1.0 / (2 * r + 1) as f32;
+    let mut line = vec![0f32; cols];
+    for row in a.chunks_exact_mut(cols) {
+        line.copy_from_slice(row);
+        let mut sum: f32 = line[..(r + 1).min(cols)].iter().sum();
+        for k in 0..cols {
+            row[k] = sum * norm;
+            if k + r + 1 < cols {
+                sum += line[k + r + 1];
+            }
+            if k >= r {
+                sum -= line[k - r];
+            }
+        }
+    }
+}
+
+/// Wie [`box_rows`] entlang der Spalten, zeilenweise gerechnet (speicherfreundlich).
+fn box_columns(a: &mut [f32], cols: usize, rows: usize, r: usize, src: &mut Vec<f32>) {
+    let norm = 1.0 / (2 * r + 1) as f32;
+    src.clear();
+    src.extend_from_slice(&a[..cols * rows]);
+    let mut sum = vec![0f32; cols];
+    for row in src.chunks_exact(cols).take(r + 1) {
+        sum.iter_mut().zip(row).for_each(|(s, v)| *s += v);
+    }
+    for k in 0..rows {
+        a[k * cols..(k + 1) * cols].iter_mut().zip(&sum).for_each(|(o, s)| *o = s * norm);
+        if k + r + 1 < rows {
+            sum.iter_mut().zip(&src[(k + r + 1) * cols..(k + r + 2) * cols]).for_each(|(s, v)| *s += v);
+        }
+        if k >= r {
+            sum.iter_mut().zip(&src[(k - r) * cols..(k - r + 1) * cols]).for_each(|(s, v)| *s -= v);
+        }
     }
 }
 
@@ -498,5 +610,26 @@ mod tests {
         for v in [0.0f32, 0.25, 0.5, 1.0] {
             assert!((a.apply(v) - v).abs() < 1e-6);
         }
+    }
+
+    #[test]
+    fn sharpen_raises_edge_contrast_and_respects_mask() {
+        // Kante 0,2 | 0,8 in einem 40 × 4 Raster, Zellen 0,1 mm
+        let (cols, rows) = (40, 4);
+        let base: Vec<f32> = (0..cols * rows).map(|i| if i % cols < 20 { 0.2 } else { 0.8 }).collect();
+        let mut g = base.clone();
+        ImageAdjust::default().sharpen_grid(&mut g, None, cols, rows, 0.1);
+        assert_eq!(g, base, "Stärke 0 ändert nichts");
+        let a = ImageAdjust { sharpen: 100.0, sharpen_radius: 0.2, ..Default::default() };
+        assert!(!a.is_identity());
+        a.sharpen_grid(&mut g, None, cols, rows, 0.1);
+        assert!(g[19] < 0.15 && g[20] > 0.85, "Kante verstärkt: {} {}", g[19], g[20]);
+        assert!((g[0] - 0.2).abs() < 1e-4 && (g[39] - 0.8).abs() < 1e-4, "Flächen bleiben");
+
+        // Gleichmäßige Fläche neben ausgeblendeten (weißen) Zellen: kein dunkler Saum
+        let mask: Vec<bool> = (0..cols * rows).map(|i| i % cols >= 10).collect();
+        let mut g: Vec<f32> = mask.iter().map(|&m| if m { 0.5 } else { 1.0 }).collect();
+        a.sharpen_grid(&mut g, Some(&mask), cols, rows, 0.1);
+        assert!(g.iter().zip(&mask).all(|(v, m)| if *m { (v - 0.5).abs() < 1e-4 } else { *v == 1.0 }));
     }
 }

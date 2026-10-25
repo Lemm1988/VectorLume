@@ -207,6 +207,16 @@ fn composite_image(
         return;
     }
     let Some(inv) = transform.inverse() else { return };
+    let sharpened;
+    let src: &RasterImage = if img.adjust.sharpens() {
+        let px_mm = img.width_mm * transform.mean_scale() / src.width as f64;
+        let mut pixels = src.pixels.clone();
+        img.adjust.sharpen_pixels(&mut pixels, src.width as usize, src.height as usize, px_mm);
+        sharpened = RasterImage::new(src.width, src.height, pixels);
+        &sharpened
+    } else {
+        &img.image
+    };
     let (w, h) = (src.width as f64, src.height as f64);
     let doc_to_px = inv.then(&Affine::scale(w / img.width_mm, h / img.height_mm));
     // stark verkleinerte Bilder vorher mitteln
@@ -218,7 +228,7 @@ fn composite_image(
         reduced = box_downsample(src, factor);
         (&reduced, 1.0 / factor as f64)
     } else {
-        (&**src, 1.0)
+        (src, 1.0)
     };
     let clip = img.clip_mask(src.width as usize, src.height as usize);
     let b = transform.transform_rect(&img.local_rect());

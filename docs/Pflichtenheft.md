@@ -59,7 +59,7 @@ Materialbibliothek, weitere Steuerungen (Ruida, Marlin, Smoothieware, Galvo), Ka
 | Crate | Aufgabe | Wichtige Typen/Funktionen |
 |---|---|---|
 | `vl-core` | Geometrie (Punkt, Rechteck, affine Transformation), Bézierpfade und Abflachen, Ebenen/Laser-Einstellungen, Dokument, Projektformat | `Document`, `Object`, `Shape`, `VectorPath`, `CutSettings`, `save_project` |
-| `vl-raster` | Bild auf Gravurraster abtasten (auch gedreht/skaliert), Helligkeit/Kontrast/Gamma, 8 Dithering-Verfahren + Graustufen | `engrave_image`, `dither_gray` |
+| `vl-raster` | Bild auf Gravurraster abtasten (auch gedreht/skaliert), Schärfen, Helligkeit/Kontrast/Gamma, 8 Dithering-Verfahren + Graustufen | `engrave_image`, `dither_gray` |
 | `vl-cam` | Werkzeugwege (Linie, Schraffur mit Winkel/Kreuzschraffur/Overscan, Raster), Reihenfolge (nächster Nachbar, innen vor außen), Zeitschätzung, G-Code, Rahmen, Job-Ursprung | `build_job`, `frame_gcode`, `MachineProfile`, `JobSettings` |
 | `vl-device` | Treiber-Thread: GRBL mit Zeichenzähl-Streaming und Echtzeitbefehlen, Marlin/Smoothieware mit Senden und Warten; Statusabfrage, Not-Stopp, Simulator für alle drei | `Device`, `Command`, `Event`, `SimTransport` |
 | `vl-io` | Import SVG (inkl. Text), DXF (inkl. Blöcke, Bulges, Splines), PDF/AI, HPGL, Bilder; Schrift → Pfad; SVG-/DXF-Export | `import_file`, `text_to_path`, `export_svg`, `export_dxf` |
@@ -113,7 +113,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-32 | Basiswerte | Geschwindigkeit, Leistung max./min., Durchgänge, Ausgabe, Luft (M8/M9); **Leistung je Objekt** in Prozent der Ebenenleistung (Eigenschaftenleiste, z. B. für Materialtests auf einer Ebene) | ✅ |
 | LF-33 | Füllen | Zeilenabstand (mit dpi-Anzeige), Winkel, bidirektional, Kreuzschraffur, Overscan; Gerade-Ungerade-Regel (Löcher bleiben frei); Füllreihenfolge alle zusammen / Gruppen einzeln / Formen einzeln (Außenkontur mit ihren Löchern, nächstgelegenes Teil zuerst, gemeinsames Zeilenraster; aus LightBurn `scanOpt`); **Stempel-Rampe** (Leistung steigt mit dem Abstand zum nächsten Rand von Mindest- auf Höchstleistung, Stufen 0,5 %, wahlweise nur an der äußersten Kontur; Kantenabfrage über ein Raster) | ✅ |
 | LF-34 | Bildmodi | **Durchreichen** (fertiges S/W-Bild: nächstes Pixel, keine Anpassung, kein Dithering; Knopf „Zeilenabstand an Bild anpassen“ mit der Bildauflösung), Schwellwert, Floyd-Steinberg, Jarvis, Stucki, Atkinson, Burkes, Sierra, Bayer 8×8, Graustufen; Negativ; **Halbton** (runde Punkte, deren Fläche dem Grauwert entspricht, Rasterweite in mm und Winkel einstellbar) und **zusätzlich Linienraster** (Linien mit grauwertabhängiger Breite, Kupferstich-Optik); **Punktbreiten-Korrektur** (gebrannte Strecken an Übergängen zu „aus“ um die halbe Punktbreite gekürzt, Einzelpunkte bleiben als kurzer Punkt); **Bearbeitetes Bild speichern** (Rechtsklick auf ein Bild: PNG genau so, wie es graviert wird – ein Pixel je Rasterpunkt, Werte der Bild-Bearbeitung seiner Ebene, dpi im Dateinamen) | ✅ |
-| LF-35 | Bildanpassung | Helligkeit, Kontrast, Gamma, live in der Ansicht; **Bild mit Form zuschneiden** (Bild + geschlossene Formen auswählen, Zuschnitt wird im Bild gespeichert, außerhalb weder angezeigt noch graviert – auch im Negativ-Modus – noch nachgezeichnet; „Zuschnitt aufheben“ stellt das ganze Bild wieder her) | ✅ |
+| LF-35 | Bildanpassung | Helligkeit, Kontrast, Gamma, live in der Ansicht; **Schärfen** (Unscharfmaskierung 0–300 %, Radius in mm auf dem Werkstück; wird auf dem Gravurraster vor den Tonwerten gerechnet, an Bild- und Zuschnitträndern ohne Saum, gilt auch für Ansicht, SVG-Export und Nachzeichnen); **Bild mit Form zuschneiden** (Bild + geschlossene Formen auswählen, Zuschnitt wird im Bild gespeichert, außerhalb weder angezeigt noch graviert – auch im Negativ-Modus – noch nachgezeichnet; „Zuschnitt aufheben“ stellt das ganze Bild wieder her) | ✅ |
 | LF-36 | Reihenfolge | Ebenen verschieben; **zusätzlich „Gravieren vor Schneiden“** (Bild/Füllen vor Schnitten) | ✅ |
 | LF-37 | Materialbibliothek | Material/Stärke/Titel/Notiz, Suche, Import/Export (`.vlmat`), Übernehmen auf Ebene | ✅ |
 | LF-38 | Z/Kerf | Schnittbreitenausgleich; Z-Versatz und Absenkung je Durchgang (nur mit Z-Achse im Profil); **Überschnitt** (geschlossene Konturen laufen über den Startpunkt hinaus, höchstens eine Runde) und **Perforieren** (abwechselnd Schnitt- und Lückenlänge, Lücken im Vorschub mit Laser aus, läuft über Ecken weiter); **Ein-/Auslauf** an geschlossenen Konturen (Länge je mm, Winkel 0–90°; setzt im Abfall an – außen bei Teilen, innen bei Löchern, ermittelt über die Verschachtelungstiefe) | ✅ |
@@ -221,7 +221,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (163):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (164):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,

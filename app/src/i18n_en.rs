@@ -1073,6 +1073,9 @@ pub static EN: &[(&str, &str)] = &[
     ("Zeilenabstand an Bild anpassen ({} dpi)", "Match line interval to image ({} dpi)"),
     ("Durchreichen (fertiges S/W-Bild)", "Pass-through (finished B/W image)"),
     ("Beidseitig", "Both sides"),
+    ("Schärfen", "Sharpen"),
+    ("Unscharfmaskierung: hebt Kanten und feine Details hervor, die beim Gravieren sonst verschwimmen", "Unsharp mask: brings out edges and fine details that would otherwise blur when engraving"),
+    ("Größe der Details, die verstärkt werden (etwa 2–4 × Zeilenabstand)", "Size of the details to enhance (about 2–4 × line interval)"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

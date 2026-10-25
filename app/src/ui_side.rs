@@ -522,6 +522,23 @@ fn image_adjust_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             ui.label(tr("Gamma"));
             ui.add(egui::Slider::new(&mut adj.gamma, 0.2..=5.0).logarithmic(true).fixed_decimals(2));
             ui.end_row();
+            ui.label(tr("Schärfen"));
+            ui.add(egui::Slider::new(&mut adj.sharpen, 0.0..=300.0).fixed_decimals(0).suffix(" %")).on_hover_text(tr(
+                "Unscharfmaskierung: hebt Kanten und feine Details hervor, die beim Gravieren sonst verschwimmen",
+            ));
+            ui.end_row();
+            if adj.sharpens() {
+                ui.label(tr("Radius"));
+                ui.add(
+                    egui::DragValue::new(&mut adj.sharpen_radius)
+                        .range(0.05..=5.0)
+                        .speed(0.01)
+                        .fixed_decimals(2)
+                        .suffix(" mm"),
+                )
+                .on_hover_text(tr("Größe der Details, die verstärkt werden (etwa 2–4 × Zeilenabstand)"));
+                ui.end_row();
+            }
         });
         if ui.button(tr("Zurücksetzen")).clicked() {
             adj = vl_core::ImageAdjust::default();

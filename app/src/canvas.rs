@@ -155,7 +155,7 @@ impl GeomCache {
 
 #[derive(Default)]
 pub struct TextureCache {
-    images: HashMap<(usize, [u64; 3], u64), (TextureHandle, u64)>,
+    images: HashMap<(usize, [u64; 5], u64), (TextureHandle, u64)>,
     preview: Vec<TextureHandle>,
     preview_generation: u64,
     frame: u64,
@@ -177,15 +177,32 @@ fn clip_key(clip: &[Vec<Point>]) -> u64 {
 /// Höchstens so viele Pixel pro Seite in einer Textur (Grafikkarten-Grenzen).
 const MAX_TEXTURE_SIDE: usize = 4096;
 
+/// Beim Schärfen kleiner, damit Regler flüssig bleiben (die Vorschau ist selten breiter).
+const MAX_SHARPEN_TEXTURE_SIDE: usize = 2048;
+
 fn downsample_step(w: usize, h: usize) -> usize {
     w.max(h).div_ceil(MAX_TEXTURE_SIDE).max(1)
 }
 
 impl TextureCache {
-    fn image(&mut self, ctx: &egui::Context, img: &ImageObject) -> TextureId {
+    /// `scale`: mittlere Skalierung des Objekts (der Schärferadius ist in mm auf dem Werkstück angegeben).
+    fn image(&mut self, ctx: &egui::Context, img: &ImageObject, scale: f64) -> TextureId {
+        let src = &img.image;
+        let (w, h) = (src.width as usize, src.height as usize);
+        let a = &img.adjust;
+        let step =
+            if a.sharpens() { w.max(h).div_ceil(MAX_SHARPEN_TEXTURE_SIDE).max(1) } else { downsample_step(w, h) };
+        let (tw, th) = (w.div_ceil(step), h.div_ceil(step));
+        // Texturpixel in mm; nur beim Schärfen Teil der Kennung, sonst erzwingt Skalieren keine neue Textur
+        let cell_mm = img.width_mm * scale / tw.max(1) as f64;
+        let sharpen = if a.sharpens() {
+            [a.sharpen.to_bits(), (a.sharpen_radius / cell_mm * 20.0).round() as u64]
+        } else {
+            [0; 2]
+        };
         let key = (
             Arc::as_ptr(&img.image) as usize,
-            [img.adjust.brightness.to_bits(), img.adjust.contrast.to_bits(), img.adjust.gamma.to_bits()],
+            [a.brightness.to_bits(), a.contrast.to_bits(), a.gamma.to_bits(), sharpen[0], sharpen[1]],
             clip_key(&img.clip),
         );
         let frame = self.frame;
@@ -193,14 +210,13 @@ impl TextureCache {
             *used = frame;
             return tex.id();
         }
-        let src = &img.image;
-        let (w, h) = (src.width as usize, src.height as usize);
-        let step = downsample_step(w, h);
-        let (tw, th) = (w.div_ceil(step), h.div_ceil(step));
-        let lut: Vec<u8> = (0..=255u8).map(|v| (img.adjust.apply(v as f32 / 255.0) * 255.0).round() as u8).collect();
-        let pixels = (0..th)
+        let mut raw: Vec<u8> = (0..th)
             .flat_map(|y| (0..tw).map(move |x| (x, y)))
-            .map(|(x, y)| lut[src.pixels[(y * step).min(h - 1) * w + (x * step).min(w - 1)] as usize]);
+            .map(|(x, y)| src.pixels[(y * step).min(h - 1) * w + (x * step).min(w - 1)])
+            .collect();
+        a.sharpen_pixels(&mut raw, tw, th, cell_mm);
+        let lut: Vec<u8> = (0..=255u8).map(|v| (a.apply(v as f32 / 255.0) * 255.0).round() as u8).collect();
+        let pixels = raw.into_iter().map(|v| lut[v as usize]);
         // Zugeschnittene Bilder: außerhalb durchsichtig
         let color = match img.clip_mask(tw, th) {
             Some(mask) => {
@@ -653,7 +669,7 @@ impl VectorLumeApp {
                     if !screen_bb.intersects(work) {
                         continue;
                     }
-                    let tex = self.textures.image(&ctx, img);
+                    let tex = self.textures.image(&ctx, img, obj.transform.mean_scale());
                     textured_quad(&clip, tex, corners, Color32::WHITE.gamma_multiply(objects_alpha));
                     let mut pts = corners.to_vec();
                     pts.push(corners[0]);

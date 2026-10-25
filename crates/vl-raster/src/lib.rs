@@ -150,8 +150,14 @@ fn sample(img: &ImageObject, transform: &Affine, interval: f64, raw: bool) -> Re
             gray[i] = if raw {
                 src.get(q.x as u32, q.y as u32) as f32 / 255.0
             } else {
-                img.adjust.apply(bilinear(source, q.x * scale, q.y * scale))
+                bilinear(source, q.x * scale, q.y * scale)
             };
+        }
+    }
+    if !raw {
+        img.adjust.sharpen_grid(&mut gray, Some(&mask), cols, rows, interval);
+        for (g, _) in gray.iter_mut().zip(&mask).filter(|(_, m)| **m) {
+            *g = img.adjust.apply(*g);
         }
     }
     Ok(Sampled { origin, dx: interval, dy: interval, cols, rows, gray, mask })

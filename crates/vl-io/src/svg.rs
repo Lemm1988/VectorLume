@@ -159,12 +159,14 @@ pub fn export_svg(doc: &Document, width_mm: f64, height_mm: f64) -> String {
 fn image_element(id: u64, name: &str, img: &ImageObject, t: &Affine) -> String {
     use base64::Engine as _;
     let src = &img.image;
-    let pixels: Vec<u8> = if img.adjust.is_identity() {
-        src.pixels.clone()
+    let adjusted;
+    let out_img: &RasterImage = if img.adjust.is_identity() {
+        src
     } else {
-        src.pixels.iter().map(|v| (img.adjust.apply(*v as f32 / 255.0) * 255.0).round() as u8).collect()
+        adjusted = img.adjust.adjusted_image(src, img.width_mm * t.mean_scale() / src.width.max(1) as f64);
+        &adjusted
     };
-    let Ok(png) = RasterImage::new(src.width, src.height, pixels).to_png() else { return String::new() };
+    let Ok(png) = out_img.to_png() else { return String::new() };
     let data = base64::engine::general_purpose::STANDARD.encode(png);
     let mut out = String::new();
     let mut clip_attr = String::new();
