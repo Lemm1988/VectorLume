@@ -254,6 +254,25 @@ impl VectorLumeApp {
         self.mark_changed();
     }
 
+    /// Rundet bzw. fast die Ecke am gewählten Knoten ab (Werte aus „Ecken abrunden“).
+    fn round_selected_node(&mut self, style: vl_core::corners::CornerStyle) {
+        let Some(n) = self.node_edit.selected else { return };
+        let size = self.shape_dialogs.corner_size;
+        let Some((path, t)) = self.node_target() else { return };
+        let Some(inv) = t.inverse() else { return };
+        let (out, count) = vl_core::corners::round_corners(&path.transformed(&t), style, size, 0.5, Some(&[n]));
+        if count == 0 {
+            self.toast(crate::app::ToastKind::Info, tr("Hier liegt keine Ecke zwischen zwei geraden Linien."));
+            return;
+        }
+        let out = out.transformed(&inv);
+        self.checkpoint();
+        self.edit_target(|p, _| *p = out);
+        // Die Knotennummern haben sich verschoben
+        self.node_edit.selected = None;
+        self.mark_changed();
+    }
+
     pub(crate) fn delete_selected_node(&mut self) {
         let Some(n) = self.node_edit.selected else { return };
         self.node_op(nodes::delete_node);
@@ -291,11 +310,26 @@ fn node_buttons(app: &mut VectorLumeApp, ui: &mut Ui, close: bool) {
     if clicked(ui, icon::LINK_BREAK, tr("Öffnen/Schließen"), tr("Teilpfad des Knotens öffnen bzw. schließen")) {
         app.node_op(|p, n| nodes::toggle_closed(p, n.sub));
     }
+    if clicked(ui, icon::FRAME_CORNERS, tr("Abrunden"), tr("Ecke am Knoten mit dem eingestellten Radius abrunden")) {
+        app.round_selected_node(vl_core::corners::CornerStyle::Round);
+    }
+    if clicked(ui, icon::POLYGON, tr("Abschrägen"), tr("Ecke am Knoten mit der eingestellten Länge abschrägen")) {
+        app.round_selected_node(vl_core::corners::CornerStyle::Chamfer);
+    }
 }
 
 /// Werkzeugoptionen in der oberen Leiste.
 pub fn options(app: &mut VectorLumeApp, ui: &mut Ui) {
     node_buttons(app, ui, false);
+    ui.add(
+        egui::DragValue::new(&mut app.shape_dialogs.corner_size)
+            .speed(0.05)
+            .range(0.01..=500.0)
+            .max_decimals(2)
+            .prefix("r ")
+            .suffix(" mm"),
+    )
+    .on_hover_text(tr("Radius bzw. Fasenlänge für „Abrunden“ und „Abschrägen“"));
     let hint = if app.node_edit.target.is_none() {
         tr("Pfad anklicken, um seine Knoten zu bearbeiten")
     } else {

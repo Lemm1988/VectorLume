@@ -1076,6 +1076,22 @@ pub static EN: &[(&str, &str)] = &[
     ("Schärfen", "Sharpen"),
     ("Unscharfmaskierung: hebt Kanten und feine Details hervor, die beim Gravieren sonst verschwimmen", "Unsharp mask: brings out edges and fine details that would otherwise blur when engraving"),
     ("Größe der Details, die verstärkt werden (etwa 2–4 × Zeilenabstand)", "Size of the details to enhance (about 2–4 × line interval)"),
+    ("Hier liegt keine Ecke zwischen zwei geraden Linien.", "There is no corner between two straight lines here."),
+    ("Abrunden", "Round"),
+    ("Ecke am Knoten mit dem eingestellten Radius abrunden", "Round the corner at this node with the set radius"),
+    ("Abschrägen", "Chamfer"),
+    ("Ecke am Knoten mit der eingestellten Länge abschrägen", "Chamfer the corner at this node with the set length"),
+    ("Radius bzw. Fasenlänge für „Abrunden“ und „Abschrägen“", "Radius or chamfer length for \"Round\" and \"Chamfer\""),
+    ("Keine Ecken zwischen geraden Linien gefunden (Texte zuerst in Kurven umwandeln).", "No corners between straight lines found (convert texts to curves first)."),
+    ("Abschrägen (Fase)", "Chamfer"),
+    ("Fasenlänge", "Chamfer length"),
+    ("Bei Fasen: Abstand von der Ecke entlang jeder Kante", "For chamfers: distance from the corner along each edge"),
+    ("Ab Knickwinkel", "Minimum bend angle"),
+    ("Flachere Knicke (z. B. in abgeflachten Rundungen) bleiben unverändert", "Shallower bends (e.g. in flattened curves) stay unchanged"),
+    ("Nur Ecken zwischen zwei geraden Linien werden bearbeitet. Ist eine Kante zu kurz, wird der Radius verkleinert. Einzelne Ecken: im Knotenwerkzeug einen Knoten wählen.", "Only corners between two straight lines are changed. If an edge is too short, the radius is reduced. Single corners: select a node with the node tool."),
+    ("{} Ecken bearbeitet.", "{} corners changed."),
+    ("{} Ecken abrunden", "{} Round corners"),
+    ("Ecken abrunden…", "Round corners…"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

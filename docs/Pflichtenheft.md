@@ -104,6 +104,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-27 | Motiv-Bibliothek | Reiter *Bibliothek* rechts: Auswahl samt Ebenen-Einstellungen als Motiv ablegen (`.vlume` im Einstellungsordner `library`), Vorschaubilder, Suche, Klick fügt in der Mitte der Ansicht ein (unbenutzte Ebenen übernehmen die Einstellungen des Motivs, Texte bleiben bearbeitbar), Umbenennen, Löschen mit Rückfrage, Ordner öffnen (Motive lassen sich als Dateien weitergeben) | ✅ |
 | LF-28 | Verschachteln | *Anordnen → Verschachteln…*: ausgewählte Teile (Gruppen bleiben zusammen) platzsparend auf die Arbeitsfläche oder die größte ausgewählte geschlossene Form (Reststück) legen; Mindestabstand, Rand, Drehung (keine/180°/90°/45°), kleine Teile in Löcher größerer; gepackt an der Nullpunkt-Ecke, größte Teile zuerst; eigenes Rasterverfahren (berührte Zellen zählen, dadurch keine Überlappung), rechnet im Hintergrund, nicht passende Teile bleiben liegen und werden gemeldet | ✅ |
 | LF-29 | Schlitze anpassen | *Anordnen → Schlitze anpassen…*: Kerben und Langlöcher einer Breite (± Toleranz) symmetrisch auf eine neue Breite bringen, z. B. bei anderer Materialstärke; erkannt werden U-Formen aus geraden Kanten mit parallelen Randkanten, deren Inneres leer ist (Materialseite über Umlaufsinn und Verschachtelungstiefe), gleich breite Zapfen bleiben; Kurven und Objekttransformation bleiben erhalten | ✅ |
+| LF-29a | Ecken abrunden | *Anordnen → Ecken abrunden…*: Ecken zwischen zwei geraden Linien ab einem Knickwinkel durch einen tangentialen Kreisbogen (Radius) oder eine Fase (Länge je Kante) ersetzen, konvex wie konkav, offene und geschlossene Pfade; zu kurze Kanten verkleinern den Radius, benachbarte Ecken teilen sich die Kante; gerechnet in Dokument-mm (auch bei verzerrt skalierten Objekten kreisrund); im Knotenwerkzeug einzelne Ecke „Abrunden“/„Abschrägen“ mit einstellbarem Radius | ✅ |
 
 ### 4.3 Ebenen und Laser-Einstellungen
 | LF | Funktion | Umsetzung | Stand |
@@ -221,7 +222,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (164):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (167):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,

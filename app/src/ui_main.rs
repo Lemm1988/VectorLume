@@ -422,6 +422,9 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Schlitze anpassen…"), "", has) {
         app.shape_dialogs.slots_open = true;
     }
+    if menu_item(ui, tr("Ecken abrunden…"), "", has) {
+        app.shape_dialogs.corners_open = true;
+    }
     if menu_item(ui, tr("Reihen-Kopien…"), "", has) {
         app.shape_dialogs.array_open = true;
     }

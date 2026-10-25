@@ -6,6 +6,7 @@ use crate::theme;
 use egui::{Align2, Button, Color32, DragValue, RichText, vec2};
 use egui_phosphor::regular as icon;
 use vl_cam::OriginCorner;
+use vl_core::corners::CornerStyle;
 use vl_core::nest::NestOptions;
 use vl_core::ops::{BoolOp, Corner};
 use vl_core::{Affine, ImageAdjust, ImageObject, Object, ObjectId, Point, Polyline, Shape, VectorPath};
@@ -73,6 +74,11 @@ pub struct ShapeDialogs {
     pub slots_from: f64,
     pub slots_to: f64,
     pub slots_tolerance: f64,
+    pub corners_open: bool,
+    pub corner_style: CornerStyle,
+    /// Radius bzw. Fasenlänge (mm) und Mindestknick (Grad), ab dem ein Knoten als Ecke gilt.
+    pub corner_size: f64,
+    pub corner_min_angle: f64,
 }
 
 /// Verschachteln im Hintergrund: Einheiten, Projektstand beim Start und das Ergebnis.
@@ -118,6 +124,10 @@ impl Default for ShapeDialogs {
             slots_from: 3.0,
             slots_to: 3.0,
             slots_tolerance: 0.1,
+            corners_open: false,
+            corner_style: CornerStyle::Round,
+            corner_size: 2.0,
+            corner_min_angle: 15.0,
             path_swap: false,
         }
     }
@@ -378,6 +388,40 @@ impl VectorLumeApp {
         }
         self.mark_changed();
         self.toast(ToastKind::Success, trs(&format!("{count} Schlitze angepasst.")));
+    }
+
+    /// Rundet oder fast die Ecken der ausgewählten Pfade ab; gerechnet in Dokument-Millimetern, damit der
+    /// Radius auch bei verzerrt skalierten Objekten stimmt.
+    pub fn round_corners_selection(&mut self) {
+        let d = &self.shape_dialogs;
+        let (style, size, min_angle) = (d.corner_style, d.corner_size, d.corner_min_angle);
+        let mut changed: Vec<(ObjectId, VectorPath)> = Vec::new();
+        let mut count = 0;
+        for o in self.selection.iter().filter_map(|id| self.doc.get(*id)).filter(|o| o.text.is_none()) {
+            let (Shape::Path(p), Some(inv)) = (&o.shape, o.transform.inverse()) else { continue };
+            let (rounded, n) =
+                vl_core::corners::round_corners(&p.transformed(&o.transform), style, size, min_angle, None);
+            if n > 0 {
+                count += n;
+                changed.push((o.id, rounded.transformed(&inv)));
+            }
+        }
+        if changed.is_empty() {
+            self.toast(
+                ToastKind::Info,
+                tr("Keine Ecken zwischen geraden Linien gefunden (Texte zuerst in Kurven umwandeln)."),
+            );
+            return;
+        }
+        self.checkpoint();
+        for (id, p) in changed {
+            if let Some(o) = self.doc.get_mut(id) {
+                o.shape = Shape::Path(p);
+                self.geom.invalidate(id);
+            }
+        }
+        self.mark_changed();
+        self.toast(ToastKind::Success, trs(&format!("{count} Ecken bearbeitet.")));
     }
 
     /// Reduziert die Knoten der ausgewählten Pfade (Douglas-Peucker), wahlweise mit Glättung zu Kurven.
@@ -753,6 +797,67 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     app.poll_nesting();
     nest_window(app, ctx);
     slots_window(app, ctx);
+    corners_window(app, ctx);
+}
+
+fn corners_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
+    if !app.shape_dialogs.corners_open {
+        return;
+    }
+    let mut open = true;
+    let mut apply = false;
+    let has = !app.selection.is_empty();
+    egui::Window::new(trs(&format!("{} Ecken abrunden", icon::FRAME_CORNERS)))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            let pal = theme::of(ui);
+            let d = &mut app.shape_dialogs;
+            ui.horizontal(|ui| {
+                ui.radio_value(&mut d.corner_style, CornerStyle::Round, tr("Abrunden"));
+                ui.radio_value(&mut d.corner_style, CornerStyle::Chamfer, tr("Abschrägen (Fase)"));
+            });
+            egui::Grid::new("corners").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
+                ui.label(if d.corner_style == CornerStyle::Round { tr("Radius") } else { tr("Fasenlänge") });
+                ui.add(
+                    DragValue::new(&mut d.corner_size).speed(0.05).range(0.01..=500.0).max_decimals(2).suffix(" mm"),
+                )
+                .on_hover_text(tr("Bei Fasen: Abstand von der Ecke entlang jeder Kante"));
+                ui.end_row();
+                ui.label(tr("Ab Knickwinkel"));
+                ui.add(
+                    DragValue::new(&mut d.corner_min_angle).speed(0.5).range(1.0..=179.0).max_decimals(0).suffix("°"),
+                )
+                .on_hover_text(tr("Flachere Knicke (z. B. in abgeflachten Rundungen) bleiben unverändert"));
+                ui.end_row();
+            });
+            ui.label(
+                RichText::new(tr(
+                    "Nur Ecken zwischen zwei geraden Linien werden bearbeitet. Ist eine Kante zu kurz, wird der \
+                     Radius verkleinert. Einzelne Ecken: im Knotenwerkzeug einen Knoten wählen.",
+                ))
+                .small()
+                .color(pal.text_weak),
+            );
+            ui.add_space(6.0);
+            if ui
+                .add_enabled(has, Button::new(RichText::new(tr("Anwenden")).color(Color32::WHITE)).fill(pal.accent))
+                .clicked()
+            {
+                apply = true;
+            }
+            if !has {
+                ui.label(RichText::new(tr("Nichts ausgewählt")).small().color(pal.text_weak));
+            }
+        });
+    if apply {
+        app.round_corners_selection();
+    }
+    if !open {
+        app.shape_dialogs.corners_open = false;
+    }
 }
 
 fn slots_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
