@@ -257,35 +257,85 @@ pub fn generate(
             }
         });
     }
-    for (layer, i) in work {
-        let l = &doc.layers[layer];
-        let Some(cs) = l.operation(i) else { continue };
-        let (images, vectors) = (l.image_operation() == i, l.handles_vectors(i));
-        let objs: Vec<&Object> = objects
-            .iter()
-            .copied()
-            .filter(|o| o.layer == layer && if o.is_image() { images } else { vectors })
-            .collect();
-        // Objekte mit eigener Leistung (z. B. Materialtest) getrennt ausgeben, in der Reihenfolge des Dokuments
-        let mut scales: Vec<f64> = Vec::new();
-        for o in &objs {
-            if !scales.contains(&o.power_scale) {
-                scales.push(o.power_scale);
-            }
-        }
-        for scale in scales {
-            let part: Vec<&Object> = objs.iter().copied().filter(|o| o.power_scale == scale).collect();
-            if scale == 100.0 {
-                layer_blocks(&mut tp, &mut cur, layer, cs, &part, profile, settings)?;
-            } else {
-                let mut scaled = cs.clone();
-                scaled.power_max *= scale / 100.0;
-                scaled.power_min *= scale / 100.0;
-                layer_blocks(&mut tp, &mut cur, layer, &scaled, &part, profile, settings)?;
-            }
+    for unit in job_units(objects, settings, start) {
+        for &(layer, i) in &work {
+            unit_blocks(&mut tp, &mut cur, doc, &unit, layer, i, profile, settings)?;
         }
     }
     Ok(tp)
+}
+
+/// Objektgruppen, die nacheinander vollständig bearbeitet werden: ohne „nach Gruppe“ alles gemeinsam, sonst je
+/// Gruppe eine Einheit (Ungruppiertes zusammen); bei optimierter Reihenfolge jeweils die nächstgelegene zuerst.
+fn job_units<'a>(objects: &[&'a Object], settings: &JobSettings, start: Point) -> Vec<Vec<&'a Object>> {
+    if !settings.order_by_group {
+        return vec![objects.to_vec()];
+    }
+    let mut units: Vec<(Option<vl_core::GroupId>, Vec<&Object>)> = Vec::new();
+    for o in objects {
+        match units.iter_mut().find(|u| u.0 == o.group) {
+            Some(u) => u.1.push(o),
+            None => units.push((o.group, vec![o])),
+        }
+    }
+    let mut units: Vec<Vec<&Object>> = units.into_iter().map(|u| u.1).collect();
+    if !settings.optimize_order {
+        return units;
+    }
+    let bounds = |u: &[&Object]| u.iter().fold(Rect::EMPTY, |r, o| r.union(&o.bounds()));
+    let mut ordered = Vec::with_capacity(units.len());
+    let mut at = start;
+    while !units.is_empty() {
+        let dist = |u: &Vec<&Object>| {
+            let b = bounds(u);
+            let dx = (b.min.x - at.x).max(at.x - b.max.x).max(0.0);
+            let dy = (b.min.y - at.y).max(at.y - b.max.y).max(0.0);
+            dx * dx + dy * dy
+        };
+        let next = (0..units.len()).min_by(|&a, &b| dist(&units[a]).total_cmp(&dist(&units[b]))).unwrap_or(0);
+        let u = units.remove(next);
+        at = bounds(&u).center();
+        ordered.push(u);
+    }
+    ordered
+}
+
+/// Eine Bearbeitung (`layer`, Unterebene `i`) für die Objekte einer Einheit.
+#[allow(clippy::too_many_arguments)]
+fn unit_blocks(
+    tp: &mut Toolpath,
+    cur: &mut Point,
+    doc: &Document,
+    unit: &[&Object],
+    layer: usize,
+    i: usize,
+    profile: &MachineProfile,
+    settings: &JobSettings,
+) -> Result<(), String> {
+    let l = &doc.layers[layer];
+    let Some(cs) = l.operation(i) else { return Ok(()) };
+    let (images, vectors) = (l.image_operation() == i, l.handles_vectors(i));
+    let objs: Vec<&Object> =
+        unit.iter().copied().filter(|o| o.layer == layer && if o.is_image() { images } else { vectors }).collect();
+    // Objekte mit eigener Leistung (z. B. Materialtest) getrennt ausgeben, in der Reihenfolge des Dokuments
+    let mut scales: Vec<f64> = Vec::new();
+    for o in &objs {
+        if !scales.contains(&o.power_scale) {
+            scales.push(o.power_scale);
+        }
+    }
+    for scale in scales {
+        let part: Vec<&Object> = objs.iter().copied().filter(|o| o.power_scale == scale).collect();
+        if scale == 100.0 {
+            layer_blocks(tp, cur, layer, cs, &part, profile, settings)?;
+        } else {
+            let mut scaled = cs.clone();
+            scaled.power_max *= scale / 100.0;
+            scaled.power_min *= scale / 100.0;
+            layer_blocks(tp, cur, layer, &scaled, &part, profile, settings)?;
+        }
+    }
+    Ok(())
 }
 
 /// Füllt die Teile nacheinander (jeweils das nächstgelegene zuerst) auf einem gemeinsamen Zeilenraster.
@@ -603,6 +653,31 @@ mod tests {
         // alle Ecken der Hülle liegen auf dem Kreis
         let pts = vl_core::ops::convex_hull(&burn_points(&job.toolpath));
         assert!(pts.iter().all(|p| (p.distance(Point::new(50.0, 50.0)) - 20.0).abs() < 0.1));
+    }
+
+    #[test]
+    fn order_by_group_finishes_each_group() {
+        let mut doc = Document::new();
+        doc.layers[1].settings = vl_core::CutSettings::default_for(LayerMode::Fill);
+        // Zwei Untersetzer: je Füllung (Ebene 1) und Kontur (Ebene 0), der zweite näher am Ursprung
+        for (g, x) in [(1u64, 100.0), (2, 0.0)] {
+            let fill = doc.add_path("Motiv", 1, VectorPath::rect(x + 5.0, 5.0, 10.0, 10.0, 0.0));
+            let cut = doc.add_path("Kontur", 0, VectorPath::rect(x, 0.0, 20.0, 20.0, 0.0));
+            for o in doc.objects.iter_mut().filter(|o| o.id == fill || o.id == cut) {
+                o.group = Some(g);
+            }
+        }
+        let objs: Vec<&Object> = doc.objects.iter().collect();
+        let profile = MachineProfile::default();
+        let run = |settings: &JobSettings| generate(&doc, &objs, &profile, settings, Point::ZERO).unwrap();
+        let layers = |tp: &Toolpath| tp.blocks.iter().map(|b| b.layer).collect::<Vec<_>>();
+        assert_eq!(layers(&run(&JobSettings::default())), [1, 0]);
+        let by_group = run(&JobSettings { order_by_group: true, ..Default::default() });
+        assert_eq!(layers(&by_group), [1, 0, 1, 0]);
+        // Die nähere Gruppe (x = 0) zuerst, je Gruppe Gravur vor Schnitt
+        let max_x = |b: &Block| b.ops.iter().map(|o| o.target().x).fold(f64::MIN, f64::max);
+        assert!(max_x(&by_group.blocks[0]) < 50.0 && max_x(&by_group.blocks[1]) < 50.0);
+        assert!(max_x(&by_group.blocks[2]) > 50.0 && max_x(&by_group.blocks[3]) > 50.0);
     }
 
     #[test]

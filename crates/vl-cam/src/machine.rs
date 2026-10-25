@@ -357,6 +357,9 @@ pub struct JobSettings {
     pub inner_first: bool,
     /// Bild- und Füllebenen vor Linienebenen ausgeben, damit ausgeschnittene Teile nicht vorher herausfallen.
     pub engrave_first: bool,
+    /// Jede Gruppe mit allen ihren Ebenen fertigstellen, bevor die nächste beginnt (z. B. mehrere Untersetzer:
+    /// gravieren und ausschneiden, dann der nächste). Ungruppierte Objekte bilden zusammen eine Einheit.
+    pub order_by_group: bool,
 }
 
 impl Default for JobSettings {
@@ -369,6 +372,7 @@ impl Default for JobSettings {
             optimize_order: true,
             inner_first: true,
             engrave_first: true,
+            order_by_group: false,
         }
     }
 }

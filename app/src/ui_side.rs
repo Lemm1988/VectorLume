@@ -806,6 +806,10 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
         ui.checkbox(&mut js.selected_only, tr("Nur Auswahl ausgeben"));
         ui.checkbox(&mut js.engrave_first, tr("Gravieren vor Schneiden"))
             .on_hover_text(tr("Bild- und Füllebenen zuerst, Linienebenen (Schnitte) zuletzt"));
+        ui.checkbox(&mut js.order_by_group, tr("Gruppen nacheinander fertigstellen")).on_hover_text(tr(
+            "Jede Gruppe mit allen ihren Ebenen bearbeiten, bevor die nächste beginnt – z. B. mehrere Untersetzer: \
+             gravieren und ausschneiden, dann der nächste. Ungruppiertes zählt als eine Einheit.",
+        ));
         ui.checkbox(&mut js.optimize_order, tr("Schnittreihenfolge optimieren"));
         ui.add_enabled(js.optimize_order, egui::Checkbox::new(&mut js.inner_first, tr("Innen vor außen schneiden")));
         if js != app.settings.job {
