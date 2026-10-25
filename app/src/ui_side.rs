@@ -202,7 +202,14 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
 
     ui.add_space(6.0);
     let l = app.current_layer;
-    let has_images = app.doc.objects_on_layer(l).any(|o| o.is_image());
+    // Auflösung des ersten Bildes der Ebene (dpi), zugleich „Ebene enthält Bilder“
+    let image_dpi = app.doc.objects_on_layer(l).find_map(|o| match &o.shape {
+        vl_core::Shape::Image(img) if img.image.width > 0 => {
+            let px_mm = img.width_mm * o.transform.mean_scale() / img.image.width as f64;
+            Some(25.4 / px_mm.max(1e-6))
+        }
+        _ => None,
+    });
     let z_axis = app.settings.profile.z_axis;
     let mut layer = app.doc.layers[l].clone();
     card(ui, |ui| {
@@ -251,7 +258,7 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
         }
         ui.add_space(4.0);
         let tab = app.sub_tab;
-        let images_here = has_images && layer.image_operation() == tab;
+        let images_here = image_dpi.filter(|_| layer.image_operation() == tab);
         if let Some(cs) = layer.operation_mut(tab) {
             cut_settings_ui(ui, cs, images_here, z_axis);
         }
@@ -265,7 +272,9 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     image_adjust_ui(app, ui);
 }
 
-pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool, z_axis: bool) {
+/// `image_dpi`: Auflösung des ersten Bildes, wenn diese Bearbeitung Bilder rastert.
+pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Option<f64>, z_axis: bool) {
+    let has_images = image_dpi.is_some();
     egui::Grid::new("cut_settings").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
         ui.label(tr("Modus"));
         let before = s.mode;
@@ -437,6 +446,22 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
                 }
             });
             ui.end_row();
+            if s.dither == DitherMode::PassThrough
+                && let Some(dpi) = image_dpi
+            {
+                ui.label("");
+                if ui
+                    .button(trs(&format!("Zeilenabstand an Bild anpassen ({dpi:.0} dpi)")))
+                    .on_hover_text(tr(
+                        "Durchreichen graviert jedes Bildpixel als einen Punkt – dafür muss der Zeilenabstand der \
+                         Bildauflösung entsprechen.",
+                    ))
+                    .clicked()
+                {
+                    s.interval = 25.4 / dpi;
+                }
+                ui.end_row();
+            }
             if s.dither.is_screen() {
                 ui.label(tr("Rasterweite"));
                 ui.horizontal(|ui| {

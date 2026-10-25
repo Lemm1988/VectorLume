@@ -1069,6 +1069,9 @@ pub static EN: &[(&str, &str)] = &[
     ("Bild konnte nicht gespeichert werden: {}", "Image could not be saved: {}"),
     ("Das Bild so speichern, wie es graviert wird – mit den Werten seiner Ebene", "Save the image as it will be engraved – with the values of its layer"),
     ("{} Bearbeitetes Bild speichern…", "{} Save processed image…"),
+    ("Durchreichen graviert jedes Bildpixel als einen Punkt – dafür muss der Zeilenabstand der Bildauflösung entsprechen.", "Pass-through engraves every image pixel as one dot – the line interval must match the image resolution."),
+    ("Zeilenabstand an Bild anpassen ({} dpi)", "Match line interval to image ({} dpi)"),
+    ("Durchreichen (fertiges S/W-Bild)", "Pass-through (finished B/W image)"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

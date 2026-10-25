@@ -82,10 +82,13 @@ pub enum DitherMode {
     Halftone,
     /// Parallele Linien, deren Breite dem Grauwert folgt (Kupferstich-Optik).
     LineScreen,
+    /// Fertig aufbereitetes Schwarzweißbild unverändert gravieren: nächstes Pixel statt Mittelung, keine
+    /// Bildanpassung, kein Dithering (Zeilenabstand passend zur Bildauflösung wählen).
+    PassThrough,
 }
 
 impl DitherMode {
-    pub const ALL: [DitherMode; 11] = [
+    pub const ALL: [DitherMode; 12] = [
         DitherMode::Threshold,
         DitherMode::FloydSteinberg,
         DitherMode::Jarvis,
@@ -97,6 +100,7 @@ impl DitherMode {
         DitherMode::Halftone,
         DitherMode::LineScreen,
         DitherMode::Grayscale,
+        DitherMode::PassThrough,
     ];
 
     pub fn label(self) -> &'static str {
@@ -112,6 +116,7 @@ impl DitherMode {
             DitherMode::Grayscale => "Graustufen",
             DitherMode::Halftone => "Halbton (Punkte)",
             DitherMode::LineScreen => "Linienraster",
+            DitherMode::PassThrough => "Durchreichen (fertiges S/W-Bild)",
         }
     }
 

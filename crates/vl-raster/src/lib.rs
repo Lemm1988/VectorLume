@@ -55,7 +55,7 @@ impl std::fmt::Display for RasterError {
 /// Komplette Aufbereitung eines Bildobjekts für die Gravur mit Zeilenabstand, Bildmodus, Negativ und Raster
 /// der Ebene.
 pub fn engrave_image(img: &ImageObject, transform: &Affine, cs: &CutSettings) -> Result<RasterResult, RasterError> {
-    let sampled = sample(img, transform, cs.interval)?;
+    let sampled = sample(img, transform, cs.interval, cs.dither == DitherMode::PassThrough)?;
     let mut gray = sampled.gray;
     if cs.negative {
         for (g, &m) in gray.iter_mut().zip(&sampled.mask) {
@@ -98,7 +98,8 @@ struct Sampled {
     mask: Vec<bool>,
 }
 
-fn sample(img: &ImageObject, transform: &Affine, interval: f64) -> Result<Sampled, RasterError> {
+/// `raw`: nächstes Quellpixel ohne Mittelung und ohne Bildanpassung (Durchreichen).
+fn sample(img: &ImageObject, transform: &Affine, interval: f64, raw: bool) -> Result<Sampled, RasterError> {
     let interval = interval.max(0.01);
     let bounds = transform.transform_rect(&img.local_rect());
     if bounds.width() <= 0.0 || bounds.height() <= 0.0 || img.image.width == 0 || img.image.height == 0 {
@@ -118,7 +119,7 @@ fn sample(img: &ImageObject, transform: &Affine, interval: f64) -> Result<Sample
     // Wie viele Quellpixel deckt eine Rasterzelle ab? Bei starker Verkleinerung vorher mitteln.
     let fx = doc_to_px.apply_vector(Point::new(interval, 0.0)).length();
     let fy = doc_to_px.apply_vector(Point::new(0.0, interval)).length();
-    let factor = fx.min(fy).floor().max(1.0) as u32;
+    let factor = if raw { 1 } else { fx.min(fy).floor().max(1.0) as u32 };
     let reduced;
     let (source, scale) = if factor >= 2 {
         reduced = box_downsample(src, factor);
@@ -146,8 +147,11 @@ fn sample(img: &ImageObject, transform: &Affine, interval: f64) -> Result<Sample
             }
             let i = r * cols + c;
             mask[i] = true;
-            let v = bilinear(source, q.x * scale, q.y * scale);
-            gray[i] = img.adjust.apply(v);
+            gray[i] = if raw {
+                src.get(q.x as u32, q.y as u32) as f32 / 255.0
+            } else {
+                img.adjust.apply(bilinear(source, q.x * scale, q.y * scale))
+            };
         }
     }
     Ok(Sampled { origin, dx: interval, dy: interval, cols, rows, gray, mask })
@@ -256,7 +260,9 @@ pub fn dither_gray(gray: &[f32], cols: usize, rows: usize, mode: DitherMode) -> 
     assert_eq!(gray.len(), cols * rows);
     match mode {
         DitherMode::Grayscale => gray.iter().map(|&g| (1.0 - g).clamp(0.0, 1.0)).collect(),
-        DitherMode::Threshold => gray.iter().map(|&g| if g < 0.5 { 1.0 } else { 0.0 }).collect(),
+        DitherMode::Threshold | DitherMode::PassThrough => {
+            gray.iter().map(|&g| if g < 0.5 { 1.0 } else { 0.0 }).collect()
+        }
         DitherMode::Ordered => {
             let m = bayer8();
             let mut out = vec![0.0; gray.len()];
@@ -428,7 +434,7 @@ mod tests {
             let out = dither_gray(&gray, cols, rows, mode);
             let mean: f32 = out.iter().sum::<f32>() / out.len() as f32;
             match mode {
-                DitherMode::Threshold => assert_eq!(mean, 1.0),
+                DitherMode::Threshold | DitherMode::PassThrough => assert_eq!(mean, 1.0),
                 // Atkinson verteilt nur 6/8 des Fehlers und darf daher abweichen.
                 DitherMode::Atkinson => assert!((mean - 0.7).abs() < 0.15, "{mode:?}: {mean}"),
                 _ => assert!((mean - 0.7).abs() < 0.03, "{mode:?}: {mean}"),
@@ -472,6 +478,29 @@ mod tests {
         // auch als Negativ bleibt außen alles aus
         let neg = engrave_image(&img, &Affine::IDENTITY, &cs(1.0, DitherMode::Threshold, true)).unwrap();
         assert_eq!((neg.get(0, 0), neg.get(5, 5)), (0.0, 0.0));
+    }
+
+    #[test]
+    fn pass_through_keeps_pixels_unchanged() {
+        // Schachbrett 1 px = 0,1 mm, dazu eine Bildanpassung, die alles aufhellen würde
+        let (w, h) = (20u32, 20u32);
+        let px = (0..h).flat_map(|y| (0..w).map(move |x| if (x + y) % 2 == 0 { 0 } else { 255 })).collect();
+        let img = ImageObject {
+            image: Arc::new(RasterImage::new(w, h, px)),
+            width_mm: 2.0,
+            height_mm: 2.0,
+            adjust: ImageAdjust { brightness: 100.0, ..Default::default() },
+            clip: Vec::new(),
+        };
+        let r = engrave_image(&img, &Affine::IDENTITY, &cs(0.1, DitherMode::PassThrough, false)).unwrap();
+        assert_eq!((r.cols, r.rows), (20, 20));
+        for (i, v) in r.intensity.iter().enumerate() {
+            let (x, y) = (i % 20, i / 20);
+            assert_eq!(*v, if (x + y) % 2 == 0 { 1.0 } else { 0.0 }, "({x}, {y})");
+        }
+        // Mit Mittelung und Anpassung wäre das Muster verloren
+        let t = engrave_image(&img, &Affine::IDENTITY, &cs(0.1, DitherMode::Threshold, false)).unwrap();
+        assert!(t.intensity.iter().all(|v| *v == 0.0));
     }
 
     #[test]

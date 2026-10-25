@@ -655,7 +655,7 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     ui.label(tr("Notiz"));
                     ui.add(egui::TextEdit::singleline(&mut e.notes).desired_width(320.0));
                 });
-                crate::ui_side::cut_settings_ui(ui, &mut e.settings, false, z_axis);
+                crate::ui_side::cut_settings_ui(ui, &mut e.settings, None, z_axis);
                 if *e != before {
                     changed = true;
                 }
