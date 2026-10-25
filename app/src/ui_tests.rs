@@ -1623,6 +1623,179 @@ fn render_panels_and_menus() {
     }
 }
 
+/// Beispielinhalt für den Zufallstest: offene und geschlossene Formen, Gruppe, Bild, auf mehreren Ebenen.
+fn monkey_scene(app: &mut VectorLumeApp) {
+    let pixels = (0..64 * 48).map(|i| ((i * 7) % 256) as u8).collect();
+    let image = vl_core::ImageObject {
+        image: std::sync::Arc::new(vl_core::RasterImage::new(64, 48, pixels)),
+        width_mm: 32.0,
+        height_mm: 24.0,
+        adjust: Default::default(),
+        clip: Vec::new(),
+    };
+    app.doc.add_path("Rechteck", 0, VectorPath::rect(20.0, 20.0, 60.0, 40.0, 4.0));
+    app.doc.add_path("Kreis", 1, VectorPath::ellipse(Point::new(120.0, 50.0), 20.0, 15.0));
+    app.doc.add_path("Linie", 0, VectorPath::line(Point::new(20.0, 90.0), Point::new(140.0, 120.0)));
+    let a = app.doc.add_path("Gruppe A", 2, VectorPath::rect(160.0, 20.0, 30.0, 30.0, 0.0));
+    let b = app.doc.add_path("Gruppe B", 2, VectorPath::ellipse(Point::new(175.0, 35.0), 8.0, 8.0));
+    app.doc.group(&[a, b]);
+    app.doc.add_image("Bild", 3, image, Point::new(60.0, 140.0));
+    app.doc.layers[1].settings.mode = vl_core::LayerMode::Fill;
+    app.select_all();
+}
+
+/// Zufallsbedienung („Affentest“): klickt nach festem Muster auf Knöpfe, Menüeinträge, Kästchen und Reiter,
+/// drückt Tastenkürzel und zieht auf der Arbeitsfläche – mit Beispielobjekten, Auswahl und verbundenem Simulator.
+/// Kein Schritt darf die App abstürzen lassen. Dateidialoge, Kamera und echte Anschlüsse sind im Test gesperrt
+/// (`file_dialog`, `camera`, `connect_with`), daher kann nichts außerhalb des Tests passieren.
+fn monkey(seed: u64, steps: usize) {
+    use egui::{Key, Modifiers, PointerButton, Pos2};
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+    let dir = std::env::temp_dir().join(format!("vectorlume-ui-affe-{seed}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = Some(dir.clone()));
+    let mut h = harness(false);
+    {
+        let app = h.state_mut();
+        monkey_scene(app);
+        app.selected_port = vl_device::SIMULATOR_PORT.into();
+        app.connect();
+    }
+    h.run_ok();
+    // „Beenden“ würde nur das Fenster schließen; alles andere darf der Affe anklicken
+    const SKIP: [&str; 1] = ["Beenden"];
+    const KEYS: [(Modifiers, Key); 10] = [
+        (Modifiers::NONE, Key::Escape),
+        (Modifiers::NONE, Key::Escape),
+        (Modifiers::NONE, Key::Delete),
+        (Modifiers::NONE, Key::Enter),
+        (Modifiers::COMMAND, Key::Z),
+        (Modifiers::COMMAND, Key::Y),
+        (Modifiers::COMMAND, Key::A),
+        (Modifiers::COMMAND, Key::C),
+        (Modifiers::COMMAND, Key::V),
+        (Modifiers::COMMAND, Key::G),
+    ];
+    let mut rng = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+    let mut next = move |n: usize| {
+        rng ^= rng >> 12;
+        rng ^= rng << 25;
+        rng ^= rng >> 27;
+        (rng.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 33) as usize % n.max(1)
+    };
+    let screen = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1600.0, 1000.0));
+    let mut log: Vec<String> = Vec::new();
+    for step in 0..steps {
+        if step % 60 == 0 && h.state().doc.objects.len() < 3 {
+            monkey_scene(h.state_mut());
+            log.push("Beispielinhalt neu".into());
+        }
+        let action = next(100);
+        if action < 70 {
+            let targets: Vec<(String, egui::Rect)> = h
+                .query_all_by(|n| {
+                    use egui::accesskit::Role;
+                    matches!(
+                        n.role(),
+                        Role::Button
+                            | Role::CheckBox
+                            | Role::RadioButton
+                            | Role::MenuItem
+                            | Role::MenuItemCheckBox
+                            | Role::MenuItemRadio
+                            | Role::Tab
+                            | Role::ComboBox
+                    ) && !n.is_disabled()
+                })
+                .map(|n| (egui_kittest::kittest::NodeT::accesskit_node(&n).label().unwrap_or_default(), n.rect()))
+                .filter(|(label, rect)| screen.contains(rect.center()) && !SKIP.iter().any(|s| label.contains(s)))
+                .collect();
+            if targets.is_empty() {
+                continue;
+            }
+            let (label, rect) = &targets[next(targets.len())];
+            log.push(format!("{step}: Klick „{label}“"));
+            let pos = rect.center();
+            h.hover_at(pos);
+            for pressed in [true, false] {
+                h.event(egui::Event::PointerButton {
+                    pos,
+                    button: PointerButton::Primary,
+                    pressed,
+                    modifiers: Modifiers::NONE,
+                });
+            }
+        } else if action < 80 {
+            let (m, k) = KEYS[next(KEYS.len())];
+            log.push(format!("{step}: Taste {m:?} {k:?}"));
+            h.key_press_modifiers(m, k);
+        } else {
+            // Arbeitsfläche: Ziehen (Werkzeuge, Auswahlrahmen, Verschieben) oder Rechtsklick
+            let p = Pos2::new(300.0 + next(800) as f32, 120.0 + next(700) as f32);
+            if action < 95 {
+                let q = p + egui::vec2(next(200) as f32 - 100.0, next(200) as f32 - 100.0);
+                log.push(format!("{step}: Ziehen {p:?} → {q:?}"));
+                h.drag_at(p);
+                h.hover_at(p + (q - p) * 0.5);
+                h.drop_at(q);
+            } else {
+                log.push(format!("{step}: Rechtsklick {p:?}"));
+                h.hover_at(p);
+                for pressed in [true, false] {
+                    h.event(egui::Event::PointerButton {
+                        pos: p,
+                        button: PointerButton::Secondary,
+                        pressed,
+                        modifiers: Modifiers::NONE,
+                    });
+                }
+            }
+        }
+        if catch_unwind(AssertUnwindSafe(|| h.run_steps(3))).is_err() {
+            let tail = log.iter().rev().take(15).rev().cloned().collect::<Vec<_>>().join("\n");
+            panic!("Absturz bei Zufallsbedienung (Startwert {seed}), letzte Schritte:\n{tail}");
+        }
+    }
+    if std::env::var_os("VL_MONKEY_LOG").is_some() {
+        println!(
+            "{}",
+            log.join(
+                "
+"
+            )
+        );
+    }
+    h.state_mut().disconnect();
+    crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = None);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn monkey_clicks_1() {
+    monkey(1, 1500);
+}
+
+#[test]
+fn monkey_clicks_2() {
+    monkey(2, 1500);
+}
+
+#[test]
+fn monkey_clicks_3() {
+    monkey(3, 1500);
+}
+
+/// Längere Suche von Hand: `VL_MONKEY_SEEDS=10..40 cargo test -p vectorlume monkey_many -- --ignored`.
+#[test]
+#[ignore = "lange Zufallssuche"]
+fn monkey_many() {
+    let range = std::env::var("VL_MONKEY_SEEDS").unwrap_or_else(|_| "10..20".into());
+    let (a, b) = range.split_once("..").expect("Bereich wie 10..20");
+    for seed in a.parse::<u64>().unwrap()..b.parse::<u64>().unwrap() {
+        monkey(seed, 2000);
+    }
+}
+
 /// Zeitmessung: ein Bild der Oberfläche mit vielen Formen (nur von Hand, mit `--ignored --nocapture`).
 #[test]
 #[ignore = "Zeitmessung"]

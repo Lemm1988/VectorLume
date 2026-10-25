@@ -395,7 +395,7 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
             if let Some(path) = licenses.filter(|p| p.is_file())
                 && ui.link(tr("Lizenzen der Bibliotheken anzeigen")).clicked()
             {
-                let _ = std::process::Command::new("explorer").arg(path).spawn();
+                crate::system::show_in_explorer(&path);
             }
         },
     );

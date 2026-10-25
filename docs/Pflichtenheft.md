@@ -241,7 +241,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (305):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (308):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
@@ -265,6 +265,14 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
   Einstellungsordner; Knöpfe werden über ihre Beschriftung bedient (Ecken abrunden, Menü *Anordnen*, Andocken und
   Zerschneiden, Bildanpassung). `cargo test -p vectorlume -- --ignored` rendert zusätzlich alle Dialoge, Menüs und
   Werkzeugleisten nach `target/ui-bilder` zur Sichtprüfung – auch bei gesperrtem Bildschirm.
+- **Zufallsbedienung („Affentest“, `monkey_clicks_1…3`):** je 1500 Schritte mit festem Startwert – Klicks auf
+  zufällige Knöpfe, Menüeinträge, Kästchen, Reiter und Auswahllisten, Tastenkürzel (Rückgängig, Löschen, Gruppieren …),
+  Ziehen und Rechtsklicks auf der Arbeitsfläche – mit Beispielobjekten (offen, geschlossen, Gruppe, Bild) und
+  verbundenem Simulator. Kein Schritt darf abstürzen; bei einem Absturz nennt der Test die letzten Schritte.
+  `VL_MONKEY_SEEDS=10..40 cargo test -p vectorlume monkey_many -- --ignored` sucht länger (bisher 66 000 Schritte
+  ohne Befund). Damit Tests nie etwas außerhalb des Programms auslösen, laufen Dateiauswahl, Explorer und Editor
+  über `app/src/system.rs` (im Test: abgebrochen bzw. nichts gestartet), die Kamera öffnet sich im Test nicht und
+  Verbindungen sind dort nur zum Simulator oder zu lokalen Testservern möglich – auch bei angeschlossenem Laser.
 - **End-to-End:** Ein Job mit Schnitt, Kreuzschraffur und Graustufenbild sowie die Rahmenfahrt werden zeilenweise durch
   den Simulator gestreamt – jede Zeile muss mit `ok` bestätigt werden.
 - **Oberfläche:** manuell bzw. per automatisierten Klicks geprüft (Zeichnen, Drehen, Text, Import, Vorschau, Job im

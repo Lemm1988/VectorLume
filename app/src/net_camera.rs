@@ -53,6 +53,10 @@ fn find(hay: &[u8], needle: &[u8], from: usize) -> Option<usize> {
 /// Holt ein Bild (Rohdaten der Datei, z. B. JPEG) von `url`.
 pub fn fetch_image(url: &str, timeout: Duration) -> Result<Vec<u8>, String> {
     let u = parse(url)?;
+    // Tests sprechen nur lokale Testserver an
+    if cfg!(test) && !(u.host.starts_with("127.") || u.host == "localhost") {
+        return Err(format!("Im Test keine Verbindung zu {}", u.host));
+    }
     let addr = (u.host, u.port)
         .to_socket_addrs()
         .map_err(|e| format!("Kamera „{}“ nicht gefunden: {e}", u.host))?

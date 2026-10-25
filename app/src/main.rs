@@ -34,6 +34,7 @@ mod settings;
 mod setup_wizard;
 mod shape_ops;
 mod snapping;
+mod system;
 mod tab_tool;
 mod tangent_tool;
 mod text_tool;

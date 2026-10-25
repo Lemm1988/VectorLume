@@ -65,10 +65,7 @@ pub fn take_previous() -> Option<PathBuf> {
 
 /// Öffnet den Bericht im Standard-Editor.
 pub fn open(path: &std::path::Path) {
-    #[cfg(windows)]
-    let _ = std::process::Command::new("notepad").arg(path).spawn();
-    #[cfg(not(windows))]
-    let _ = std::process::Command::new("xdg-open").arg(path).spawn();
+    crate::system::open_in_editor(path);
 }
 
 #[cfg(test)]

@@ -130,6 +130,8 @@ fn start_capture(source: Source, live: bool, ctx: egui::Context) -> Capture {
             ctx.request_repaint();
         };
         let index = match source {
+            // Tests öffnen nie die echte Kamera
+            Source::Device(_) if cfg!(test) => return put(Err("Im Test wird keine Kamera geöffnet.".into())),
             Source::Device(index) => index,
             Source::Url(url) => {
                 while !stop2.load(Ordering::Relaxed) {
@@ -316,6 +318,9 @@ pub fn paint_overlay(app: &VectorLumeApp, painter: &egui::Painter, bed_screen: e
 }
 
 fn devices() -> Vec<(CameraIndex, String)> {
+    if cfg!(test) {
+        return Vec::new();
+    }
     nokhwa::query(ApiBackend::Auto)
         .map(|list| list.into_iter().map(|c| (c.index().clone(), c.human_name())).collect())
         .unwrap_or_default()
@@ -649,7 +654,7 @@ pub(crate) fn insert_image(app: &mut VectorLumeApp) {
 }
 
 fn load_photo(app: &mut VectorLumeApp) {
-    let Some(path) = rfd::FileDialog::new()
+    let Some(path) = crate::system::FileDialog::new()
         .add_filter(tr("Bilder"), &["png", "jpg", "jpeg", "bmp", "webp", "tif", "tiff"])
         .pick_file()
     else {

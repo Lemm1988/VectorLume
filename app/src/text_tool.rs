@@ -600,7 +600,8 @@ fn barcode_options(
 
 /// CSV-Datei als Datenliste für den Text im Dialog laden.
 fn load_data_list(app: &mut VectorLumeApp) {
-    let Some(path) = rfd::FileDialog::new().add_filter(tr("CSV-Datei"), &["csv", "txt", "tsv"]).pick_file() else {
+    let Some(path) = crate::system::FileDialog::new().add_filter(tr("CSV-Datei"), &["csv", "txt", "tsv"]).pick_file()
+    else {
         return;
     };
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();

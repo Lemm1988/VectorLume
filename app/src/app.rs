@@ -573,7 +573,7 @@ impl VectorLumeApp {
             return;
         }
         let path = path.or_else(|| {
-            rfd::FileDialog::new()
+            crate::system::FileDialog::new()
                 .set_title(tr("Projekt öffnen"))
                 .add_filter(tr("Alle Projekte"), &[vl_core::project::PROJECT_EXTENSION, "lbrn2"])
                 .add_filter(tr("VectorLume-Projekt"), &[vl_core::project::PROJECT_EXTENSION])
@@ -655,7 +655,7 @@ impl VectorLumeApp {
     pub fn save(&mut self, save_as: bool) -> bool {
         let path = match (&self.file_path, save_as) {
             (Some(p), false) => Some(p.clone()),
-            _ => rfd::FileDialog::new()
+            _ => crate::system::FileDialog::new()
                 .set_title(tr("Projekt speichern"))
                 .set_file_name(format!(
                     "{}.{}",
@@ -692,7 +692,7 @@ impl VectorLumeApp {
         all.extend_from_slice(vl_io::MODEL_EXTENSIONS);
         let pcb = vl_io::pcb_extensions();
         all.extend_from_slice(&pcb);
-        if let Some(files) = rfd::FileDialog::new()
+        if let Some(files) = crate::system::FileDialog::new()
             .set_title(tr("Importieren"))
             .add_filter(tr("Alle unterstützten Dateien"), &all)
             .add_filter(tr("Vektorgrafik (SVG, DXF, PDF, AI, EPS, HPGL)"), vl_io::VECTOR_EXTENSIONS)
@@ -778,7 +778,7 @@ impl VectorLumeApp {
             .and_then(|s| s.to_str())
             .unwrap_or(tr("Job"))
             .to_string();
-        if let Some(path) = rfd::FileDialog::new()
+        if let Some(path) = crate::system::FileDialog::new()
             .set_title(tr("G-Code speichern"))
             .set_file_name(format!("{name}.gcode"))
             .add_filter(tr("G-Code"), &["gcode", "nc", "gc"])
@@ -789,7 +789,7 @@ impl VectorLumeApp {
     }
 
     pub fn export_svg_dialog(&mut self) {
-        if let Some(path) = rfd::FileDialog::new()
+        if let Some(path) = crate::system::FileDialog::new()
             .set_title(tr("Als SVG exportieren"))
             .set_file_name(tr("Export.svg"))
             .add_filter("SVG", &["svg"])
@@ -821,7 +821,7 @@ impl VectorLumeApp {
         let dpi = (25.4 / cs.interval.max(1e-3)).round();
         let png = vl_core::RasterImage::new(r.cols as u32, r.rows as u32, r.preview_pixels()).to_png();
         let name = format!("{}_{dpi}dpi.png", o.name.replace(['\\', '/', ':', '*', '?', '"', '<', '>', '|'], "_"));
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::system::FileDialog::new()
             .set_title(tr("Bearbeitetes Bild speichern"))
             .set_file_name(name)
             .add_filter("PNG", &["png"])
@@ -840,7 +840,7 @@ impl VectorLumeApp {
 
     /// PDF im Maßstab 1:1; die Seite umfasst den Entwurf (sichtbare Ebenen) plus 5 mm Rand, zum Drucken in 100 %.
     pub fn export_pdf_dialog(&mut self) {
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::system::FileDialog::new()
             .set_title(tr("Als PDF exportieren"))
             .set_file_name(tr("Export.pdf"))
             .add_filter("PDF", &["pdf"])
@@ -878,7 +878,7 @@ impl VectorLumeApp {
     }
 
     pub fn export_dxf_dialog(&mut self) {
-        if let Some(path) = rfd::FileDialog::new()
+        if let Some(path) = crate::system::FileDialog::new()
             .set_title(tr("Als DXF exportieren"))
             .set_file_name(tr("Export.dxf"))
             .add_filter("DXF", &["dxf"])
@@ -1410,7 +1410,7 @@ impl VectorLumeApp {
         if !self.ready_to_start() {
             return;
         }
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::system::FileDialog::new()
             .set_title(tr("G-Code-Datei senden"))
             .add_filter(tr("G-Code"), &["gcode", "nc", "gc", "ngc", "tap", "txt"])
             .pick_file()
@@ -1569,6 +1569,14 @@ impl VectorLumeApp {
         } else {
             port
         };
+        // Tests verbinden nie mit echter Hardware: ein angeschlossener Laser könnte sonst losfahren.
+        let local = port
+            .strip_prefix(vl_device::TCP_PREFIX)
+            .is_some_and(|a| a.starts_with("127.") || a.starts_with("localhost"));
+        if cfg!(test) && port != vl_device::SIMULATOR_PORT && !local {
+            self.toast(ToastKind::Error, format!("Im Test nur Simulator: {port}"));
+            return;
+        }
         let p = profile.unwrap_or(&self.settings.profile);
         self.machine.settings.clear();
         self.device.send(Command::Connect { port, baud: p.baud, rx_buffer: p.rx_buffer, firmware: p.firmware });
@@ -1682,7 +1690,7 @@ impl VectorLumeApp {
 
     pub fn export_device_dialog(&mut self) {
         let p = &self.settings.profile;
-        if let Some(path) = rfd::FileDialog::new()
+        if let Some(path) = crate::system::FileDialog::new()
             .set_title(tr("Gerät exportieren"))
             .add_filter(tr("VectorLume-Gerät"), &["vldevice"])
             .set_file_name(format!("{}.vldevice", p.name))
@@ -1699,7 +1707,7 @@ impl VectorLumeApp {
     }
 
     pub fn import_device_dialog(&mut self) {
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::system::FileDialog::new()
             .set_title(tr("Gerät importieren"))
             .add_filter(tr("VectorLume-Gerät"), &["vldevice", "json"])
             .pick_file()

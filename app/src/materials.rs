@@ -432,7 +432,7 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
             }
         }
         (Some("export"), Some(job)) => {
-            if let Some(path) = rfd::FileDialog::new()
+            if let Some(path) = crate::system::FileDialog::new()
                 .add_filter(tr("G-Code"), &["gcode", "nc"])
                 .set_file_name(tr("Materialtest.gcode"))
                 .save_file()
@@ -704,7 +704,7 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
     }
     if import
         && let Some(path) =
-            rfd::FileDialog::new().add_filter(tr("VectorLume-Materialien"), &["vlmat", "json"]).pick_file()
+            crate::system::FileDialog::new().add_filter(tr("VectorLume-Materialien"), &["vlmat", "json"]).pick_file()
     {
         match MaterialLibrary::load(&path) {
             Ok(lib) => {
@@ -716,7 +716,7 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
         }
     }
     if export
-        && let Some(path) = rfd::FileDialog::new()
+        && let Some(path) = crate::system::FileDialog::new()
             .add_filter(tr("VectorLume-Materialien"), &["vlmat"])
             .set_file_name(tr("Materialien.vlmat"))
             .save_file()

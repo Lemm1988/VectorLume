@@ -168,7 +168,7 @@ pub fn library_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             && let Some(d) = dir()
         {
             let _ = std::fs::create_dir_all(&d);
-            let _ = std::process::Command::new("explorer").arg(d).spawn();
+            crate::system::show_in_explorer(&d);
             app.library.invalidate();
         }
     });
