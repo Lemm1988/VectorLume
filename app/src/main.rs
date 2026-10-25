@@ -14,6 +14,7 @@ mod history;
 mod i18n;
 mod i18n_en;
 mod icon_art;
+mod kerf_tool;
 mod library;
 mod materials;
 mod node_tool;

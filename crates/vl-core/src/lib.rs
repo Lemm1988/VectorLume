@@ -8,6 +8,7 @@ pub mod document;
 pub mod firmware;
 pub mod geom;
 pub mod hinge;
+pub mod kerftest;
 pub mod layer;
 pub mod material;
 pub mod nest;

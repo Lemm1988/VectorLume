@@ -528,6 +528,10 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
         if menu_item(ui, tr("Puzzle…"), "", true) {
             app.open_puzzle();
         }
+        ui.separator();
+        if menu_item(ui, tr("Schnittbreite ermitteln…"), "", true) {
+            app.open_kerf_test();
+        }
     });
     if menu_item(ui, tr("Gummiband-Umriss"), "", has) {
         app.rubber_band_outline();

@@ -540,6 +540,46 @@ fn stencil_bridges_for_text() {
     assert!(h.state_mut().history.can_undo());
 }
 
+/// Schnittbreite ermitteln: Testkamm erzeugen, Messwert eingeben, Ergebnis auf die Ebene übernehmen.
+fn kerf_test_flow(render: bool) {
+    let mut h = harness(render);
+    h.state_mut().open_kerf_test();
+    h.run_ok();
+    h.get_by_label_contains("Testkamm erzeugen").click();
+    h.run_ok();
+    {
+        let app = h.state();
+        assert_eq!(app.selection.len(), 1);
+        let o = app.doc.get(app.selection[0]).unwrap();
+        assert_eq!(o.layer, app.current_layer);
+        let Shape::Path(p) = &o.shape else { panic!() };
+        assert_eq!(p.subpaths.len(), 1 + 2 * 9);
+        assert!((o.bounds().width() - 60.0).abs() < 1e-9);
+    }
+    // 10 Streifen à 6 mm, zusammen 58,5 mm → 0,15 mm
+    h.state_mut().kerf.value = 58.5;
+    h.run_ok();
+    if render {
+        save(&mut h, "schnittbreite");
+    }
+    h.get_by_label_contains("übernehmen").click();
+    h.run_ok();
+    let app = h.state();
+    assert!((app.doc.layers[app.current_layer].settings.kerf - 0.15).abs() < 1e-9);
+    assert!(app.kerf.open);
+}
+
+#[test]
+fn kerf_test_applies_measured_kerf() {
+    kerf_test_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_kerf_test() {
+    kerf_test_flow(true);
+}
+
 /// Puzzle: übernimmt Lage und Größe der Auswahl, „Puzzle erzeugen“ legt Schnittlinien und Rahmen als Gruppe an.
 fn puzzle_flow(render: bool) {
     let mut h = harness(render);
