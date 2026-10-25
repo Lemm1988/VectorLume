@@ -359,6 +359,22 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, has_images: bool
                 }
             });
             ui.end_row();
+            if s.dither.is_screen() {
+                ui.label(tr("Rasterweite"));
+                ui.horizontal(|ui| {
+                    ui.add(DragValue::new(&mut s.screen_cell).speed(0.01).range(0.1..=20.0).suffix(" mm"))
+                        .on_hover_text(tr("Abstand der Punkte bzw. Linien. Ein Vielfaches des Zeilenabstands wirkt am saubersten."));
+                    ui.label(
+                        RichText::new(format!("≙ {:.0} lpi", 25.4 / s.screen_cell.max(0.001)))
+                            .small()
+                            .color(theme::of(ui).text_weak),
+                    );
+                });
+                ui.end_row();
+                ui.label(tr("Rasterwinkel"));
+                ui.add(DragValue::new(&mut s.screen_angle).speed(1.0).range(-90.0..=90.0).suffix("°"));
+                ui.end_row();
+            }
             ui.label("");
             ui.checkbox(&mut s.negative, tr("Negativ (invertieren)"));
             ui.end_row();

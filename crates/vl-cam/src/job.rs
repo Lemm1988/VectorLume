@@ -289,8 +289,8 @@ fn layer_blocks(
     for o in objs {
         match &o.shape {
             Shape::Image(img) => {
-                let r = vl_raster::engrave_image(img, &o.transform, cs.interval, cs.dither, cs.negative)
-                    .map_err(|e| format!("Bild „{}“: {e}", o.name))?;
+                let r =
+                    vl_raster::engrave_image(img, &o.transform, cs).map_err(|e| format!("Bild „{}“: {e}", o.name))?;
                 let ops = raster_ops(&r, cs, shift);
                 if let Some(last) = ops.last() {
                     *cur = last.target();

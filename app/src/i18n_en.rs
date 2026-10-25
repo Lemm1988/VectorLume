@@ -1149,6 +1149,14 @@ pub static EN: &[(&str, &str)] = &[
         "Alternately cut and pause, e.g. for fold and tear-off lines",
     ),
     ("Schnitt / Lücke", "Cut / gap"),
+    ("Rasterweite", "Screen spacing"),
+    (
+        "Abstand der Punkte bzw. Linien. Ein Vielfaches des Zeilenabstands wirkt am saubersten.",
+        "Distance between dots or lines. A multiple of the line interval looks cleanest.",
+    ),
+    ("Rasterwinkel", "Screen angle"),
+    ("Halbton (Punkte)", "Halftone (dots)"),
+    ("Linienraster", "Line screen"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

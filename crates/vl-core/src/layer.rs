@@ -78,10 +78,14 @@ pub enum DitherMode {
     Ordered,
     /// Kein Dithering: Laserleistung folgt dem Grauwert.
     Grayscale,
+    /// Runde Rasterpunkte, deren Größe dem Grauwert folgt (Rasterweite und -winkel einstellbar).
+    Halftone,
+    /// Parallele Linien, deren Breite dem Grauwert folgt (Kupferstich-Optik).
+    LineScreen,
 }
 
 impl DitherMode {
-    pub const ALL: [DitherMode; 9] = [
+    pub const ALL: [DitherMode; 11] = [
         DitherMode::Threshold,
         DitherMode::FloydSteinberg,
         DitherMode::Jarvis,
@@ -90,6 +94,8 @@ impl DitherMode {
         DitherMode::Burkes,
         DitherMode::Sierra,
         DitherMode::Ordered,
+        DitherMode::Halftone,
+        DitherMode::LineScreen,
         DitherMode::Grayscale,
     ];
 
@@ -104,7 +110,14 @@ impl DitherMode {
             DitherMode::Sierra => "Sierra",
             DitherMode::Ordered => "Geordnet (Bayer 8×8)",
             DitherMode::Grayscale => "Graustufen",
+            DitherMode::Halftone => "Halbton (Punkte)",
+            DitherMode::LineScreen => "Linienraster",
         }
+    }
+
+    /// Modi mit einstellbarer Rasterweite und -winkel.
+    pub fn is_screen(self) -> bool {
+        matches!(self, DitherMode::Halftone | DitherMode::LineScreen)
     }
 }
 
@@ -152,6 +165,10 @@ pub struct CutSettings {
     pub perforate: bool,
     pub perf_cut: f64,
     pub perf_gap: f64,
+    /// Rasterweite (Abstand der Punkte bzw. Linien) in mm für Halbton und Linienraster.
+    pub screen_cell: f64,
+    /// Rasterwinkel in Grad für Halbton und Linienraster.
+    pub screen_angle: f64,
 }
 
 impl Default for CutSettings {
@@ -193,6 +210,8 @@ impl CutSettings {
             perforate: false,
             perf_cut: 2.0,
             perf_gap: 1.0,
+            screen_cell: 0.8,
+            screen_angle: 45.0,
         }
     }
 

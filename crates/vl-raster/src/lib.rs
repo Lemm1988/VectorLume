@@ -5,7 +5,7 @@
 pub mod trace;
 pub mod warp;
 
-use vl_core::{Affine, DitherMode, ImageObject, Point, RasterImage};
+use vl_core::{Affine, CutSettings, DitherMode, ImageObject, Point, RasterImage};
 
 /// Obergrenze für die Rastergröße (Schutz vor versehentlich riesigen Jobs).
 pub const MAX_CELLS: usize = 120_000_000;
@@ -51,24 +51,26 @@ impl std::fmt::Display for RasterError {
     }
 }
 
-/// Komplette Aufbereitung eines Bildobjekts für die Gravur.
-pub fn engrave_image(
-    img: &ImageObject,
-    transform: &Affine,
-    interval: f64,
-    dither: DitherMode,
-    negative: bool,
-) -> Result<RasterResult, RasterError> {
-    let sampled = sample(img, transform, interval)?;
+/// Komplette Aufbereitung eines Bildobjekts für die Gravur mit Zeilenabstand, Bildmodus, Negativ und Raster
+/// der Ebene.
+pub fn engrave_image(img: &ImageObject, transform: &Affine, cs: &CutSettings) -> Result<RasterResult, RasterError> {
+    let sampled = sample(img, transform, cs.interval)?;
     let mut gray = sampled.gray;
-    if negative {
+    if cs.negative {
         for (g, &m) in gray.iter_mut().zip(&sampled.mask) {
             if m {
                 *g = 1.0 - *g;
             }
         }
     }
-    let mut intensity = dither_gray(&gray, sampled.cols, sampled.rows, dither);
+    let (cols, rows) = (sampled.cols, sampled.rows);
+    let mut intensity = if cs.dither.is_screen() {
+        let lines = cs.dither == DitherMode::LineScreen;
+        let pitch = (sampled.dx, sampled.dy);
+        screen(&gray, cols, rows, pitch, cs.screen_cell, cs.screen_angle, lines)
+    } else {
+        dither_gray(&gray, cols, rows, cs.dither)
+    };
     for (v, &m) in intensity.iter_mut().zip(&sampled.mask) {
         if !m {
             *v = 0.0;
@@ -258,6 +260,9 @@ pub fn dither_gray(gray: &[f32], cols: usize, rows: usize, mode: DitherMode) -> 
             }
             out
         }
+        // ohne Ebenenwerte: Raster von 6 Zellen unter 45°
+        DitherMode::Halftone => screen(gray, cols, rows, (1.0, 1.0), 6.0, 45.0, false),
+        DitherMode::LineScreen => screen(gray, cols, rows, (1.0, 1.0), 6.0, 45.0, true),
         DitherMode::FloydSteinberg => diffuse(gray, cols, rows, &FLOYD_STEINBERG),
         DitherMode::Jarvis => diffuse(gray, cols, rows, &JARVIS),
         DitherMode::Stucki => diffuse(gray, cols, rows, &STUCKI),
@@ -294,6 +299,52 @@ fn diffuse(gray: &[f32], cols: usize, rows: usize, k: &Kernel) -> Vec<f32> {
         }
     }
     out
+}
+
+/// Amplitudenmoduliertes Raster: Das Bild wird mit einem um `angle` gedrehten Gitter der Weite `cell` (mm)
+/// verglichen. Jede Zelle bekommt einen runden Punkt bzw. einen Linienabschnitt, dessen Fläche dem Grauwert
+/// entspricht. `pitch` ist der Abstand der Rasterzellen des Bildes in mm.
+pub fn screen(
+    gray: &[f32],
+    cols: usize,
+    rows: usize,
+    pitch: (f64, f64),
+    cell: f64,
+    angle: f64,
+    lines: bool,
+) -> Vec<f32> {
+    assert_eq!(gray.len(), cols * rows);
+    let cell = cell.max(1e-3);
+    let (sin, cos) = angle.to_radians().sin_cos();
+    let mut out = vec![0.0; gray.len()];
+    for r in 0..rows {
+        for c in 0..cols {
+            let (x, y) = ((c as f64 + 0.5) * pitch.0, (r as f64 + 0.5) * pitch.1);
+            let u = (x * cos + y * sin) / cell;
+            let v = (y * cos - x * sin) / cell;
+            let (fu, fv) = (u - u.floor() - 0.5, v - v.floor() - 0.5);
+            // Schwelle = Anteil der Zelle, der bei dieser Deckung schon gefüllt ist
+            let threshold = if lines { 2.0 * fv.abs() } else { dot_area(fu.hypot(fv)) };
+            let i = r * cols + c;
+            if 1.0 - gray[i] as f64 > threshold {
+                out[i] = 1.0;
+            }
+        }
+    }
+    out
+}
+
+/// Fläche eines Kreises mit Radius `d` um die Mitte einer Einheitszelle, soweit er in der Zelle liegt.
+fn dot_area(d: f64) -> f64 {
+    use std::f64::consts::{FRAC_1_SQRT_2, PI};
+    if d <= 0.5 {
+        PI * d * d
+    } else if d >= FRAC_1_SQRT_2 {
+        1.0
+    } else {
+        // vier Kreisabschnitte ragen über die Zellränder hinaus
+        PI * d * d - 4.0 * (d * d * (0.5 / d).acos() - 0.5 * (d * d - 0.25).sqrt())
+    }
 }
 
 fn bayer8() -> [[u8; 8]; 8] {
@@ -334,6 +385,33 @@ mod tests {
         }
     }
 
+    fn cs(interval: f64, dither: DitherMode, negative: bool) -> CutSettings {
+        CutSettings { interval, dither, negative, ..CutSettings::default() }
+    }
+
+    #[test]
+    fn screens_follow_gray_and_angle() {
+        let (cols, rows) = (100, 100);
+        for lines in [false, true] {
+            for g in [0.0f32, 0.25, 0.5, 0.9, 1.0] {
+                let out = screen(&vec![g; cols * rows], cols, rows, (0.1, 0.1), 0.8, 30.0, lines);
+                let mean = out.iter().sum::<f32>() / out.len() as f32;
+                assert!((mean - (1.0 - g)).abs() < 0.04, "lines={lines} g={g}: {mean}");
+            }
+        }
+        // Linien unter 0°: jede Bildzeile ist entweder ganz an oder ganz aus
+        let out = screen(&vec![0.5; cols * rows], cols, rows, (0.1, 0.1), 0.8, 0.0, true);
+        for r in 0..rows {
+            let row = &out[r * cols..(r + 1) * cols];
+            assert!(row.iter().all(|&v| v == row[0]));
+        }
+        // Punkte: kleine Deckung ergibt getrennte Punkte in der Zellmitte, nicht an den Ecken
+        let out = screen(&vec![0.9; 64], 8, 8, (0.1, 0.1), 0.8, 0.0, false);
+        assert_eq!((out[0], out[3 * 8 + 3], out[4 * 8 + 4]), (0.0, 1.0, 1.0));
+        assert!((dot_area(0.5) - std::f64::consts::PI / 4.0).abs() < 1e-12);
+        assert!((dot_area(0.7) - 0.9985).abs() < 0.01 && dot_area(0.71) == 1.0);
+    }
+
     #[test]
     fn dithering_preserves_mean() {
         let (cols, rows) = (64, 64);
@@ -358,13 +436,13 @@ mod tests {
             height_mm: 1.0,
             adjust: ImageAdjust::default(),
         };
-        let r = engrave_image(&img, &Affine::translate(5.0, 5.0), 0.1, DitherMode::Grayscale, false).unwrap();
+        let r = engrave_image(&img, &Affine::translate(5.0, 5.0), &cs(0.1, DitherMode::Grayscale, false)).unwrap();
         assert_eq!((r.cols, r.rows), (100, 10));
         assert!((r.origin.x - 5.0).abs() < 1e-9);
         // Links schwarz = volle Leistung, rechts weiß = aus.
         assert!(r.get(0, 0) > 0.95);
         assert!(r.get(99, 0) < 0.05);
-        let neg = engrave_image(&img, &Affine::translate(5.0, 5.0), 0.1, DitherMode::Grayscale, true).unwrap();
+        let neg = engrave_image(&img, &Affine::translate(5.0, 5.0), &cs(0.1, DitherMode::Grayscale, true)).unwrap();
         assert!(neg.get(0, 0) < 0.05);
     }
 
@@ -379,7 +457,7 @@ mod tests {
             height_mm: 20.0,
             adjust: ImageAdjust::default(),
         };
-        let r = engrave_image(&img, &Affine::IDENTITY, 1.0, DitherMode::Grayscale, false).unwrap();
+        let r = engrave_image(&img, &Affine::IDENTITY, &cs(1.0, DitherMode::Grayscale, false)).unwrap();
         let mean: f32 = r.intensity.iter().sum::<f32>() / r.intensity.len() as f32;
         assert!((mean - 0.5).abs() < 0.05, "{mean}");
     }
@@ -393,7 +471,7 @@ mod tests {
             adjust: ImageAdjust::default(),
         };
         let t = Affine::rotate_about(std::f64::consts::FRAC_PI_4, Point::new(5.0, 5.0));
-        let r = engrave_image(&img, &t, 0.25, DitherMode::Threshold, false).unwrap();
+        let r = engrave_image(&img, &t, &cs(0.25, DitherMode::Threshold, false)).unwrap();
         assert_eq!(r.get(0, 0), 0.0);
         assert_eq!(r.get(r.cols / 2, r.rows / 2), 1.0);
     }

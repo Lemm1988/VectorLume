@@ -107,7 +107,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-31 | Modi | Linie, Füllen, Versatz-Füllen, Bild | ✅ |
 | LF-32 | Basiswerte | Geschwindigkeit, Leistung max./min., Durchgänge, Ausgabe, Luft (M8/M9); **Leistung je Objekt** in Prozent der Ebenenleistung (Eigenschaftenleiste, z. B. für Materialtests auf einer Ebene) | ✅ |
 | LF-33 | Füllen | Zeilenabstand (mit dpi-Anzeige), Winkel, bidirektional, Kreuzschraffur, Overscan; Gerade-Ungerade-Regel (Löcher bleiben frei) | ✅ |
-| LF-34 | Bildmodi | Schwellwert, Floyd-Steinberg, Jarvis, Stucki, Atkinson, Burkes, Sierra, Bayer 8×8, Graustufen; Negativ | ✅ |
+| LF-34 | Bildmodi | Schwellwert, Floyd-Steinberg, Jarvis, Stucki, Atkinson, Burkes, Sierra, Bayer 8×8, Graustufen; Negativ; **Halbton** (runde Punkte, deren Fläche dem Grauwert entspricht, Rasterweite in mm und Winkel einstellbar) und **zusätzlich Linienraster** (Linien mit grauwertabhängiger Breite, Kupferstich-Optik) | ✅ |
 | LF-35 | Bildanpassung | Helligkeit, Kontrast, Gamma, live in der Ansicht | ✅ |
 | LF-36 | Reihenfolge | Ebenen verschieben; **zusätzlich „Gravieren vor Schneiden“** (Bild/Füllen vor Schnitten) | ✅ |
 | LF-37 | Materialbibliothek | Material/Stärke/Titel/Notiz, Suche, Import/Export (`.vlmat`), Übernehmen auf Ebene | ✅ |
@@ -216,7 +216,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (123):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (124):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,

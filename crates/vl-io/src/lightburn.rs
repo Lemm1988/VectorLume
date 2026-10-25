@@ -215,6 +215,7 @@ impl Importer<'_> {
                     "burkes" => DitherMode::Burkes,
                     "sierra" => DitherMode::Sierra,
                     "grayscale" | "greyscale" => DitherMode::Grayscale,
+                    "halftone" => DitherMode::Halftone,
                     other => {
                         self.warnings
                             .push(format!("Ebene {}: Bildmodus „{other}“ unbekannt – Jarvis verwendet.", index + 1));
