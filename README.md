@@ -12,7 +12,7 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
   QR-Code, Data Matrix, Code 128/39, EAN-13/-8, UPC-A (auch mit Seriennummer, invertiert für eloxiertes Aluminium,
   mit Strichbreiten-Ausgleich);
   Auswählen, Verschieben, Skalieren, Drehen, Spiegeln (auch an beliebiger Linie), Ausrichten, Verteilen, Gruppieren, Rückgängig/Wiederholen
-- **Bearbeiten:** Knotenwerkzeug, Boolesche Operationen und Verschweißen, Bereinigen (offene Pfade verbinden,
+- **Bearbeiten:** Knotenwerkzeug, Trimmen an Schnittpunkten, Boolesche Operationen und Verschweißen, Bereinigen (offene Pfade verbinden,
   doppelte Linien löschen, Formen vereinfachen), Zerlegen, Gummiband-Umriss, gleiche Breite/Höhe, Versatz, Reihen-Kopien (Raster, Kreis,
   entlang Pfad), Messwerkzeug, In Bitmap umwandeln, Motiv-Bibliothek, Bild nachzeichnen, Objektfang mit Ausrichtungslinien, Ebenen sperren
 - **Import/Export:** SVG (inkl. Text), DXF (inkl. Blöcke, Bögen, Splines), PDF/AI, EPS (mit installiertem

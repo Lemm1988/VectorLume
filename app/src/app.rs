@@ -25,12 +25,14 @@ pub enum Tool {
     Barcode,
     Node,
     Measure,
+    Trim,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 10] = [
+    pub const ALL: [Tool; 11] = [
         Tool::Select,
         Tool::Node,
+        Tool::Trim,
         Tool::Rect,
         Tool::Ellipse,
         Tool::Line,
@@ -54,6 +56,7 @@ impl Tool {
             Tool::Barcode => i::QR_CODE,
             Tool::Node => i::BEZIER_CURVE,
             Tool::Measure => i::RULER,
+            Tool::Trim => i::SCISSORS,
         }
     }
 
@@ -69,6 +72,7 @@ impl Tool {
             Tool::Barcode => tr("QR-/Barcode (Q)"),
             Tool::Node => tr("Knoten bearbeiten (N)"),
             Tool::Measure => tr("Messen (M)"),
+            Tool::Trim => tr("Trimmen"),
         }
     }
 }
@@ -243,6 +247,8 @@ pub struct VectorLumeApp {
     pub library: crate::library::Library,
     /// Letzte Messung des Messwerkzeugs (Start, Ende).
     pub measure: Option<(Point, Point)>,
+    /// Vorschau des Trimm-Werkzeugs: Mauszeiger, Projektstand und das Stück, das ein Klick entfernt.
+    pub trim_hover: Option<(Point, u64, Option<crate::canvas::TrimHit>)>,
     pub camera: crate::camera::CameraState,
     pub show_about: bool,
     pub right_tab: crate::ui_side::RightTab,
@@ -327,6 +333,7 @@ impl VectorLumeApp {
             print_cut: Default::default(),
             library: Default::default(),
             measure: None,
+            trim_hover: None,
             camera: Default::default(),
             show_about: false,
             right_tab: crate::ui_side::RightTab::Laser,

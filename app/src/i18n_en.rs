@@ -2,6 +2,7 @@
 //! in der englischen Fassung setzen `{}` die Werte der Reihe nach ein, `{0}`, `{1}` … gezielt. Neue Texte im
 //! Quelltext (`tr`/`trs`) brauchen hier einen Eintrag, sonst schlägt der Test `every_source_text_is_translated` fehl.
 
+#[rustfmt::skip]
 pub static EN: &[(&str, &str)] = &[
     // app.rs
     ("Auswählen (V)", "Select (V)"),
@@ -1022,10 +1023,13 @@ pub static EN: &[(&str, &str)] = &[
     ("Gespiegelte Kopie", "Mirrored copy"),
     ("Legt eine an der Linie gespiegelte Kopie an, das Original bleibt", "Creates a copy mirrored across the line, the original stays"),
     ("Ziehen zum Messen · danach lässt sich die Auswahl an der Linie spiegeln", "Drag to measure · then the selection can be mirrored across the line"),
+    ("Trimmen", "Trim"),
+    ("Auf ein Linienstück klicken: Es wird bis zu den nächsten Schnittpunkten entfernt (rot = Vorschau)", "Click a line piece: it is removed up to the nearest intersections (red = preview)"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
 #[cfg(test)]
+#[rustfmt::skip]
 pub static SOURCES: &[(&str, &str)] = &[
     ("app.rs", include_str!("app.rs")),
     ("autosave.rs", include_str!("autosave.rs")),

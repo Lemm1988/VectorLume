@@ -11,6 +11,7 @@ pub mod ops;
 pub mod path;
 pub mod project;
 pub mod text;
+pub mod trim;
 
 pub use document::{Document, GroupId, ImageAdjust, ImageObject, Object, ObjectId, RasterImage, Shape};
 pub use firmware::Firmware;

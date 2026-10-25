@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use vl_cam::{BlockKind, Job, Op};
 use vl_core::nodes::{HandleRef, NodeRef};
+use vl_core::trim::Trim;
 use vl_core::{Affine, ImageObject, Object, ObjectId, Point, Polyline, Rect as DRect, Shape as DocShape, VectorPath};
 
 const RULER: f32 = 22.0;
@@ -98,6 +99,17 @@ fn p2(p: Point) -> Pos2 {
 }
 
 // ------------------------------------------------------------------ Caches
+
+/// Linienstück, das das Trimm-Werkzeug entfernen würde: Objekt, Nummer des abgeflachten Linienzugs, Ergebnis.
+pub struct TrimHit {
+    id: ObjectId,
+    polyline: usize,
+    trim: Trim,
+}
+
+fn transformed(poly: &Polyline, t: &Affine) -> Polyline {
+    Polyline::new(poly.points.iter().map(|p| t.apply(*p)).collect(), poly.closed)
+}
 
 struct CachedGeom {
     scale: f64,
@@ -399,6 +411,68 @@ impl VectorLumeApp {
         None
     }
 
+    /// Linienstück unter dem Mauszeiger für das Trimm-Werkzeug. Ziele sind Pfade auf auswählbaren Ebenen (keine
+    /// Texte); geschnitten wird an allem Sichtbaren, auch an anderen Teilen desselben Objekts und an sich selbst.
+    pub(crate) fn trim_hit(&mut self, p: Point, tol: f64) -> Option<TrimHit> {
+        let mut best: Option<(f64, ObjectId, usize)> = None;
+        for obj in &self.doc.objects {
+            if !self.doc.layers[obj.layer].selectable() || obj.text.is_some() {
+                continue;
+            }
+            let Some((polys, bounds)) = self.geom.local(obj) else { continue };
+            if !obj.transform.transform_rect(&bounds).expanded(tol).contains(p) {
+                continue;
+            }
+            let Some(inv) = obj.transform.inverse() else { continue };
+            let (local, scale) = (inv.apply(p), obj.transform.mean_scale());
+            for (k, poly) in polys.iter().enumerate() {
+                let d = poly.distance_to(local) * scale;
+                if d <= tol && best.is_none_or(|b| d < b.0) {
+                    best = Some((d, obj.id, k));
+                }
+            }
+        }
+        let (_, id, k) = best?;
+        let obj = self.doc.get(id)?;
+        let target = transformed(self.geom.local(obj)?.0.get(k)?, &obj.transform);
+        let tb = target.bounds().expanded(1e-6);
+        let mut cutters = Vec::new();
+        for obj in &self.doc.objects {
+            if !self.doc.layers[obj.layer].visible {
+                continue;
+            }
+            let Some((polys, bounds)) = self.geom.local(obj) else { continue };
+            if !obj.transform.transform_rect(&bounds).intersects(&tb) {
+                continue;
+            }
+            for (j, poly) in polys.iter().enumerate() {
+                if obj.id != id || j != k {
+                    cutters.push(transformed(poly, &obj.transform));
+                }
+            }
+        }
+        let refs: Vec<&Polyline> = cutters.iter().collect();
+        Some(TrimHit { id, polyline: k, trim: vl_core::trim::trim_at(&target, &refs, p) })
+    }
+
+    /// Ersetzt den getroffenen Teilpfad durch die verbleibenden Stücke; ein leeres Objekt wird gelöscht.
+    pub(crate) fn apply_trim(&mut self, hit: TrimHit) {
+        let Some(obj) = self.doc.get(hit.id) else { return };
+        let DocShape::Path(path) = &obj.shape else { return };
+        let Some(inv) = obj.transform.inverse() else { return };
+        let Some(path) = vl_core::trim::replace_polyline(path, hit.polyline, &hit.trim.kept, &inv) else { return };
+        self.checkpoint();
+        if path.subpaths.is_empty() {
+            self.doc.remove(&[hit.id]);
+            self.selection.retain(|s| *s != hit.id);
+        } else if let Some(o) = self.doc.get_mut(hit.id) {
+            o.shape = DocShape::Path(path);
+            self.geom.invalidate(hit.id);
+        }
+        self.trim_hover = None;
+        self.mark_changed();
+    }
+
     fn create_shape(&mut self, tool: Tool, a: Point, b: Point, shift: bool) {
         let r = DRect::from_points(a, b);
         let o = &self.tool_options;
@@ -436,7 +510,7 @@ impl VectorLumeApp {
             Tool::Star => {
                 (tr("Stern"), VectorPath::star(a, a.distance(b), a.distance(b) * o.star_inner, o.star_points))
             }
-            Tool::Select | Tool::Text | Tool::Barcode | Tool::Node | Tool::Measure => return,
+            Tool::Select | Tool::Text | Tool::Barcode | Tool::Node | Tool::Measure | Tool::Trim => return,
         };
         let size = path.bounds(&Affine::IDENTITY);
         if size.width() < 0.2 && size.height() < 0.2 {
@@ -770,6 +844,20 @@ impl VectorLumeApp {
             draw_measure(&clip, &tf, pal, a, b);
         }
 
+        if self.tool == Tool::Trim
+            && self.drag.is_idle()
+            && let Some(cur) = self.view.cursor
+        {
+            if self.trim_hover.as_ref().is_none_or(|(p, rev, _)| *p != cur || *rev != self.revision) {
+                let hit = self.trim_hit(cur, 6.0 * ppm);
+                self.trim_hover = Some((cur, self.revision, hit));
+            }
+            if let Some((_, _, Some(hit))) = &self.trim_hover {
+                let pts: Vec<Pos2> = hit.trim.removed.iter().map(|p| tf.to_screen(*p)).collect();
+                clip.add(Shape::line(pts, Stroke::new(3.0, pal.danger)));
+            }
+        }
+
         if let Some(hint) = &self.snap_hint {
             draw_snap_hint(&clip, &tf, work, pal, hint);
         }
@@ -883,7 +971,7 @@ impl VectorLumeApp {
                         Drag::Band { start, additive: shift }
                     }
                 }
-                Tool::Text | Tool::Barcode => Drag::None,
+                Tool::Text | Tool::Barcode | Tool::Trim => Drag::None,
                 t => Drag::Create { tool: t, start: self.snap_cursor(start, snap_tol) },
             };
         } else if resp.drag_started_by(PointerButton::Middle) {
@@ -1061,6 +1149,11 @@ impl VectorLumeApp {
                     self.open_barcode_new(at);
                 }
                 Tool::Measure => self.measure = None,
+                Tool::Trim => {
+                    if let Some(hit) = self.trim_hit(p, tol) {
+                        self.apply_trim(hit);
+                    }
+                }
                 _ => {}
             }
         }

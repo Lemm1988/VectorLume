@@ -645,6 +645,15 @@ fn tool_options(app: &mut VectorLumeApp, ui: &mut Ui) {
         crate::node_tool::options(app, ui);
         return;
     }
+    if app.tool == Tool::Trim {
+        ui.label(
+            RichText::new(tr(
+                "Auf ein Linienstück klicken: Es wird bis zu den nächsten Schnittpunkten entfernt (rot = Vorschau)",
+            ))
+            .color(theme::of(ui).text_weak),
+        );
+        return;
+    }
     if app.tool == Tool::Measure {
         match app.measure {
             Some((a, b)) => {
