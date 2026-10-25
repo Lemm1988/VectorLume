@@ -409,9 +409,14 @@ fn cell_power(v: f32, settings: &CutSettings) -> f32 {
     (p * 1000.0).round() / 1000.0
 }
 
+/// Weiße Lücken in einer Bildzeile, die (neben Aus- und Anlauf) mindestens so lang sind, werden mit
+/// `fast_whitespace` im Eilgang überfahren; kürzere lohnen wegen der Beschleunigung nicht.
+pub const FAST_WHITESPACE_MIN_GAP: f64 = 5.0;
+
 /// Rasterbild zeilenweise gravieren; leere Zeilen und leere Ränder werden übersprungen. `scan_shift` wie bei
-/// [`hatch_ops`].
-pub fn raster_ops(r: &RasterResult, settings: &CutSettings, scan_shift: f64) -> Vec<Op> {
+/// [`hatch_ops`]. Mit `fast_whitespace` werden lange weiße Lücken innerhalb einer Zeile verlassen (Auslauf um den
+/// Overscan), im Eilgang überfahren und mit Anlauf wieder betreten.
+pub fn raster_ops(r: &RasterResult, settings: &CutSettings, scan_shift: f64, fast_whitespace: bool) -> Vec<Op> {
     let mut ops = Vec::new();
     let mut emitted = 0usize;
     let overscan = settings.overscan.max(0.0);
@@ -476,10 +481,26 @@ pub fn raster_ops(r: &RasterResult, settings: &CutSettings, scan_shift: f64) -> 
             ops.push(Op::Move { to: at(edge_x), power: 0.0 });
         }
         let mut cursor = edge_x;
+        // Lücke von `from` nach `to` überbrücken (beide Richtungen)
+        let gap = |ops: &mut Vec<Op>, from: f64, to: f64| {
+            let len = (to - from).abs();
+            if fast_whitespace && len > 2.0 * overscan + FAST_WHITESPACE_MIN_GAP {
+                let s = (to - from).signum();
+                if overscan > 0.0 {
+                    ops.push(Op::Move { to: at(from + s * overscan), power: 0.0 });
+                }
+                ops.push(Op::Rapid(at(to - s * overscan)));
+                if overscan > 0.0 {
+                    ops.push(Op::Move { to: at(to), power: 0.0 });
+                }
+            } else {
+                ops.push(Op::Move { to: at(to), power: 0.0 });
+            }
+        };
         if forward {
             for &(a, b, p) in &segs {
                 if a > cursor + 1e-9 {
-                    ops.push(Op::Move { to: at(a), power: 0.0 });
+                    gap(&mut ops, cursor, a);
                 }
                 ops.push(Op::Move { to: at(b), power: p });
                 cursor = b;
@@ -490,7 +511,7 @@ pub fn raster_ops(r: &RasterResult, settings: &CutSettings, scan_shift: f64) -> 
         } else {
             for &(a, b, p) in segs.iter().rev() {
                 if b < cursor - 1e-9 {
-                    ops.push(Op::Move { to: at(b), power: 0.0 });
+                    gap(&mut ops, cursor, b);
                 }
                 ops.push(Op::Move { to: at(a), power: p });
                 cursor = a;
@@ -614,7 +635,7 @@ mod tests {
             intensity: vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0],
         };
         let settings = CutSettings { overscan: 0.0, dither: DitherMode::Threshold, ..CutSettings::default() };
-        let ops = raster_ops(&r, &settings, 0.0);
+        let ops = raster_ops(&r, &settings, 0.0, false);
         // Zeile 1: Start, ein Lauf über zwei Zellen
         assert_eq!(ops[0], Op::Rapid(Point::new(1.0, 1.5)));
         assert_eq!(ops[1], Op::Move { to: Point::new(3.0, 1.5), power: 0.3 });
@@ -624,7 +645,7 @@ mod tests {
 
         // Scan-Versatz: vorwärts nach links, rückwärts nach rechts verschoben
         let settings = CutSettings { bidirectional: true, ..settings };
-        let shifted = raster_ops(&r, &settings, 0.1);
+        let shifted = raster_ops(&r, &settings, 0.1, false);
         assert_eq!(shifted[0], Op::Rapid(Point::new(0.9, 1.5)));
         assert_eq!(shifted[2].target(), Point::new(4.1, 2.5));
     }
@@ -679,9 +700,9 @@ mod tests {
             intensity: vec![1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0],
         };
         let base = CutSettings { overscan: 0.0, dither: DitherMode::Threshold, ..CutSettings::default() };
-        assert!((burned_length(&raster_ops(&r, &base, 0.0)) - 4.0).abs() < 1e-9);
+        assert!((burned_length(&raster_ops(&r, &base, 0.0, false)) - 4.0).abs() < 1e-9);
         let corrected = CutSettings { dot_width: 0.4, ..base.clone() };
-        let ops = raster_ops(&r, &corrected, 0.0);
+        let ops = raster_ops(&r, &corrected, 0.0, false);
         assert!((burned_length(&ops) - 2.8).abs() < 1e-9, "{ops:?}");
         // Brennstrecken liegen innerhalb der Pixel, um die halbe Punktbreite eingerückt
         let burns: Vec<(f64, f64)> = ops
@@ -696,7 +717,7 @@ mod tests {
         assert!((burns[2].0 - 6.2).abs() < 1e-9 && (burns[2].1 - 6.8).abs() < 1e-9, "{burns:?}");
         // Punktbreite größer als ein Pixel: kurzer Punkt in der Mitte bleibt
         let wide = CutSettings { dot_width: 3.0, ..base };
-        let ops = raster_ops(&r, &wide, 0.0);
+        let ops = raster_ops(&r, &wide, 0.0, false);
         assert!(burned_length(&ops) > 0.0);
     }
 
@@ -715,5 +736,32 @@ mod tests {
         assert_eq!(burn_ends.len(), 2);
         assert!((burn_ends[0].x - 9.9).abs() < 1e-9 && (burn_ends[1].x - 0.1).abs() < 1e-9);
         assert!((burned_length(&ops) - 20.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn fast_whitespace_rapids_over_long_gaps() {
+        // Zeile: 2 mm schwarz, 20 mm weiß, 2 mm schwarz (Zellen 0,5 mm)
+        let cols = 48;
+        let intensity: Vec<f32> = (0..cols).map(|c| if !(4..44).contains(&c) { 1.0 } else { 0.0 }).collect();
+        let r = RasterResult { origin: Point::new(0.0, 0.0), dx: 0.5, dy: 0.5, cols, rows: 1, intensity };
+        let settings = CutSettings { overscan: 2.0, bidirectional: false, ..CutSettings::default() };
+        let slow = raster_ops(&r, &settings, 0.0, false);
+        assert!(slow.iter().skip(1).all(|o| matches!(o, Op::Move { .. })), "ohne Option nur Vorschub");
+        let fast = raster_ops(&r, &settings, 0.0, true);
+        let rapids: Vec<Point> =
+            fast.iter().skip(1).filter_map(|o| if let Op::Rapid(p) = o { Some(*p) } else { None }).collect();
+        // Auslauf bis 4 mm, Eilgang bis 20 mm, Anlauf bis 22 mm
+        assert_eq!(rapids, vec![Point::new(20.0, 0.25)]);
+        assert!(fast.contains(&Op::Move { to: Point::new(4.0, 0.25), power: 0.0 }));
+        assert!(fast.contains(&Op::Move { to: Point::new(22.0, 0.25), power: 0.0 }));
+        // gebrannte Strecken bleiben gleich
+        assert!((burned_length(&slow) - burned_length(&fast)).abs() < 1e-9);
+        // kurze Lücken bleiben Vorschub
+        let short = RasterResult {
+            cols: 16,
+            intensity: (0..16).map(|c| if !(4..12).contains(&c) { 1.0 } else { 0.0 }).collect(),
+            ..r
+        };
+        assert!(!raster_ops(&short, &settings, 0.0, true).iter().skip(1).any(|o| matches!(o, Op::Rapid(_))));
     }
 }

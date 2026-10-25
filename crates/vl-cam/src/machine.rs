@@ -78,6 +78,8 @@ pub struct MachineProfile {
     pub rotary: Rotary,
     /// Scan-Versatz je Geschwindigkeit (leer = aus).
     pub scan_offsets: Vec<ScanOffset>,
+    /// Längere weiße Lücken in Bildzeilen im Eilgang überfahren statt mit Gravurgeschwindigkeit.
+    pub fast_whitespace: bool,
 }
 
 impl Default for MachineProfile {
@@ -110,6 +112,7 @@ impl MachineProfile {
             jog_speed: 3000.0,
             rotary: Rotary::default(),
             scan_offsets: Vec::new(),
+            fast_whitespace: false,
         }
     }
 

@@ -1150,6 +1150,9 @@ pub static EN: &[(&str, &str)] = &[
     ("Noch {} Punkt(e) nötig", "{} more point(s) needed"),
     ("Mittelpunkt finden…", "Find center…"),
     ("Eckenradius des Rechtecks", "Corner radius of the rectangle"),
+    ("Bildgravur", "Image engraving"),
+    ("Weiße Lücken im Eilgang überfahren", "Cross white gaps at rapid speed"),
+    ("Lange weiße Stellen innerhalb einer Bildzeile werden nicht mit Gravurgeschwindigkeit, sondern im Eilgang (G0) überfahren – mit Aus- und Anlauf um den Overscan. Spart bei Logos und Schriften viel Zeit. Nur Lücken über 5 mm plus zweimal Overscan.", "Long white stretches within an image line are crossed at rapid speed (G0) instead of engraving speed – leaving and re-entering with the overscan. Saves a lot of time on logos and lettering. Only gaps longer than 5 mm plus twice the overscan."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

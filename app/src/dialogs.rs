@@ -137,6 +137,13 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                          Zwischenwerte werden interpoliert. Ohne Eintrag ist der Ausgleich aus."));
                 scan_offsets_ui(ui, &mut p.scan_offsets);
                 ui.end_row();
+                ui.label(tr("Bildgravur"));
+                ui.checkbox(&mut p.fast_whitespace, tr("Weiße Lücken im Eilgang überfahren")).on_hover_text(tr(
+                    "Lange weiße Stellen innerhalb einer Bildzeile werden nicht mit Gravurgeschwindigkeit, sondern \
+                     im Eilgang (G0) überfahren – mit Aus- und Anlauf um den Overscan. Spart bei Logos und Schriften \
+                     viel Zeit. Nur Lücken über 5 mm plus zweimal Overscan.",
+                ));
+                ui.end_row();
             });
             if p.firmware != Firmware::Grbl {
                 ui.add_space(4.0);

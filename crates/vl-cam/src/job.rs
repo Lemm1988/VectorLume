@@ -396,9 +396,11 @@ fn layer_blocks(
                     vl_raster::engrave_image(img, &o.transform, cs).map_err(|e| format!("Bild „{}“: {e}", o.name))?;
                 let per_pass: Vec<Vec<Op>> = if cs.dither == DitherMode::Slices3D {
                     let n = cs.passes.max(1);
-                    (0..n).map(|k| raster_ops(&r.slice(k as f32 / n as f32), cs, shift)).collect()
+                    (0..n)
+                        .map(|k| raster_ops(&r.slice(k as f32 / n as f32), cs, shift, profile.fast_whitespace))
+                        .collect()
                 } else {
-                    vec![raster_ops(&r, cs, shift)]
+                    vec![raster_ops(&r, cs, shift, profile.fast_whitespace)]
                 };
                 if let Some(last) = per_pass.iter().rev().find_map(|ops| ops.last()) {
                     *cur = last.target();
