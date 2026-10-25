@@ -6,6 +6,7 @@ pub mod firmware;
 pub mod geom;
 pub mod layer;
 pub mod material;
+pub mod nest;
 pub mod nodes;
 pub mod ops;
 pub mod path;

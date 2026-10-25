@@ -102,6 +102,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-25 | Bereinigen | *Anordnen → Bereinigen* (Auswahl oder alle sichtbaren Pfade): offene Pfadstücke je Ebene verbinden (Enden innerhalb einer Toleranz, Richtung wird angepasst, Kurven bleiben erhalten) und entstandene Ringe schließen; doppelte Linien löschen (auch gegenläufig und über Objekte hinweg, Pfade werden an entfernten Stellen aufgetrennt, leere Objekte gelöscht); **Formen vereinfachen** (*Anordnen → Formen vereinfachen…*: Knoten reduzieren nach Douglas-Peucker mit Toleranz in mm, wahlweise Glätten zu Kurven, Ecken über 65° bleiben; gleicher Code wie beim Nachzeichnen, Meldung „vorher → nachher Knoten“) | ✅ |
 | LF-26 | In Bitmap umwandeln | *Anordnen → In Bitmap umwandeln…*: Auswahl mit wählbarer Auflösung (dpi) in ein Graustufenbild rechnen – Formen gefüllt (Gerade-Ungerade je Objekt, Objekte vereinigt, Kanten geglättet über 4 Unterzeilen und anteilige Randpixel) oder als Kontur, offene Pfade mit Strichbreite, Bilder (samt Anpassung und Zuschnitt) abdunkelnd überlagert; Ergebnis auf einer Bildebene, Originale wahlweise behalten, Größenanzeige und Grenze 60 Mio. Pixel | ✅ |
 | LF-27 | Motiv-Bibliothek | Reiter *Bibliothek* rechts: Auswahl samt Ebenen-Einstellungen als Motiv ablegen (`.vlume` im Einstellungsordner `library`), Vorschaubilder, Suche, Klick fügt in der Mitte der Ansicht ein (unbenutzte Ebenen übernehmen die Einstellungen des Motivs, Texte bleiben bearbeitbar), Umbenennen, Löschen mit Rückfrage, Ordner öffnen (Motive lassen sich als Dateien weitergeben) | ✅ |
+| LF-28 | Verschachteln | *Anordnen → Verschachteln…*: ausgewählte Teile (Gruppen bleiben zusammen) platzsparend auf die Arbeitsfläche oder die größte ausgewählte geschlossene Form (Reststück) legen; Mindestabstand, Rand, Drehung (keine/180°/90°/45°), kleine Teile in Löcher größerer; gepackt an der Nullpunkt-Ecke, größte Teile zuerst; eigenes Rasterverfahren (berührte Zellen zählen, dadurch keine Überlappung), rechnet im Hintergrund, nicht passende Teile bleiben liegen und werden gemeldet | ✅ |
 
 ### 4.3 Ebenen und Laser-Einstellungen
 | LF | Funktion | Umsetzung | Stand |
@@ -219,7 +220,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (154):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (157):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,

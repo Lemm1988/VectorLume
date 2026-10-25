@@ -5,6 +5,8 @@ use crate::i18n::{tr, trs};
 use crate::theme;
 use egui::{Align2, Button, Color32, DragValue, RichText, vec2};
 use egui_phosphor::regular as icon;
+use vl_cam::OriginCorner;
+use vl_core::nest::NestOptions;
 use vl_core::ops::{BoolOp, Corner};
 use vl_core::{Affine, ImageAdjust, ImageObject, Object, ObjectId, Point, Polyline, Shape, VectorPath};
 use vl_raster::RasterError;
@@ -53,6 +55,18 @@ pub struct ShapeDialogs {
     pub simplify_tolerance: f64,
     /// 0 = eckig, 1 = rund (Kurven).
     pub simplify_smoothing: f64,
+    pub nest_open: bool,
+    pub nest: NestOptions,
+    /// Die größte ausgewählte geschlossene Form ist die Platte (z. B. ein Reststück) statt der Arbeitsfläche.
+    pub nest_on_shape: bool,
+    pub nest_job: Option<NestJob>,
+}
+
+/// Verschachteln im Hintergrund: Einheiten, Projektstand beim Start und das Ergebnis.
+pub struct NestJob {
+    units: Vec<Vec<ObjectId>>,
+    revision: u64,
+    result: std::sync::mpsc::Receiver<Vec<Option<Affine>>>,
 }
 
 impl Default for ShapeDialogs {
@@ -83,6 +97,10 @@ impl Default for ShapeDialogs {
             simplify_open: false,
             simplify_tolerance: 0.05,
             simplify_smoothing: 0.0,
+            nest_open: false,
+            nest: NestOptions::default(),
+            nest_on_shape: false,
+            nest_job: None,
             path_swap: false,
         }
     }
@@ -231,6 +249,87 @@ impl VectorLumeApp {
             self.doc.transform_objects(u, &Affine::scale_about(sx, sy, b.center()));
         }
         self.mark_changed();
+    }
+
+    /// Startet das Verschachteln der Auswahl (Gruppen bleiben zusammen) auf der Arbeitsfläche oder der größten
+    /// ausgewählten geschlossenen Form; gepackt wird an der Nullpunkt-Ecke.
+    pub fn start_nesting(&mut self) {
+        let mut units = self.selection_units();
+        let doc = &self.doc;
+        let outline = |unit: &[ObjectId]| -> Vec<Polyline> {
+            unit.iter().filter_map(|id| doc.get(*id)).flat_map(|o| o.polylines(0.05)).collect()
+        };
+        let sheet: Option<Vec<Polyline>> = if self.shape_dialogs.nest_on_shape {
+            // Fläche des Umrisses der Einheit, nur wenn sie eine geschlossene Form enthält
+            let area = |u: &[ObjectId]| {
+                let polys: Vec<Polyline> = outline(u).into_iter().filter(|p| p.closed).collect();
+                let b = vl_core::path::bounds_of(&polys);
+                if polys.is_empty() { 0.0 } else { b.width() * b.height() }
+            };
+            (0..units.len())
+                .filter(|&i| area(&units[i]) > 0.0)
+                .max_by(|&a, &b| area(&units[a]).total_cmp(&area(&units[b])))
+                .map(|i| outline(&units.remove(i)).into_iter().filter(|p| p.closed).collect())
+        } else {
+            let p = &self.settings.profile;
+            Some(vl_core::nest::sheet_rect(vl_core::Rect::from_xywh(0.0, 0.0, p.bed_width, p.bed_height)))
+        };
+        let parts: Vec<Vec<Polyline>> = units.iter().map(|u| outline(u)).collect();
+        let Some(sheet) = sheet else {
+            self.toast(ToastKind::Info, tr("Keine geschlossene Form als Platte ausgewählt."));
+            return;
+        };
+        if parts.is_empty() {
+            self.toast(ToastKind::Info, tr("Nichts zum Verschachteln ausgewählt."));
+            return;
+        }
+        let origin = self.settings.profile.origin;
+        let opts = NestOptions {
+            right: matches!(origin, OriginCorner::FrontRight | OriginCorner::RearRight),
+            bottom: matches!(origin, OriginCorner::FrontLeft | OriginCorner::FrontRight),
+            ..self.shape_dialogs.nest
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(vl_core::nest::nest(&parts, &sheet, &opts));
+        });
+        self.shape_dialogs.nest_job = Some(NestJob { units, revision: self.revision, result: rx });
+    }
+
+    /// Übernimmt ein fertiges Verschachteln, sofern sich das Projekt inzwischen nicht geändert hat.
+    fn poll_nesting(&mut self) {
+        let Some(job) = &self.shape_dialogs.nest_job else { return };
+        let result = match job.result.try_recv() {
+            Ok(r) => r,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => Vec::new(),
+        };
+        let Some(job) = self.shape_dialogs.nest_job.take() else { return };
+        if job.revision != self.revision {
+            self.toast(ToastKind::Info, tr("Das Projekt wurde inzwischen geändert – Verschachteln verworfen."));
+            return;
+        }
+        let placed = result.iter().filter(|t| t.is_some()).count();
+        if placed == 0 {
+            self.toast(ToastKind::Error, tr("Kein Teil passt auf die Platte."));
+            return;
+        }
+        self.checkpoint();
+        for (unit, t) in job.units.iter().zip(&result) {
+            if let Some(t) = t {
+                self.doc.transform_objects(unit, t);
+            }
+        }
+        self.mark_changed();
+        let missing = job.units.len() - placed;
+        if missing == 0 {
+            self.toast(ToastKind::Success, trs(&format!("{placed} Teile verschachtelt.")));
+        } else {
+            self.toast(
+                ToastKind::Info,
+                trs(&format!("{placed} Teile verschachtelt, {missing} passen nicht und bleiben, wo sie sind.")),
+            );
+        }
     }
 
     /// Reduziert die Knoten der ausgewählten Pfade (Douglas-Peucker), wahlweise mit Glättung zu Kurven.
@@ -591,6 +690,86 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     array_window(app, ctx);
     bitmap_window(app, ctx);
     simplify_window(app, ctx);
+    app.poll_nesting();
+    nest_window(app, ctx);
+}
+
+fn nest_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
+    if !app.shape_dialogs.nest_open {
+        return;
+    }
+    let mut open = true;
+    let mut start = false;
+    let units = app.selection_units().len();
+    let running = app.shape_dialogs.nest_job.is_some();
+    let corner = tr(app.settings.profile.origin.label());
+    egui::Window::new(trs(&format!("{} Verschachteln", icon::PUZZLE_PIECE)))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            let pal = theme::of(ui);
+            let d = &mut app.shape_dialogs;
+            egui::Grid::new("nest").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
+                ui.label(tr("Abstand"));
+                ui.add(DragValue::new(&mut d.nest.spacing).speed(0.1).range(0.0..=50.0).suffix(" mm"))
+                    .on_hover_text(tr("Mindestabstand zwischen den Teilen (Schnittbreite und Stege bedenken)"));
+                ui.end_row();
+                ui.label(tr("Rand"));
+                ui.add(DragValue::new(&mut d.nest.margin).speed(0.1).range(0.0..=50.0).suffix(" mm"))
+                    .on_hover_text(tr("Abstand zum Rand der Platte"));
+                ui.end_row();
+                ui.label(tr("Drehen"));
+                ui.horizontal(|ui| {
+                    for (n, label) in [(1, tr("nein")), (2, "180°"), (4, "90°"), (8, "45°")] {
+                        ui.selectable_value(&mut d.nest.rotations, n, label);
+                    }
+                })
+                .response
+                .on_hover_text(tr("Mehr Drehungen passen oft dichter, rechnen aber länger"));
+                ui.end_row();
+            });
+            ui.checkbox(&mut d.nest.use_holes, tr("Kleine Teile in Löcher setzen"));
+            ui.checkbox(&mut d.nest_on_shape, tr("Größte ausgewählte Form ist die Platte")).on_hover_text(tr(
+                "Zum Beispiel den Umriss eines Reststücks zeichnen und mit auswählen; sonst wird die ganze Arbeitsfläche genutzt",
+            ));
+            ui.label(
+                RichText::new(trs(&format!(
+                    "Gruppen bleiben zusammen. Gepackt wird an der Nullpunkt-Ecke ({corner}), größte Teile zuerst."
+                )))
+                .small()
+                .color(pal.text_weak),
+            );
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                let enabled = units >= 1 && !running;
+                if ui
+                    .add_enabled(
+                        enabled,
+                        Button::new(RichText::new(tr("Verschachteln")).color(Color32::WHITE)).fill(pal.accent),
+                    )
+                    .clicked()
+                {
+                    start = true;
+                }
+                if running {
+                    ui.spinner();
+                    ui.label(RichText::new(tr("rechnet…")).small().color(pal.text_weak));
+                } else {
+                    ui.label(RichText::new(trs(&format!("{units} Teile ausgewählt"))).small().color(pal.text_weak));
+                }
+            });
+        });
+    if running {
+        ctx.request_repaint_after(std::time::Duration::from_millis(50));
+    }
+    if start {
+        app.start_nesting();
+    }
+    if !open {
+        app.shape_dialogs.nest_open = false;
+    }
 }
 
 fn simplify_window(app: &mut VectorLumeApp, ctx: &egui::Context) {

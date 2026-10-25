@@ -416,6 +416,9 @@ fn arrange_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Formen vereinfachen…"), "", has) {
         app.shape_dialogs.simplify_open = true;
     }
+    if menu_item(ui, tr("Verschachteln…"), "", has) {
+        app.shape_dialogs.nest_open = true;
+    }
     if menu_item(ui, tr("Reihen-Kopien…"), "", has) {
         app.shape_dialogs.array_open = true;
     }
