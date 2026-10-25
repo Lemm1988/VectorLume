@@ -738,6 +738,45 @@ impl VectorLumeApp {
         }
     }
 
+    /// PDF im Maßstab 1:1; die Seite umfasst den Entwurf (sichtbare Ebenen) plus 5 mm Rand, zum Drucken in 100 %.
+    pub fn export_pdf_dialog(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .set_title(tr("Als PDF exportieren"))
+            .set_file_name(tr("Export.pdf"))
+            .add_filter("PDF", &["pdf"])
+            .save_file()
+        else {
+            return;
+        };
+        let visible = self
+            .doc
+            .objects
+            .iter()
+            .filter(|o| self.doc.layers.get(o.layer).is_some_and(|l| l.visible))
+            .fold(vl_core::Rect::EMPTY, |r, o| r.union(&o.bounds()));
+        let p = &self.settings.profile;
+        let page = if visible.is_empty() {
+            vl_core::Rect::from_xywh(0.0, 0.0, p.bed_width, p.bed_height)
+        } else {
+            visible.expanded(5.0)
+        };
+        let title = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+        match vl_io::pdf_export::export_pdf(&self.doc, page, &title)
+            .and_then(|data| std::fs::write(&path, data).map_err(|e| e.to_string()))
+        {
+            Ok(()) => self.toast(
+                ToastKind::Success,
+                trs(&format!(
+                    "PDF gespeichert: {} ({:.0} × {:.0} mm, in 100 % drucken)",
+                    file_name(&path),
+                    page.width(),
+                    page.height()
+                )),
+            ),
+            Err(e) => self.toast(ToastKind::Error, trs(&format!("PDF konnte nicht gespeichert werden: {e}"))),
+        }
+    }
+
     pub fn export_dxf_dialog(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
             .set_title(tr("Als DXF exportieren"))

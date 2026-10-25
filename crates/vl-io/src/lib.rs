@@ -9,6 +9,7 @@ pub mod hpgl;
 pub mod image;
 pub mod lightburn;
 pub mod pdf;
+pub mod pdf_export;
 pub mod svg;
 pub mod text;
 

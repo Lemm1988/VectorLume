@@ -1104,6 +1104,11 @@ pub static EN: &[(&str, &str)] = &[
     ("In {} Teile zerschnitten.", "Cut into {} pieces."),
     ("Zerschneiden", "Cut shapes"),
     ("Die oberste Form schneidet die übrigen wie ein Ausstecher in Einzelteile (innen und außen); sie selbst entfällt.", "The topmost shape cuts the others into separate pieces like a cookie cutter (inside and outside); it is removed itself."),
+    ("Als PDF exportieren", "Export as PDF"),
+    ("Export.pdf", "Export.pdf"),
+    ("PDF gespeichert: {} ({} × {} mm, in 100 % drucken)", "PDF saved: {} ({} × {} mm, print at 100 %)"),
+    ("PDF konnte nicht gespeichert werden: {}", "PDF could not be saved: {}"),
+    ("Als PDF exportieren…", "Export as PDF…"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

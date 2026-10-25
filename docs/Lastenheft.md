@@ -51,7 +51,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 | LF-02 | Import von SVG, DXF, PNG, JPG, BMP, GIF, WEBP, TIFF | M |
 | LF-03 | Import von PDF, AI, EPS, HPGL | S |
 | LF-04 | Import von LightBurn-Projekten (`.lbrn`/`.lbrn2`) zur Kompatibilität | S |
-| LF-05 | Export als G-Code, SVG und DXF | M (G-Code) / S |
+| LF-05 | Export als G-Code, SVG, DXF und PDF (Druckvorlage 1:1) | M (G-Code) / S |
 | LF-06 | Rückgängig/Wiederholen, Zwischenablage, Duplizieren | M |
 | LF-07 | Zuletzt geöffnete Dateien, automatische Sicherung | S |
 
