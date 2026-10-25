@@ -74,6 +74,8 @@ Importierte Fotos liegen auf einer Bild-Ebene. Wähle das Verfahren:
 
 Helligkeit, Kontrast, Gamma, Entrauschen und Schärfen findest du in den Bildeinstellungen. *Anordnen → Bild mit Form zuschneiden* begrenzt ein Bild auf eine beliebige Form. *Bild nachzeichnen…* macht aus einem Bild Vektorformen, auch als Mittellinie.
 
+**3D-Modelle** (STL, OBJ) importierst du wie Bilder. Wähle im Dialog die Ansicht, die Breite und die Auflösung. VectorLume legt daraus ein Tiefenbild an: Hohe Stellen werden hell, tiefe dunkel. Mit dem Bildmodus *Graustufen* oder *3D-Schichten* wird daraus ein Relief. *Invertieren* kehrt das um, z. B. für Stempel und Gussformen.
+
 ## Anordnen und Bearbeiten
 
 Im Menü *Anordnen* findest du:

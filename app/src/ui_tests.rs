@@ -1019,6 +1019,53 @@ fn history_window_flow(render: bool) {
     assert!(!h.state().history.can_redo());
 }
 
+/// 3D-Modell: STL importieren öffnet den Dialog, „Tiefenbild einfügen“ legt ein Graustufenbild an.
+fn model_flow(render: bool) {
+    let mut h = harness(render);
+    // Pyramide 40×20 Grundfläche, 10 hoch, als ASCII-STL
+    let (a, b, c, d, top) = ([0, 0, 0], [40, 0, 0], [40, 20, 0], [0, 20, 0], [20, 10, 10]);
+    let mut stl = String::from("solid pyramide\n");
+    for t in [[a, b, top], [b, c, top], [c, d, top], [d, a, top], [a, c, b], [a, d, c]] {
+        stl.push_str("facet normal 0 0 0\nouter loop\n");
+        for v in t {
+            stl.push_str(&format!("vertex {} {} {}\n", v[0], v[1], v[2]));
+        }
+        stl.push_str("endloop\nendfacet\n");
+    }
+    let path = std::env::temp_dir().join("vectorlume-ui-tests").join("pyramide.stl");
+    std::fs::write(&path, stl + "endsolid\n").unwrap();
+    h.state_mut().import_path(&path);
+    h.run_ok();
+    assert!(h.state().model.open);
+    assert!(h.query_by_label_contains("6 Dreiecke").is_some());
+    assert!(h.query_by_label_contains("400 × 200 Pixel").is_some(), "10 px/mm bei 40 mm Breite");
+    if render {
+        save(&mut h, "dialog_3d_modell");
+    }
+    h.get_by_label("Tiefenbild einfügen").click();
+    h.run_ok();
+    let app = h.state();
+    assert!(!app.model.open);
+    let o = app.doc.get(app.selection[0]).unwrap();
+    let Shape::Image(img) = &o.shape else { panic!("kein Bild") };
+    assert_eq!((img.width_mm, img.height_mm, img.image.width, img.image.height), (40.0, 20.0, 400, 200));
+    assert_eq!(o.name, "pyramide");
+    let layer = &app.doc.layers[o.layer];
+    assert_eq!(layer.operation(layer.image_operation()).unwrap().dither, vl_core::DitherMode::Grayscale);
+    assert!(app.settings.profile.bed_rect().contains_rect(&app.doc.bounds()));
+}
+
+#[test]
+fn model_import_inserts_depth_map() {
+    model_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_model_dialog() {
+    model_flow(true);
+}
+
 #[test]
 fn history_window_lists_steps_and_jumps() {
     history_window_flow(false);

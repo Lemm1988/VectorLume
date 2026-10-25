@@ -8,6 +8,7 @@ pub mod hershey;
 pub mod hpgl;
 pub mod image;
 pub mod lightburn;
+pub mod model3d;
 pub mod pdf;
 pub mod pdf_export;
 pub mod svg;
@@ -24,6 +25,8 @@ pub use text::{TextAlign, TextSpec, font_families, render_text, system_fonts, te
 
 pub const VECTOR_EXTENSIONS: &[&str] = &["svg", "svgz", "dxf", "pdf", "ai", "eps", "plt", "hpgl", "hgl"];
 pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff"];
+/// 3D-Modelle, die als Tiefenbild eingefügt werden (eigener Dialog statt direktem Import).
+pub const MODEL_EXTENSIONS: &[&str] = &["stl", "obj"];
 
 #[derive(Clone, Debug)]
 pub enum ImportedItem {

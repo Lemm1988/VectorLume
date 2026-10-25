@@ -265,6 +265,7 @@ pub struct VectorLumeApp {
     pub gear: crate::gear_tool::GearTool,
     pub grbl: crate::grbl_params::GrblParams,
     pub manual: crate::manual::Manual,
+    pub model: crate::model_tool::ModelTool,
     pub history_window: crate::history_window::HistoryWindow,
     /// Laufendes Verzerren der Auswahl.
     pub warp: Option<crate::warp_tool::WarpSession>,
@@ -369,6 +370,7 @@ impl VectorLumeApp {
             gear: Default::default(),
             grbl: Default::default(),
             manual: Default::default(),
+            model: Default::default(),
             history_window: Default::default(),
             warp: None,
             library: Default::default(),
@@ -660,11 +662,13 @@ impl VectorLumeApp {
     pub fn import_dialog(&mut self) {
         let mut all: Vec<&str> = vl_io::VECTOR_EXTENSIONS.to_vec();
         all.extend_from_slice(vl_io::IMAGE_EXTENSIONS);
+        all.extend_from_slice(vl_io::MODEL_EXTENSIONS);
         if let Some(files) = rfd::FileDialog::new()
             .set_title(tr("Importieren"))
             .add_filter(tr("Alle unterstützten Dateien"), &all)
             .add_filter(tr("Vektorgrafik (SVG, DXF, PDF, AI, EPS, HPGL)"), vl_io::VECTOR_EXTENSIONS)
             .add_filter(tr("Bilder"), vl_io::IMAGE_EXTENSIONS)
+            .add_filter(tr("3D-Modelle (STL, OBJ) als Tiefenbild"), vl_io::MODEL_EXTENSIONS)
             .pick_files()
         {
             for f in files {
@@ -677,6 +681,10 @@ impl VectorLumeApp {
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
         if ext == vl_core::project::PROJECT_EXTENSION || is_lightburn(path) {
             self.open_dialog(false, Some(path.to_path_buf()));
+            return;
+        }
+        if vl_io::MODEL_EXTENSIONS.contains(&ext.as_str()) {
+            self.open_model(path);
             return;
         }
         let fonts = (ext == "svg" || ext == "svgz").then(vl_io::system_fonts);
@@ -702,7 +710,7 @@ impl VectorLumeApp {
     }
 
     /// Importiertes in die Arbeitsfläche legen, falls es (teilweise) außerhalb liegt.
-    fn place_imported(&mut self, ids: &[ObjectId]) {
+    pub(crate) fn place_imported(&mut self, ids: &[ObjectId]) {
         let b = self.doc.bounds_of(ids);
         let bed = self.settings.profile.bed_rect();
         if b.is_empty() || bed.contains_rect(&b) {
