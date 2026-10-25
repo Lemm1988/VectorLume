@@ -129,7 +129,7 @@ impl GeomCache {
         self.map.clear();
     }
 
-    fn local(&mut self, obj: &Object) -> Option<(Arc<Vec<Polyline>>, DRect)> {
+    pub(crate) fn local(&mut self, obj: &Object) -> Option<(Arc<Vec<Polyline>>, DRect)> {
         let DocShape::Path(path) = &obj.shape else { return None };
         let scale = obj.transform.mean_scale();
         let key = (path.subpaths.len(), path.segment_count());

@@ -273,6 +273,75 @@ impl VectorLumeApp {
         self.mark_changed();
     }
 
+    /// Trennt den Pfad am gewählten Knoten auf.
+    fn break_selected_node(&mut self) {
+        let Some(n) = self.node_edit.selected else { return };
+        let mut result = None;
+        self.checkpoint();
+        self.edit_target(|p, _| result = nodes::break_at_node(p, n));
+        if result.is_none() {
+            self.history.discard_if_unchanged(&self.doc);
+            self.toast(crate::app::ToastKind::Info, tr("Am Ende eines offenen Pfades gibt es nichts aufzutrennen."));
+            return;
+        }
+        self.node_edit.selected = result;
+        self.mark_changed();
+    }
+
+    /// Macht den gewählten Knoten glatt (Griffe auf einer Geraden).
+    fn smooth_selected_node(&mut self) {
+        let Some(n) = self.node_edit.selected else { return };
+        let mut done = false;
+        self.checkpoint();
+        self.edit_target(|p, _| done = nodes::smooth_node(p, n));
+        if !done {
+            self.history.discard_if_unchanged(&self.doc);
+            self.toast(crate::app::ToastKind::Info, tr("Endknoten offener Pfade lassen sich nicht glätten."));
+            return;
+        }
+        self.mark_changed();
+    }
+
+    /// Ist der gewählte Knoten ein offenes Pfadende (nur dort lässt sich verlängern)?
+    fn selected_is_open_end(&self) -> bool {
+        let Some(n) = self.node_edit.selected else { return false };
+        self.node_target().is_some_and(|(p, _)| nodes::is_open_end(p, n))
+    }
+
+    /// Verlängert das gewählte offene Ende bis zur nächsten sichtbaren Linie (auch des eigenen Pfades).
+    fn extend_selected_node(&mut self) {
+        let (Some(n), Some(id)) = (self.node_edit.selected, self.node_edit.target) else { return };
+        let Some((path, t)) = self.node_target() else { return };
+        let Some(inv) = t.inverse() else { return };
+        let mut out = path.clone();
+        // Hindernisse im lokalen System des Pfades: Geraden bleiben unter affinen Abbildungen Geraden
+        let mut obstacles = Vec::new();
+        for obj in &self.doc.objects {
+            if !self.doc.layers[obj.layer].visible {
+                continue;
+            }
+            let polys = if obj.id == id {
+                out.flatten(&vl_core::Affine::IDENTITY, 0.02 / t.mean_scale().max(1e-9))
+            } else {
+                let Some((polys, _)) = self.geom.local(obj) else { continue };
+                let to_local = obj.transform.then(&inv);
+                polys
+                    .iter()
+                    .map(|p| vl_core::Polyline::new(p.points.iter().map(|q| to_local.apply(*q)).collect(), p.closed))
+                    .collect()
+            };
+            obstacles.extend(polys);
+        }
+        let Some(end) = nodes::extend_end(&mut out, n, &obstacles) else {
+            self.toast(crate::app::ToastKind::Info, tr("In Verlängerung des Endes liegt keine Linie."));
+            return;
+        };
+        self.checkpoint();
+        self.edit_target(|p, _| *p = out);
+        self.node_edit.selected = Some(end);
+        self.mark_changed();
+    }
+
     pub(crate) fn delete_selected_node(&mut self) {
         let Some(n) = self.node_edit.selected else { return };
         self.node_op(nodes::delete_node);
@@ -291,13 +360,28 @@ impl VectorLumeApp {
 
 fn node_buttons(app: &mut VectorLumeApp, ui: &mut Ui, close: bool) {
     let sel = app.node_edit.selected.is_some();
-    let clicked = |ui: &mut Ui, glyph: &str, text: &str, tip: &str| {
-        let r = ui.add_enabled(sel, egui::Button::new(format!("{glyph} {text}"))).on_hover_text(tip).clicked();
-        if r && close {
+    // In der Werkzeugleiste nur Symbole (Name und Erklärung im Tooltip), im Kontextmenü mit Text
+    let button = |ui: &mut Ui, enabled: bool, glyph: &str, text: &str, tip: &str, why_not: &str| {
+        let label = if close { format!("{glyph} {text}") } else { glyph.to_string() };
+        let r = ui
+            .add_enabled(enabled, egui::Button::new(label))
+            .on_hover_text(format!(
+                "{text}
+{tip}"
+            ))
+            .on_disabled_hover_text(format!(
+                "{text}
+{why_not}"
+            ));
+        r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, text));
+        let clicked = r.clicked();
+        if clicked && close {
             ui.close();
         }
-        r
+        clicked
     };
+    let pick = tr("Zuerst einen Knoten anklicken");
+    let clicked = |ui: &mut Ui, glyph: &str, text: &str, tip: &str| button(ui, sel, glyph, text, tip, pick);
     if clicked(ui, icon::TRASH, tr("Knoten löschen"), tr("Gewählten Knoten entfernen (Entf)")) {
         app.delete_selected_node();
     }
@@ -309,6 +393,27 @@ fn node_buttons(app: &mut VectorLumeApp, ui: &mut Ui, close: bool) {
     }
     if clicked(ui, icon::LINK_BREAK, tr("Öffnen/Schließen"), tr("Teilpfad des Knotens öffnen bzw. schließen")) {
         app.node_op(|p, n| nodes::toggle_closed(p, n.sub));
+    }
+    if clicked(
+        ui,
+        icon::SCISSORS,
+        tr("Auftrennen"),
+        tr("Pfad am Knoten auftrennen: geschlossene Formen werden dort geöffnet, offene in zwei Stücke geteilt"),
+    ) {
+        app.break_selected_node();
+    }
+    if clicked(ui, icon::WAVE_SINE, tr("Glätten"), tr("Knoten glätten: beide Kurvengriffe auf eine Gerade legen")) {
+        app.smooth_selected_node();
+    }
+    if button(
+        ui,
+        app.selected_is_open_end(),
+        icon::ARROW_LINE_RIGHT,
+        tr("Verlängern"),
+        tr("Offenes Pfadende geradlinig bis zur nächsten Linie verlängern"),
+        tr("Ein Ende eines offenen Pfades wählen"),
+    ) {
+        app.extend_selected_node();
     }
     if clicked(ui, icon::FRAME_CORNERS, tr("Abrunden"), tr("Ecke am Knoten mit dem eingestellten Radius abrunden")) {
         app.round_selected_node(vl_core::corners::CornerStyle::Round);

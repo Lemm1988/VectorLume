@@ -110,6 +110,36 @@ fn image_panel_offers_sharpening() {
 }
 
 #[test]
+fn node_tool_extends_open_end_to_wall() {
+    let mut h = harness(false);
+    let mut line = VectorPath::default();
+    line.subpaths.push(vl_core::SubPath {
+        start: Point::new(10.0, 50.0),
+        segments: vec![vl_core::Segment::Line(Point::new(30.0, 50.0))],
+        closed: false,
+    });
+    let id = add(&mut h, line);
+    add(&mut h, VectorPath::rect(80.0, 20.0, 10.0, 60.0, 0.0));
+    {
+        let app = h.state_mut();
+        app.selection = vec![id];
+        app.tool = crate::app::Tool::Node;
+        app.node_edit.target = Some(id);
+        app.node_edit.selected = Some(vl_core::nodes::NodeRef { sub: 0, idx: 1 });
+    }
+    h.run_ok();
+    h.get_by_label_contains("Verlängern").click();
+    h.run_ok();
+    let Shape::Path(p) = &h.state().doc.get(id).unwrap().shape else { panic!() };
+    assert_eq!(p.subpaths[0].end(), Point::new(80.0, 50.0));
+    // Auftrennen in der Mitte geht bei einer einzelnen Linie nicht, am Ende auch nicht: Meldung statt Änderung
+    h.get_by_label_contains("Auftrennen").click();
+    h.run_ok();
+    let Shape::Path(p) = &h.state().doc.get(id).unwrap().shape else { panic!() };
+    assert_eq!(p.subpaths.len(), 1);
+}
+
+#[test]
 #[ignore = "rendert Bilder zur Sichtprüfung"]
 fn render_dialogs() {
     let mut h = harness(true);

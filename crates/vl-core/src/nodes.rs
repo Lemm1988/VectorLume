@@ -1,12 +1,12 @@
 //! Knotenbearbeitung von Vektorpfaden: Knoten und Kurvengriffe verschieben, einfügen, löschen,
-//! Segmente in Linien oder Kurven umwandeln.
+//! Segmente in Linien oder Kurven umwandeln, Pfade auftrennen, Knoten glätten, offene Enden verlängern.
 //!
 //! Knoten `idx` eines Teilpfades: 0 = Startpunkt, `i` > 0 = Endpunkt von Segment `i - 1`.
 //! Bei geschlossenen Teilpfaden, deren letztes Segment auf den Startpunkt zurückführt, gilt dieser letzte
 //! Endpunkt als derselbe Knoten wie der Start.
 
 use crate::geom::Point;
-use crate::path::{Segment, SubPath, VectorPath, distance_to_segment};
+use crate::path::{Polyline, Segment, SubPath, VectorPath, distance_to_segment};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct NodeRef {
@@ -301,6 +301,142 @@ pub fn toggle_closed(path: &mut VectorPath, sub: usize) {
     }
 }
 
+/// Trennt den Pfad am Knoten auf: ein geschlossener Teilpfad wird dort geöffnet (Anfang und Ende liegen dann auf
+/// dem Knoten), ein offener in zwei Teilpfade geteilt. Gibt den Anfangsknoten des neuen Stücks zurück; an den
+/// Enden offener Pfade gibt es nichts aufzutrennen.
+pub fn break_at_node(path: &mut VectorPath, node: NodeRef) -> Option<NodeRef> {
+    let sp = path.subpaths.get_mut(node.sub)?;
+    if sp.closed {
+        explicit_close(sp);
+        if node.idx >= sp.segments.len() {
+            return None;
+        }
+        sp.start = segment_start(sp, node.idx);
+        sp.segments.rotate_left(node.idx);
+        sp.closed = false;
+        return Some(NodeRef { sub: node.sub, idx: 0 });
+    }
+    if node.idx == 0 || node.idx >= sp.segments.len() {
+        return None;
+    }
+    let start = segment_start(sp, node.idx);
+    let segments = sp.segments.split_off(node.idx);
+    path.subpaths.insert(node.sub + 1, SubPath { start, segments, closed: false });
+    Some(NodeRef { sub: node.sub + 1, idx: 0 })
+}
+
+fn as_cubic(from: Point, seg: Segment) -> (Point, Point, Point) {
+    match seg {
+        Segment::Line(e) => (from.lerp(e, 1.0 / 3.0), from.lerp(e, 2.0 / 3.0), e),
+        Segment::Quad(c, e) => (from.lerp(c, 2.0 / 3.0), e.lerp(c, 2.0 / 3.0), e),
+        Segment::Cubic(c1, c2, e) => (c1, c2, e),
+    }
+}
+
+/// Macht den Knoten glatt: die Griffe der beiden angrenzenden Segmente liegen danach auf einer Geraden parallel
+/// zur Verbindung der Nachbarknoten (gerade Segmente werden zu Kurven, Grifflängen bleiben). Endknoten offener
+/// Pfade haben nur ein Segment und bleiben unverändert (`false`).
+pub fn smooth_node(path: &mut VectorPath, node: NodeRef) -> bool {
+    let Some(sp) = path.subpaths.get_mut(node.sub) else { return false };
+    explicit_close(sp);
+    let n = sp.segments.len();
+    let (inc, out) = match node.idx {
+        0 if sp.closed && n >= 2 => (n - 1, 0),
+        i if i > 0 && i < n => (i - 1, i),
+        _ => return false,
+    };
+    let (a, p, b) = (segment_start(sp, inc), segment_start(sp, out), sp.segments[out].end());
+    let span = b - a;
+    if span.length() < SAME {
+        return false;
+    }
+    let d = span * (1.0 / span.length());
+    let (c1, c2, e) = as_cubic(a, sp.segments[inc]);
+    let len = (c2 - p).length();
+    let len = if len > SAME { len } else { (p - a).length() / 3.0 };
+    sp.segments[inc] = Segment::Cubic(c1, p - d * len, e);
+    let (c1, c2, e) = as_cubic(p, sp.segments[out]);
+    let len = (c1 - p).length();
+    let len = if len > SAME { len } else { (b - p).length() / 3.0 };
+    sp.segments[out] = Segment::Cubic(p + d * len, c2, e);
+    true
+}
+
+/// Endpunkt und Richtung (nach außen) eines offenen Teilpfades am Anfang bzw. Ende.
+fn end_tangent(sp: &SubPath, at_start: bool) -> Option<(Point, Point)> {
+    let (tip, inner) = if at_start {
+        let seg = sp.segments.first()?;
+        let inner = match *seg {
+            Segment::Line(e) => vec![e],
+            Segment::Quad(c, e) => vec![c, e],
+            Segment::Cubic(c1, c2, e) => vec![c1, c2, e],
+        };
+        (sp.start, inner)
+    } else {
+        let seg = sp.segments.last()?;
+        let from = segment_start(sp, sp.segments.len() - 1);
+        let inner = match *seg {
+            Segment::Line(_) => vec![from],
+            Segment::Quad(c, _) => vec![c, from],
+            Segment::Cubic(c1, c2, _) => vec![c2, c1, from],
+        };
+        (seg.end(), inner)
+    };
+    let q = inner.into_iter().find(|q| q.distance(tip) > SAME)?;
+    let d = tip - q;
+    Some((tip, d * (1.0 / d.length())))
+}
+
+/// Nächster Schnitt des Strahls `o + t·d` (t > 0) mit den Kanten der Hindernisse.
+fn ray_hit(o: Point, d: Point, obstacles: &[Polyline]) -> Option<Point> {
+    let mut best: Option<f64> = None;
+    for (p, q) in obstacles.iter().flat_map(|poly| poly.edges()) {
+        let e = q - p;
+        let den = d.cross(e);
+        if den.abs() < 1e-12 {
+            continue;
+        }
+        let w = p - o;
+        let (t, u) = (w.cross(e) / den, w.cross(d) / den);
+        if t > 1e-6 && (-1e-9..=1.0 + 1e-9).contains(&u) && best.is_none_or(|b| t < b) {
+            best = Some(t);
+        }
+    }
+    best.map(|t| o + d * t)
+}
+
+/// Ist der Knoten ein Ende eines offenen Teilpfades?
+pub fn is_open_end(path: &VectorPath, node: NodeRef) -> bool {
+    path.subpaths
+        .get(node.sub)
+        .is_some_and(|sp| !sp.closed && !sp.segments.is_empty() && (node.idx == 0 || node.idx == sp.segments.len()))
+}
+
+/// Verlängert ein offenes Pfadende in Richtung seiner Tangente bis zur ersten Linie aus `obstacles` (gleiche
+/// Koordinaten wie `path`, der Pfad selbst darf darin vorkommen). Ein gerades Endsegment wird verlängert, an
+/// eine Kurve wird eine Linie angehängt. Gibt den neuen Endknoten zurück, `None` ohne Treffer.
+pub fn extend_end(path: &mut VectorPath, node: NodeRef, obstacles: &[Polyline]) -> Option<NodeRef> {
+    if !is_open_end(path, node) {
+        return None;
+    }
+    let sp = &mut path.subpaths[node.sub];
+    let at_start = node.idx == 0;
+    let (tip, d) = end_tangent(sp, at_start)?;
+    let hit = ray_hit(tip, d, obstacles)?;
+    if at_start {
+        if !matches!(sp.segments[0], Segment::Line(_)) {
+            sp.segments.insert(0, Segment::Line(sp.start));
+        }
+        sp.start = hit;
+        return Some(NodeRef { sub: node.sub, idx: 0 });
+    }
+    match sp.segments.last_mut() {
+        Some(Segment::Line(e)) => *e = hit,
+        _ => sp.segments.push(Segment::Line(hit)),
+    }
+    Some(NodeRef { sub: node.sub, idx: sp.segments.len() })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -369,5 +505,85 @@ mod tests {
         assert_eq!(nodes(&q).len(), 3);
         let area = q.flatten(&Affine::IDENTITY, 0.01)[0].signed_area().abs();
         assert!((area - 50.0).abs() < 1e-6, "{area}");
+    }
+
+    #[test]
+    fn break_opens_closed_and_splits_open_paths() {
+        let mut p = square();
+        let n = break_at_node(&mut p, NodeRef { sub: 0, idx: 2 }).unwrap();
+        let sp = &p.subpaths[n.sub];
+        assert!(!sp.closed);
+        assert_eq!(sp.start, Point::new(10.0, 10.0));
+        assert_eq!(sp.end(), Point::new(10.0, 10.0));
+        assert_eq!(sp.segments.len(), 4, "alle vier Kanten bleiben");
+
+        // offener Pfad mit vier Kanten am mittleren Knoten teilen
+        let n = break_at_node(&mut p, NodeRef { sub: 0, idx: 2 }).unwrap();
+        assert_eq!(p.subpaths.len(), 2);
+        assert_eq!((p.subpaths[0].segments.len(), p.subpaths[1].segments.len()), (2, 2));
+        assert_eq!(p.subpaths[0].end(), p.subpaths[n.sub].start);
+        assert_eq!(break_at_node(&mut p, NodeRef { sub: 0, idx: 0 }), None, "Enden bleiben");
+    }
+
+    #[test]
+    fn smooth_makes_handles_collinear() {
+        let mut p = square();
+        let node = NodeRef { sub: 0, idx: 1 };
+        assert!(smooth_node(&mut p, node));
+        let sp = &p.subpaths[0];
+        let (Segment::Cubic(_, c2, e), Segment::Cubic(c1, _, _)) = (sp.segments[0], sp.segments[1]) else {
+            panic!("Kurven erwartet: {:?}", sp.segments)
+        };
+        assert_eq!(e, Point::new(10.0, 0.0));
+        assert!((c2 - e).cross(c1 - e).abs() < 1e-9 && (c2 - e).dot(c1 - e) < 0.0, "Griffe gegenüber");
+        // Startknoten des geschlossenen Pfades: letzte und erste Kante
+        assert!(smooth_node(&mut p, NodeRef { sub: 0, idx: 0 }));
+        assert!(matches!(p.subpaths[0].segments.last(), Some(Segment::Cubic(..))));
+        let mut open = VectorPath::default();
+        open.subpaths.push(SubPath {
+            start: Point::new(0.0, 0.0),
+            segments: vec![Segment::Line(Point::new(5.0, 0.0))],
+            closed: false,
+        });
+        assert!(!smooth_node(&mut open, NodeRef { sub: 0, idx: 1 }), "Endknoten bleibt");
+    }
+
+    #[test]
+    fn extend_reaches_next_line() {
+        // Waagerechte Linie 0…5 zeigt auf eine senkrechte Wand bei x = 20, zurück auf eine bei x = -7
+        let mut p = VectorPath::default();
+        p.subpaths.push(SubPath {
+            start: Point::new(0.0, 0.0),
+            segments: vec![Segment::Line(Point::new(5.0, 0.0))],
+            closed: false,
+        });
+        let walls = [
+            Polyline::new(vec![Point::new(20.0, -5.0), Point::new(20.0, 5.0)], false),
+            Polyline::new(vec![Point::new(30.0, -5.0), Point::new(30.0, 5.0)], false),
+            Polyline::new(vec![Point::new(-7.0, -5.0), Point::new(-7.0, 5.0)], false),
+        ];
+        let mut obstacles = walls.to_vec();
+        obstacles.extend(p.flatten(&Affine::IDENTITY, 0.01));
+        let end = extend_end(&mut p, NodeRef { sub: 0, idx: 1 }, &obstacles).unwrap();
+        assert_eq!(end, NodeRef { sub: 0, idx: 1 });
+        assert_eq!(p.subpaths[0].end(), Point::new(20.0, 0.0));
+        extend_end(&mut p, NodeRef { sub: 0, idx: 0 }, &obstacles).unwrap();
+        assert_eq!(p.subpaths[0].start, Point::new(-7.0, 0.0));
+        assert_eq!(p.subpaths[0].segments.len(), 1, "gerade Linie wird nur länger");
+        assert!(extend_end(&mut p, NodeRef { sub: 0, idx: 0 }, &walls[..1]).is_none(), "nach links nichts mehr");
+
+        // Kurvenende: eine Linie wird angehängt, Richtung = Tangente am Ende
+        let mut c = VectorPath::default();
+        c.subpaths.push(SubPath {
+            start: Point::new(0.0, 0.0),
+            segments: vec![Segment::Cubic(Point::new(2.0, 4.0), Point::new(4.0, 4.0), Point::new(6.0, 2.0))],
+            closed: false,
+        });
+        let wall = [Polyline::new(vec![Point::new(20.0, -50.0), Point::new(20.0, 50.0)], false)];
+        let end = extend_end(&mut c, NodeRef { sub: 0, idx: 1 }, &wall).unwrap();
+        assert_eq!(end.idx, 2);
+        let hit = c.subpaths[0].end();
+        assert!((hit.x - 20.0).abs() < 1e-9 && (hit.y + 12.0).abs() < 1e-9, "{hit:?}");
+        assert!(!is_open_end(&square(), NodeRef { sub: 0, idx: 0 }));
     }
 }

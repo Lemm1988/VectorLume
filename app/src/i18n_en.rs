@@ -1119,6 +1119,16 @@ pub static EN: &[(&str, &str)] = &[
     ("Füllwinkel bei jedem weiteren Durchgang so weit drehen – vermeidet Rillen bei tiefen Gravuren (z. B. 45° oder 90°).", "Turn the fill angle by this much on every further pass – avoids grooves in deep engravings (e.g. 45° or 90°)."),
     ("Entrauschen", "Denoise"),
     ("Medianfilter: entfernt Bildrauschen und einzelne Störpixel, Kanten bleiben scharf. Radius auf dem Werkstück, etwa 1–2 × Zeilenabstand (0 = aus).", "Median filter: removes image noise and stray pixels while keeping edges sharp. Radius on the workpiece, about 1–2 × line interval (0 = off)."),
+    ("Am Ende eines offenen Pfades gibt es nichts aufzutrennen.", "There is nothing to break at the end of an open path."),
+    ("Endknoten offener Pfade lassen sich nicht glätten.", "End nodes of open paths cannot be smoothed."),
+    ("In Verlängerung des Endes liegt keine Linie.", "There is no line in the extension of this end."),
+    ("Auftrennen", "Break"),
+    ("Pfad am Knoten auftrennen: geschlossene Formen werden dort geöffnet, offene in zwei Stücke geteilt", "Break the path at the node: closed shapes are opened there, open ones split into two pieces"),
+    ("Knoten glätten: beide Kurvengriffe auf eine Gerade legen", "Smooth the node: put both curve handles on one straight line"),
+    ("Verlängern", "Extend"),
+    ("Offenes Pfadende geradlinig bis zur nächsten Linie verlängern", "Extend the open path end straight to the next line"),
+    ("Ein Ende eines offenen Pfades wählen", "Select an end of an open path"),
+    ("Zuerst einen Knoten anklicken", "Click a node first"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
