@@ -19,6 +19,7 @@ mod i18n_en;
 mod icon_art;
 mod kerf_tool;
 mod library;
+mod manual;
 mod materials;
 mod node_tool;
 mod print_cut;

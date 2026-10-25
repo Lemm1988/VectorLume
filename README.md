@@ -34,7 +34,10 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
 - **Vorschau** mit Laufzeitschätzung, Leerfahrten und Abspielregler
 - **Optimierung:** kürzeste Wege, innen vor außen, Gravieren vor Schneiden
 - **Sicherheit:** Prüfung des Laser-Modus (`$32=1`), Not-Stopp bei Abbruch/Verbindungsverlust, Bereichsprüfung
+- **Generatoren:** Box mit Fingerzinken, Biegescharnier, Puzzle, Zahnräder (Evolvente, mit Gegenrad), Schnittbreite mit Testkamm ermitteln (*Anordnen → Generatoren*)
+- **GRBL-Parameter:** alle `$`-Einstellungen mit Beschreibung ansehen, ändern, sichern und laden (*Laser → GRBL-Parameter…*)
 - **Simulator:** alles ohne angeschlossenen Laser testen (Anschluss „Simulator“)
+- **Hilfe:** eingebautes Handbuch (*Hilfe → Handbuch*, F1; Quelle `docs/Handbuch.md` bzw. `docs/Manual.en.md`), Fehlerbericht `crash.log` nach Programmfehlern
 - **Sprache:** Deutsch oder Englisch (*Ansicht → Sprache*, ohne Neustart); beim ersten Start die Systemsprache
 
 ## Erste Schritte

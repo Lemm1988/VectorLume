@@ -264,6 +264,7 @@ pub struct VectorLumeApp {
     pub kerf: crate::kerf_tool::KerfTool,
     pub gear: crate::gear_tool::GearTool,
     pub grbl: crate::grbl_params::GrblParams,
+    pub manual: crate::manual::Manual,
     /// Laufendes Verzerren der Auswahl.
     pub warp: Option<crate::warp_tool::WarpSession>,
     pub library: crate::library::Library,
@@ -366,6 +367,7 @@ impl VectorLumeApp {
             kerf: Default::default(),
             gear: Default::default(),
             grbl: Default::default(),
+            manual: Default::default(),
             warp: None,
             library: Default::default(),
             measure: None,

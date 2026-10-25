@@ -150,6 +150,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-61 | Optimierung | nächster Nachbar mit Bounding-Box-Vorfilter, Startpunkt auf geschlossenen Konturen frei wählbar, offene Pfade werden umgedreht, „innen vor außen“ als Abhängigkeitsgraph | ✅ |
 | LF-62 | Bereichsprüfung | Job inkl. Overscan gegen Arbeitsfläche, Bestätigung bei Überschreitung | ✅ |
 | LF-63 | Abspielbare Vorschau | Schieberegler mit Kopfmarkierung | ✅ |
+| LF-64 | Handbuch | *Hilfe → Handbuch* bzw. F1: `docs/Handbuch.md` (deutsch) und `docs/Manual.en.md` (englisch, je nach Oberflächensprache) sind ins Programm eingebettet und werden ohne Zusatzbibliothek angezeigt (Überschriften, Absätze, Listen, Hinweiskästen, fett/kursiv/Code); Inhaltsverzeichnis mit Sprung zum Kapitel, Suche zeigt nur passende Kapitel; Test: beide Fassungen haben dieselbe Kapitelzahl und geschlossene Auszeichnungen | ✅ |
 
 ## 5. Daten
 

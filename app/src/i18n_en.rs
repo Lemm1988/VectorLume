@@ -1407,6 +1407,9 @@ pub static EN: &[(&str, &str)] = &[
     ("Die Datei enthält keine GRBL-Parameter.", "The file contains no GRBL settings."),
     ("Schreiben ({})", "Write ({})"),
     ("An die Steuerung gesendet: {}", "Sent to the controller: {}"),
+    ("Nichts gefunden.", "Nothing found."),
+    ("{} Handbuch", "{} Manual"),
+    ("Handbuch", "Manual"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
@@ -1429,6 +1432,7 @@ pub static SOURCES: &[(&str, &str)] = &[
     ("kerf_tool.rs", include_str!("kerf_tool.rs")),
     ("library.rs", include_str!("library.rs")),
     ("main.rs", include_str!("main.rs")),
+    ("manual.rs", include_str!("manual.rs")),
     ("materials.rs", include_str!("materials.rs")),
     ("node_tool.rs", include_str!("node_tool.rs")),
     ("print_cut.rs", include_str!("print_cut.rs")),

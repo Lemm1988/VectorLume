@@ -75,6 +75,9 @@ pub fn shortcuts(app: &mut VectorLumeApp, ctx: &egui::Context) {
     } else if pressed(sc(Modifiers::COMMAND, Key::G)) {
         app.group();
     }
+    if pressed(sc(Modifiers::NONE, Key::F1)) {
+        app.manual.open = !app.manual.open;
+    }
     if pressed(sc(Modifiers::ALT, Key::P)) {
         app.preview.active = !app.preview.active;
     }
@@ -164,6 +167,9 @@ pub fn top_bar(app: &mut VectorLumeApp, ui: &mut Ui) {
             ui.menu_button(tr("Ansicht"), |ui| view_menu(app, ui));
             ui.menu_button(tr("Laser"), |ui| laser_menu(app, ui));
             ui.menu_button(tr("Hilfe"), |ui| {
+                if menu_item(ui, tr("Handbuch"), "F1", true) {
+                    app.manual.open = true;
+                }
                 if menu_item(ui, tr("Beispielprojekt laden"), "", true)
                     && app.confirm_discard(crate::app::AfterDiscard::Demo)
                 {

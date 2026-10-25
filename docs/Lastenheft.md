@@ -123,6 +123,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 | LF-61 | Schnittreihenfolge optimieren (kürzeste Wege, innen vor außen) | M |
 | LF-62 | Prüfung, ob der Job in die Arbeitsfläche passt | M |
 | LF-63 | Abspielbare Vorschau (Fortschritt schrittweise ansehen) | S |
+| LF-64 | Benutzerhandbuch im Programm (deutsch/englisch) | S |
 
 ## 6. Nichtfunktionale Anforderungen
 

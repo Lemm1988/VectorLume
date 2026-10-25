@@ -541,6 +541,43 @@ fn stencil_bridges_for_text() {
     assert!(h.state_mut().history.can_undo());
 }
 
+/// Handbuch: F1 öffnet es, die Suche zeigt nur passende Kapitel, ein Klick im Inhaltsverzeichnis springt hin.
+fn manual_flow(render: bool) {
+    let mut h = harness(render);
+    h.key_press(egui::Key::F1);
+    h.run_ok();
+    assert!(h.state().manual.open);
+    if render {
+        save(&mut h, "handbuch");
+    }
+    // erster Treffer: Eintrag im Inhaltsverzeichnis (die Überschrift im Text heißt genauso)
+    h.get_all_by_label("GRBL-Parameter").next().unwrap().click();
+    h.run_ok();
+    assert!(h.state().manual.jump.is_none(), "Sprung ausgeführt");
+    h.state_mut().manual.query = "Zahnräder".into();
+    h.run_ok();
+    // Kapitel mit „Zahnräder“: Anordnen/Generatoren; „Tastenkürzel“ enthält das Wort nicht
+    assert!(h.query_all_by_label("Generatoren").count() > 0);
+    assert_eq!(h.query_all_by_label("Tastenkürzel").count(), 0);
+    if render {
+        save(&mut h, "handbuch_suche");
+    }
+    h.key_press(egui::Key::F1);
+    h.run_ok();
+    assert!(!h.state().manual.open);
+}
+
+#[test]
+fn manual_opens_searches_and_closes() {
+    manual_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_manual() {
+    manual_flow(true);
+}
+
 /// Lässt die Oberfläche laufen, bis `done` zutrifft (höchstens etwa 5 s), z. B. auf Antworten des Simulators.
 fn wait_until(h: &mut Harness<'static, VectorLumeApp>, done: impl Fn(&VectorLumeApp) -> bool) {
     for _ in 0..250 {
