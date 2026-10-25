@@ -77,6 +77,7 @@ mod tests {
                 width_mm: 3.0,
                 height_mm: 2.0,
                 adjust: ImageAdjust { brightness: 10.0, ..Default::default() },
+                clip: Vec::new(),
             },
             Point::new(1.0, 1.0),
         );

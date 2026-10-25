@@ -450,6 +450,7 @@ impl Importer<'_> {
             width_mm: num("W").unwrap_or(0.0),
             height_mm: num("H").unwrap_or(0.0),
             adjust: Default::default(),
+            clip: Vec::new(),
         };
         // Werte −1…1 bzw. Gamma als Faktor
         obj.adjust.brightness = (num("Brightness").unwrap_or(0.0) * 100.0).clamp(-100.0, 100.0);

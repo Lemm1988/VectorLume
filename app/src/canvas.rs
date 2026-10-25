@@ -140,10 +140,23 @@ impl GeomCache {
 
 #[derive(Default)]
 pub struct TextureCache {
-    images: HashMap<(usize, [u64; 3]), (TextureHandle, u64)>,
+    images: HashMap<(usize, [u64; 3], u64), (TextureHandle, u64)>,
     preview: Vec<TextureHandle>,
     preview_generation: u64,
     frame: u64,
+}
+
+/// Kennung eines Zuschnitts für den Textur-Zwischenspeicher.
+fn clip_key(clip: &[Vec<Point>]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    for ring in clip {
+        ring.len().hash(&mut h);
+        for p in ring {
+            (p.x.to_bits(), p.y.to_bits()).hash(&mut h);
+        }
+    }
+    h.finish()
 }
 
 /// Höchstens so viele Pixel pro Seite in einer Textur (Grafikkarten-Grenzen).
@@ -158,6 +171,7 @@ impl TextureCache {
         let key = (
             Arc::as_ptr(&img.image) as usize,
             [img.adjust.brightness.to_bits(), img.adjust.contrast.to_bits(), img.adjust.gamma.to_bits()],
+            clip_key(&img.clip),
         );
         let frame = self.frame;
         if let Some((tex, used)) = self.images.get_mut(&key) {
@@ -172,7 +186,15 @@ impl TextureCache {
         let pixels = (0..th)
             .flat_map(|y| (0..tw).map(move |x| (x, y)))
             .map(|(x, y)| lut[src.pixels[(y * step).min(h - 1) * w + (x * step).min(w - 1)] as usize]);
-        let color = egui::ColorImage::from_gray_iter([tw, th], pixels);
+        // Zugeschnittene Bilder: außerhalb durchsichtig
+        let color = match img.clip_mask(tw, th) {
+            Some(mask) => {
+                let rgba: Vec<u8> =
+                    pixels.zip(mask).flat_map(|(v, inside)| [v, v, v, if inside { 255 } else { 0 }]).collect();
+                egui::ColorImage::from_rgba_unmultiplied([tw, th], &rgba)
+            }
+            None => egui::ColorImage::from_gray_iter([tw, th], pixels),
+        };
         let tex = ctx.load_texture("bild", color, egui::TextureOptions::LINEAR);
         let id = tex.id();
         self.images.insert(key, (tex, frame));
@@ -1045,6 +1067,16 @@ impl VectorLumeApp {
                 && ui.button(trs(&format!("{} Bild nachzeichnen…", i::SCAN))).clicked()
             {
                 self.open_trace();
+                ui.close();
+            }
+            if self.can_clip_image() && ui.button(trs(&format!("{} Bild mit Form zuschneiden", i::CROP))).clicked() {
+                self.clip_image_to_shapes();
+                ui.close();
+            }
+            if self.selected_clipped_image().is_some()
+                && ui.button(trs(&format!("{} Zuschnitt aufheben", i::CORNERS_OUT))).clicked()
+            {
+                self.remove_image_clip();
                 ui.close();
             }
             ui.separator();

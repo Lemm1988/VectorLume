@@ -108,7 +108,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-32 | Basiswerte | Geschwindigkeit, Leistung max./min., Durchgänge, Ausgabe, Luft (M8/M9); **Leistung je Objekt** in Prozent der Ebenenleistung (Eigenschaftenleiste, z. B. für Materialtests auf einer Ebene) | ✅ |
 | LF-33 | Füllen | Zeilenabstand (mit dpi-Anzeige), Winkel, bidirektional, Kreuzschraffur, Overscan; Gerade-Ungerade-Regel (Löcher bleiben frei) | ✅ |
 | LF-34 | Bildmodi | Schwellwert, Floyd-Steinberg, Jarvis, Stucki, Atkinson, Burkes, Sierra, Bayer 8×8, Graustufen; Negativ; **Halbton** (runde Punkte, deren Fläche dem Grauwert entspricht, Rasterweite in mm und Winkel einstellbar) und **zusätzlich Linienraster** (Linien mit grauwertabhängiger Breite, Kupferstich-Optik) | ✅ |
-| LF-35 | Bildanpassung | Helligkeit, Kontrast, Gamma, live in der Ansicht | ✅ |
+| LF-35 | Bildanpassung | Helligkeit, Kontrast, Gamma, live in der Ansicht; **Bild mit Form zuschneiden** (Bild + geschlossene Formen auswählen, Zuschnitt wird im Bild gespeichert, außerhalb weder angezeigt noch graviert – auch im Negativ-Modus – noch nachgezeichnet; „Zuschnitt aufheben“ stellt das ganze Bild wieder her) | ✅ |
 | LF-36 | Reihenfolge | Ebenen verschieben; **zusätzlich „Gravieren vor Schneiden“** (Bild/Füllen vor Schnitten) | ✅ |
 | LF-37 | Materialbibliothek | Material/Stärke/Titel/Notiz, Suche, Import/Export (`.vlmat`), Übernehmen auf Ebene | ✅ |
 | LF-38 | Z/Kerf | Schnittbreitenausgleich; Z-Versatz und Absenkung je Durchgang (nur mit Z-Achse im Profil); **Überschnitt** (geschlossene Konturen laufen über den Startpunkt hinaus, höchstens eine Runde) und **Perforieren** (abwechselnd Schnitt- und Lückenlänge, Lücken im Vorschub mit Laser aus, läuft über Ecken weiter) | ✅ |
@@ -216,7 +216,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (128):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (130):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,

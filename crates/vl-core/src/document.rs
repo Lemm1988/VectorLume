@@ -133,11 +133,51 @@ pub struct ImageObject {
     pub height_mm: f64,
     #[serde(default)]
     pub adjust: ImageAdjust,
+    /// Zuschnitt: geschlossene Umrisse im lokalen Koordinatensystem; nur Pixel darin werden angezeigt und
+    /// graviert (Gerade-Ungerade-Regel). Leer = ganzes Bild.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub clip: Vec<Vec<Point>>,
 }
 
 impl ImageObject {
     pub fn local_rect(&self) -> Rect {
         Rect::from_xywh(0.0, 0.0, self.width_mm, self.height_mm)
+    }
+
+    /// Zuschnitt als Raster aus `cols`×`rows` Zellen über die ganze Bildfläche (`true` = Zellmitte liegt im
+    /// Zuschnitt); `None`, wenn das Bild nicht zugeschnitten ist.
+    pub fn clip_mask(&self, cols: usize, rows: usize) -> Option<Vec<bool>> {
+        if self.clip.is_empty() || cols == 0 || rows == 0 {
+            return None;
+        }
+        let (sx, sy) = (self.width_mm / cols as f64, self.height_mm / rows as f64);
+        let mut mask = vec![false; cols * rows];
+        let mut xs: Vec<f64> = Vec::new();
+        for r in 0..rows {
+            let y = (r as f64 + 0.5) * sy;
+            xs.clear();
+            for ring in &self.clip {
+                for (i, &a) in ring.iter().enumerate() {
+                    let b = ring[(i + 1) % ring.len()];
+                    if (a.y <= y) != (b.y <= y) {
+                        xs.push(a.x + (y - a.y) / (b.y - a.y) * (b.x - a.x));
+                    }
+                }
+            }
+            xs.sort_by(f64::total_cmp);
+            for span in xs.as_chunks::<2>().0 {
+                // Zellen, deren Mitte zwischen den Schnittpunkten liegt
+                let first = (span[0] / sx - 0.5).ceil().max(0.0) as usize;
+                let last = (span[1] / sx - 0.5).floor();
+                if last < 0.0 {
+                    continue;
+                }
+                for c in first..=(last as usize).min(cols - 1) {
+                    mask[r * cols + c] = true;
+                }
+            }
+        }
+        Some(mask)
     }
 }
 
@@ -388,6 +428,26 @@ impl Document {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn image_clip_mask() {
+        let mut img = ImageObject {
+            image: std::sync::Arc::new(RasterImage::new(1, 1, vec![0])),
+            width_mm: 10.0,
+            height_mm: 10.0,
+            adjust: ImageAdjust::default(),
+            clip: Vec::new(),
+        };
+        assert!(img.clip_mask(10, 10).is_none());
+        // Rahmen mit Loch: äußeres Quadrat 1…9, inneres 4…6
+        let sq = |a: f64, b: f64| vec![Point::new(a, a), Point::new(b, a), Point::new(b, b), Point::new(a, b)];
+        img.clip = vec![sq(1.0, 9.0), sq(4.0, 6.0)];
+        let m = img.clip_mask(10, 10).unwrap();
+        let at = |c: usize, r: usize| m[r * 10 + c];
+        assert!(!at(0, 0) && at(1, 1) && at(8, 8) && !at(9, 9));
+        assert!(!at(4, 4) && !at(5, 5) && at(3, 5));
+        assert_eq!(m.iter().filter(|v| **v).count(), 64 - 4);
+    }
 
     #[test]
     fn layer_order_moves_within_used_layers() {

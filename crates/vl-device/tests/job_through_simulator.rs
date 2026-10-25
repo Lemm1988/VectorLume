@@ -22,6 +22,7 @@ fn sample_doc() -> Document {
             width_mm: 12.0,
             height_mm: 8.0,
             adjust: ImageAdjust::default(),
+            clip: Vec::new(),
         },
         Point::new(100.0, 30.0),
     );

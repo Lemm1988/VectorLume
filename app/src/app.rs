@@ -10,7 +10,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use vl_cam::{Job, StartFrom, strip_for_streaming};
-use vl_core::{Affine, Document, Object, ObjectId, Point, Rect};
+use vl_core::{Affine, Document, Object, ObjectId, Point, Rect, Shape};
 use vl_device::{Command, Device, Direction, Event, Status};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -705,6 +705,64 @@ impl VectorLumeApp {
             self.doc.objects.iter().filter(|o| self.doc.layers[o.layer].selectable()).map(|o| o.id).collect();
     }
 
+    /// Genau ein Bild und mindestens eine Vektorform ausgewählt.
+    pub fn can_clip_image(&self) -> bool {
+        let objs: Vec<&Object> = self.selection.iter().filter_map(|id| self.doc.get(*id)).collect();
+        objs.iter().filter(|o| o.is_image()).count() == 1 && objs.iter().any(|o| !o.is_image())
+    }
+
+    /// Ausgewähltes Bild mit Zuschnitt.
+    pub fn selected_clipped_image(&self) -> Option<ObjectId> {
+        self.selection
+            .iter()
+            .copied()
+            .find(|id| self.doc.get(*id).is_some_and(|o| matches!(&o.shape, Shape::Image(img) if !img.clip.is_empty())))
+    }
+
+    /// Schneidet das ausgewählte Bild auf die geschlossenen Formen der Auswahl zu; die Formen werden entfernt.
+    pub fn clip_image_to_shapes(&mut self) {
+        if !self.can_clip_image() {
+            self.toast(ToastKind::Info, tr("Bitte ein Bild und mindestens eine geschlossene Form auswählen."));
+            return;
+        }
+        let objs: Vec<&Object> = self.selection.iter().filter_map(|id| self.doc.get(*id)).collect();
+        let Some(image) = objs.iter().find(|o| o.is_image()) else { return };
+        let (image_id, inv) = (image.id, image.transform.inverse());
+        let Some(inv) = inv else { return };
+        let shapes: Vec<ObjectId> = objs.iter().filter(|o| !o.is_image()).map(|o| o.id).collect();
+        let rings: Vec<Vec<Point>> = objs
+            .iter()
+            .filter(|o| !o.is_image())
+            .flat_map(|o| o.polylines(0.02))
+            .filter(|p| p.closed && p.points.len() >= 3)
+            .map(|p| p.points.iter().map(|q| inv.apply(*q)).collect())
+            .collect();
+        if rings.is_empty() {
+            self.toast(ToastKind::Info, tr("Die Form zum Zuschneiden muss geschlossen sein."));
+            return;
+        }
+        self.checkpoint();
+        if let Some(o) = self.doc.get_mut(image_id)
+            && let Shape::Image(img) = &mut o.shape
+        {
+            img.clip = rings;
+        }
+        self.doc.remove(&shapes);
+        self.selection = vec![image_id];
+        self.mark_changed();
+    }
+
+    pub fn remove_image_clip(&mut self) {
+        let Some(id) = self.selected_clipped_image() else { return };
+        self.checkpoint();
+        if let Some(o) = self.doc.get_mut(id)
+            && let Shape::Image(img) = &mut o.shape
+        {
+            img.clip.clear();
+        }
+        self.mark_changed();
+    }
+
     pub fn delete_selection(&mut self) {
         if self.selection.is_empty() {
             return;
@@ -957,6 +1015,7 @@ impl VectorLumeApp {
             width_mm: 72.0,
             height_mm: 48.0,
             adjust: ImageAdjust::default(),
+            clip: Vec::new(),
         };
         doc.add_image(tr("Verlauf"), 3, img, Point::new(220.0, 40.0));
         doc.layers[3].settings.dither = DitherMode::Jarvis;

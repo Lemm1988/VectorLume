@@ -129,11 +129,18 @@ fn sample(img: &ImageObject, transform: &Affine, interval: f64) -> Result<Sample
     let origin = bounds.min;
     let mut gray = vec![1.0f32; cols * rows];
     let mut mask = vec![false; cols * rows];
+    // Zuschnitt in voller Bildauflösung
+    let clip = img.clip_mask(src.width as usize, src.height as usize);
     for r in 0..rows {
         for c in 0..cols {
             let p = Point::new(origin.x + (c as f64 + 0.5) * interval, origin.y + (r as f64 + 0.5) * interval);
             let q = doc_to_px.apply(p);
             if q.x < 0.0 || q.y < 0.0 || q.x >= w || q.y >= h {
+                continue;
+            }
+            if let Some(m) = &clip
+                && !m[q.y as usize * src.width as usize + q.x as usize]
+            {
                 continue;
             }
             let i = r * cols + c;
@@ -435,6 +442,7 @@ mod tests {
             width_mm: 10.0,
             height_mm: 1.0,
             adjust: ImageAdjust::default(),
+            clip: Vec::new(),
         };
         let r = engrave_image(&img, &Affine::translate(5.0, 5.0), &cs(0.1, DitherMode::Grayscale, false)).unwrap();
         assert_eq!((r.cols, r.rows), (100, 10));
@@ -447,6 +455,25 @@ mod tests {
     }
 
     #[test]
+    fn clipped_image_engraves_only_inside() {
+        // schwarzes Bild 10×10 mm, zugeschnitten auf das Quadrat 2…8 mm
+        let sq = vec![Point::new(2.0, 2.0), Point::new(8.0, 2.0), Point::new(8.0, 8.0), Point::new(2.0, 8.0)];
+        let img = ImageObject {
+            image: Arc::new(RasterImage::new(100, 100, vec![0; 10_000])),
+            width_mm: 10.0,
+            height_mm: 10.0,
+            adjust: ImageAdjust::default(),
+            clip: vec![sq],
+        };
+        let r = engrave_image(&img, &Affine::IDENTITY, &cs(1.0, DitherMode::Threshold, false)).unwrap();
+        assert_eq!((r.get(0, 0), r.get(1, 5), r.get(2, 2), r.get(7, 7), r.get(8, 5)), (0.0, 0.0, 1.0, 1.0, 0.0));
+        assert_eq!(r.intensity.iter().filter(|v| **v > 0.5).count(), 36);
+        // auch als Negativ bleibt außen alles aus
+        let neg = engrave_image(&img, &Affine::IDENTITY, &cs(1.0, DitherMode::Threshold, true)).unwrap();
+        assert_eq!((neg.get(0, 0), neg.get(5, 5)), (0.0, 0.0));
+    }
+
+    #[test]
     fn downsampling_averages() {
         // Schachbrett 1px, stark verkleinert -> mittleres Grau.
         let (w, h) = (200u32, 200u32);
@@ -456,6 +483,7 @@ mod tests {
             width_mm: 20.0,
             height_mm: 20.0,
             adjust: ImageAdjust::default(),
+            clip: Vec::new(),
         };
         let r = engrave_image(&img, &Affine::IDENTITY, &cs(1.0, DitherMode::Grayscale, false)).unwrap();
         let mean: f32 = r.intensity.iter().sum::<f32>() / r.intensity.len() as f32;
@@ -469,6 +497,7 @@ mod tests {
             width_mm: 10.0,
             height_mm: 10.0,
             adjust: ImageAdjust::default(),
+            clip: Vec::new(),
         };
         let t = Affine::rotate_about(std::f64::consts::FRAC_PI_4, Point::new(5.0, 5.0));
         let r = engrave_image(&img, &t, &cs(0.25, DitherMode::Threshold, false)).unwrap();

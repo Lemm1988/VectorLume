@@ -498,6 +498,7 @@ mod tests {
                 width_mm: 4.0,
                 height_mm: 4.0,
                 adjust: ImageAdjust::default(),
+                clip: Vec::new(),
             },
             Point::new(100.0, 100.0),
         );

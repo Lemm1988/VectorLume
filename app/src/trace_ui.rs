@@ -75,8 +75,13 @@ impl VectorLumeApp {
         }
         self.trace.computed = Some(key);
         self.trace.busy = true;
-        let (image, adjust, opts, tx, ctx) =
+        let (mut image, adjust, opts, tx, ctx) =
             (img.image.clone(), img.adjust, self.trace.opts.clone(), self.trace.tx.clone(), ctx.clone());
+        // Zugeschnittene Bilder: außerhalb weiß, damit dort nichts nachgezeichnet wird
+        if let Some(mask) = img.clip_mask(image.width as usize, image.height as usize) {
+            let pixels = image.pixels.iter().zip(mask).map(|(&v, inside)| if inside { v } else { 255 }).collect();
+            image = std::sync::Arc::new(vl_core::RasterImage::new(image.width, image.height, pixels));
+        }
         // Pixel → lokale mm → Dokument
         let to_doc =
             Affine::scale(img.width_mm / image.width.max(1) as f64, img.height_mm / image.height.max(1) as f64)

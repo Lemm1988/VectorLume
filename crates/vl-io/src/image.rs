@@ -31,7 +31,13 @@ pub fn import_image(data: &[u8], name: &str) -> Result<Imported, String> {
     }
     out.items.push(ImportedItem::Image {
         name: name.to_string(),
-        image: ImageObject { image: Arc::new(raster), width_mm: w_mm, height_mm: h_mm, adjust: ImageAdjust::default() },
+        image: ImageObject {
+            image: Arc::new(raster),
+            width_mm: w_mm,
+            height_mm: h_mm,
+            adjust: ImageAdjust::default(),
+            clip: Vec::new(),
+        },
         at: Point::ZERO,
     });
     Ok(out)
