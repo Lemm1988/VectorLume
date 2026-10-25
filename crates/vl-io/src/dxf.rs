@@ -7,13 +7,16 @@ use std::fmt::Write as _;
 use vl_core::{Affine, Document, PathBuilder, Point, Shape, VectorPath};
 
 const MAX_INSERT_DEPTH: usize = 8;
+/// Höchstzahl der über Blockverweise erzeugten Elemente. Ein Block, der sich vielfach selbst einfügt, ergäbe sonst
+/// schon bei der begrenzten Tiefe Milliarden Elemente.
+const MAX_EXPANDED: usize = 500_000;
 
 pub fn import_dxf(data: &[u8]) -> Result<Imported, String> {
     let mut reader = std::io::Cursor::new(data);
     let drawing = dxf::Drawing::load(&mut reader).map_err(|e| format!("DXF konnte nicht gelesen werden: {e}"))?;
     let unit = unit_to_mm(drawing.header.default_drawing_units);
     let mut out = Imported::default();
-    let mut ctx = Ctx { drawing: &drawing, unsupported: 0 };
+    let mut ctx = Ctx { drawing: &drawing, unsupported: 0, expanded: 0, truncated: false };
     // DXF: Y nach oben. Dokument: Y nach unten -> spiegeln.
     let base = Affine::scale(unit, -unit);
     for e in drawing.entities() {
@@ -26,6 +29,11 @@ pub fn import_dxf(data: &[u8]) -> Result<Imported, String> {
         out.warnings.push(format!(
             "{} DXF-Element(e) ohne Geometrie-Unterstützung (z. B. Text, Bemaßung) wurden übersprungen.",
             ctx.unsupported
+        ));
+    }
+    if ctx.truncated {
+        out.warnings.push(format!(
+            "Die Blockverweise ergeben mehr als {MAX_EXPANDED} Elemente – der Rest wurde nicht übernommen."
         ));
     }
     if out.items.is_empty() {
@@ -52,6 +60,9 @@ fn unit_to_mm(u: dxf::enums::Units) -> f64 {
 struct Ctx<'a> {
     drawing: &'a dxf::Drawing,
     unsupported: usize,
+    /// Bisher über Blockverweise erzeugte Elemente (Blockkopien ohne Elemente zählen einfach).
+    expanded: usize,
+    truncated: bool,
 }
 
 impl Ctx<'_> {
@@ -136,6 +147,12 @@ impl Ctx<'_> {
                 let rows = ins.row_count.max(1);
                 for r in 0..rows {
                     for c in 0..cols {
+                        let cost = block.entities.len().max(1);
+                        if self.expanded + cost > MAX_EXPANDED {
+                            self.truncated = true;
+                            return;
+                        }
+                        self.expanded += cost;
                         let offset = Point::new(
                             ins.location.x + c as f64 * ins.column_spacing,
                             ins.location.y + r as f64 * ins.row_spacing,
@@ -413,6 +430,97 @@ mod tests {
         assert!((b.width() - 10.0).abs() < 1e-3);
         // Y wird gespiegelt
         assert!((b.center().y + 50.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn self_inserting_block_is_limited() {
+        // Block „B“ fügt sich 20-mal selbst ein: ohne Grenze 20^8 Kopien
+        let mut text = String::from(
+            "0
+SECTION
+2
+BLOCKS
+0
+BLOCK
+8
+0
+2
+B
+70
+0
+10
+0.0
+20
+0.0
+30
+0.0
+             0
+LINE
+8
+0
+10
+0.0
+20
+0.0
+30
+0.0
+11
+1.0
+21
+1.0
+31
+0.0
+",
+        );
+        for _ in 0..20 {
+            text.push_str(
+                "0
+INSERT
+8
+0
+2
+B
+10
+1.0
+20
+0.0
+30
+0.0
+",
+            );
+        }
+        text.push_str(
+            "0
+ENDBLK
+8
+0
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+INSERT
+8
+0
+2
+B
+10
+0.0
+20
+0.0
+             30
+0.0
+0
+ENDSEC
+0
+EOF
+",
+        );
+        let imp = import_dxf(text.as_bytes()).unwrap();
+        assert!(!imp.items.is_empty() && imp.items.len() < MAX_EXPANDED);
+        assert!(imp.warnings.iter().any(|w| w.contains("Blockverweise")), "{:?}", imp.warnings);
     }
 
     #[test]

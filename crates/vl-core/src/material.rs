@@ -119,6 +119,10 @@ impl MaterialLibrary {
             return Err("Die Materialbibliothek stammt aus einer neueren VectorLume-Version.".into());
         }
         let mut lib = Self { entries: file.entries };
+        for e in &mut lib.entries {
+            e.settings.sanitize();
+            e.thickness = if e.thickness.is_finite() { e.thickness.clamp(0.0, 1000.0) } else { 0.0 };
+        }
         lib.sort();
         Ok(lib)
     }

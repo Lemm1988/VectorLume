@@ -298,6 +298,24 @@ impl VectorPath {
 
     /// Exakte Umrandung nach der Transformation: Endpunkte und Extrempunkte der Kurven, ohne Abflachen (die
     /// Umrandung wird pro Bild oft für Tausende Objekte gebraucht).
+    /// Alle Punkte einschließlich der Kontrollpunkte sind endlich und liegen je Achse höchstens `limit` vom
+    /// Ursprung entfernt; damit liegt auch die ganze Kurve darin. Erkennt Unsinn aus beschädigten Dateien, den
+    /// [`Self::bounds`] übersieht (NaN fällt dort heraus, riesige Kontrollpunkte laufen über).
+    pub fn within(&self, t: &Affine, limit: f64) -> bool {
+        let ok = |p: Point| {
+            let q = t.apply(p);
+            q.x.abs() <= limit && q.y.abs() <= limit
+        };
+        self.subpaths.iter().all(|sp| {
+            ok(sp.start)
+                && sp.segments.iter().all(|s| match *s {
+                    Segment::Line(p) => ok(p),
+                    Segment::Quad(c, p) => ok(c) && ok(p),
+                    Segment::Cubic(a, b, p) => ok(a) && ok(b) && ok(p),
+                })
+        })
+    }
+
     pub fn bounds(&self, t: &Affine) -> Rect {
         let mut r = Rect::EMPTY;
         for sp in self.subpaths.iter().filter(|s| !s.segments.is_empty()) {
@@ -456,6 +474,9 @@ impl PathBuilder {
             Some(_) => self.line_to(p0),
             None => self.move_to(p0),
         }
+        // mehr als eine Umdrehung zeichnet nur denselben Umriss nach (und wären bei unsinnigen Winkeln aus
+        // beschädigten Dateien Milliarden Segmente)
+        let sweep = sweep.clamp(-TAU, TAU);
         let parts = ((sweep.abs() / (PI / 2.0)).ceil() as usize).max(1);
         let step = sweep / parts as f64;
         let k = 4.0 / 3.0 * (step / 4.0).tan();

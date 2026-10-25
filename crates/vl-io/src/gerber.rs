@@ -231,7 +231,8 @@ fn macro_shape(body: &[String], params: &[f64], warnings: &mut Vec<String>) -> R
                 (vec![closed(rect(c, arg(1), arg(2)))], arg(5), arg(0) != 0.0)
             }
             4 => {
-                let n = arg(1).max(0.0) as usize;
+                // Eckenzahl höchstens so groß, wie Koordinaten angegeben sind
+                let n = (arg(1).max(0.0) as usize).min(a.len().saturating_sub(2) / 2);
                 let pts: Vec<Point> = (0..=n).map(|i| Point::new(arg(2 + 2 * i), arg(3 + 2 * i))).collect();
                 (vec![closed(pts)], arg(4 + 2 * n), arg(0) != 0.0)
             }

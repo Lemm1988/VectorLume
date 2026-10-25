@@ -5006,6 +5006,7 @@ dependencies = [
  "serde",
  "vl-core",
  "vl-raster",
+ "vl-testkit",
 ]
 
 [[package]]
@@ -5027,6 +5028,7 @@ dependencies = [
  "serialport",
  "vl-cam",
  "vl-core",
+ "vl-testkit",
 ]
 
 [[package]]
@@ -5046,6 +5048,7 @@ dependencies = [
  "ttf-parser",
  "usvg",
  "vl-core",
+ "vl-testkit",
 ]
 
 [[package]]
@@ -5055,6 +5058,10 @@ dependencies = [
  "serde",
  "vl-core",
 ]
+
+[[package]]
+name = "vl-testkit"
+version = "0.16.0"
 
 [[package]]
 name = "walkdir"

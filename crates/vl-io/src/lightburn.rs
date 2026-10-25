@@ -149,7 +149,7 @@ impl Importer<'_> {
         let mut image: Vec<(usize, LayerDef)> = Vec::new();
         for cs in root.children().filter(|n| n.has_tag_name("CutSetting") || n.has_tag_name("CutSetting_Img")) {
             let value = |name: &str| cs.children().find(|c| c.has_tag_name(name)).and_then(|c| c.attribute("Value"));
-            let num = |name: &str| value(name).and_then(|v| v.trim().parse::<f64>().ok());
+            let num = |name: &str| value(name).and_then(finite);
             let flag = |name: &str| value(name).map(|v| v != "0" && !v.eq_ignore_ascii_case("false"));
             let Some(index) = value("index").and_then(|v| v.trim().parse::<usize>().ok()) else { continue };
             let kind = cs.attribute("type").unwrap_or("Cut");
@@ -225,6 +225,7 @@ impl Importer<'_> {
                     }
                 };
             }
+            s.sanitize();
             // „Füllen + Linie“: Kontur als Unterebene mit denselben Grundwerten
             let sub = (kind == "Scan+Cut").then(|| CutSettings::default_for(LayerMode::Line)).map(|mut line| {
                 (line.speed, line.power_max, line.power_min, line.passes) =
@@ -328,7 +329,7 @@ impl Importer<'_> {
         let xf = xform(n).then(parent);
         let to_doc = xf.then(&self.flip);
         let ty = n.attribute("Type").unwrap_or("");
-        let num = |name: &str| n.attribute(name).and_then(|v| v.trim().parse::<f64>().ok());
+        let num = |name: &str| n.attribute(name).and_then(finite);
         let id = match ty {
             "Group" => {
                 for c in n.children().filter(|c| c.has_tag_name("Children")).flat_map(|c| c.children()) {
@@ -440,7 +441,7 @@ impl Importer<'_> {
     }
 
     fn bitmap(&mut self, n: Node) -> Option<ImageObject> {
-        let num = |name: &str| n.attribute(name).and_then(|v| v.trim().parse::<f64>().ok());
+        let num = |name: &str| n.attribute(name).and_then(finite);
         let file = n.attribute("File").unwrap_or("");
         let decode = |b: Vec<u8>| RasterImage::from_encoded(&b).ok().map(Arc::new);
         let image = match n.attribute("Data").filter(|d| !d.is_empty()) {
@@ -500,6 +501,11 @@ fn is_default_name(n: &str) -> bool {
         || n == "T2"
 }
 
+/// Zahl aus einem Attribut; NaN und ∞ (nur in beschädigten Dateien) gelten als fehlend.
+fn finite(v: &str) -> Option<f64> {
+    v.trim().parse::<f64>().ok().filter(|v| v.is_finite())
+}
+
 /// `<XForm>a b c d e f</XForm>`: x' = a·x + c·y + e, y' = b·x + d·y + f.
 fn xform(n: Node) -> Affine {
     let Some(t) = n.children().find(|c| c.has_tag_name("XForm")).and_then(|c| c.text()) else {
@@ -536,7 +542,7 @@ fn number(s: &[u8], mut pos: usize) -> Option<(f64, usize)> {
             }
         }
     }
-    std::str::from_utf8(&s[start..pos]).ok()?.parse().ok().map(|v| (v, pos))
+    std::str::from_utf8(&s[start..pos]).ok().and_then(finite).map(|v| (v, pos))
 }
 
 /// Punktliste: `V x y`, optional gefolgt von `c0x… c0y…` und `c1x… c1y…` (Kontrollpunkte). Ein einzelnes
@@ -682,6 +688,14 @@ mod tests {
     </Shape>
     <Notes ShowOnLoad="1" Notes="Pappel 3 mm&#10;Fokus prüfen"/>
 </LightBurnProject>"#;
+
+    #[test]
+    fn non_finite_numbers_are_ignored() {
+        let broken =
+            SAMPLE.replace(r#"maxPower Value="40""#, r#"maxPower Value="NaN""#).replace("Rx=\"5\"", "Rx=\"inf\"");
+        let im = import_lightburn(broken.as_bytes(), 400.0, None).unwrap();
+        assert!(im.doc.layers.iter().all(|l| l.settings.power_max.is_finite() && l.settings.power_min.is_finite()));
+    }
 
     #[test]
     fn reads_layers_shapes_and_groups() {

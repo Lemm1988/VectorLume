@@ -14,6 +14,9 @@ use vl_core::{
 
 /// Toleranz beim Abflachen von Kurven für die Ausgabe (mm).
 pub const OUTPUT_TOLERANCE: f64 = 0.01;
+/// Größter Abstand eines Objekts vom Ursprung in mm (100 m). Weiter draußen liegt nur Unsinn aus beschädigten
+/// Dateien, der in Füllungen und Perforationen Milliarden Schritte ergäbe.
+const MAX_EXTENT: f64 = 100_000.0;
 
 /// Umrechnung Dokument → Ausgabekoordinaten des G-Codes.
 #[derive(Clone, Debug)]
@@ -235,6 +238,12 @@ pub fn generate(
     settings: &JobSettings,
     start: Point,
 ) -> Result<Toolpath, String> {
+    if let Some(o) = objects.iter().find(|o| !o.within(MAX_EXTENT)) {
+        return Err(format!(
+            "„{}“ reicht über 100 m hinaus – das kann kein Laser ausgeben (beschädigte Datei?).",
+            o.name
+        ));
+    }
     let mut tp = Toolpath::default();
     let mut cur = start;
     // Bearbeitungen (Ebene, Haupt- bzw. Unterebene); der Ausgabe-Schalter der Ebene gilt für alle

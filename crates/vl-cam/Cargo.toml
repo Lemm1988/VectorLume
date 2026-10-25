@@ -10,3 +10,6 @@ publish.workspace = true
 vl-core.workspace = true
 vl-raster.workspace = true
 serde.workspace = true
+
+[dev-dependencies]
+vl-testkit.workspace = true

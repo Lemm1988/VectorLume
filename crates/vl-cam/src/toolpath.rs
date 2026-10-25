@@ -258,7 +258,7 @@ pub fn hatch_ops_on_grid(
         Some(g) => g + ((ymin - g) / interval).floor() * interval,
         None => ymin,
     };
-    let rows = ((ymax - base) / interval).floor() as usize + 1;
+    let rows = (((ymax - base) / interval).floor() as usize).saturating_add(1);
 
     for row in 0..rows {
         let y = base + (row as f64 + 0.5) * interval;
@@ -315,7 +315,8 @@ pub fn apply_ramp(ops: Vec<Op>, edges_of: &[Polyline], ramp: f64, min: f32, max:
     if ramp <= 0.0 || edges_of.is_empty() {
         return ops;
     }
-    let grid = EdgeGrid::new(edges_of, ramp);
+    // feinere Zellen bringen nichts und würden bei winzigen Rampen (beschädigte Datei) Milliarden Einträge ergeben
+    let grid = EdgeGrid::new(edges_of, ramp.max(0.1));
     let step = (ramp / 16.0).clamp(0.02, 1.0);
     let level = |p: Point| {
         let t = (grid.distance(p, ramp) / ramp) as f32;

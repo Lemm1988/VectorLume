@@ -300,6 +300,39 @@ impl CutSettings {
     pub fn summary(&self) -> String {
         format!("{} · {:.0} mm/min · {:.0}% · {}×", self.mode.label(), self.speed, self.power_max, self.passes)
     }
+
+    /// Begrenzt alle Werte auf großzügige, noch sinnvolle Bereiche (weiter als die Eingabefelder). Werte aus
+    /// beschädigten oder fremden Dateien könnten sonst z. B. Milliarden Durchgänge, NaN oder einen Linienabstand von
+    /// fast null ergeben. Nicht endliche Zahlen werden zur Vorgabe der Betriebsart.
+    pub fn sanitize(&mut self) {
+        let d = Self::default_for(self.mode);
+        let fix =
+            |v: &mut f64, default: f64, lo: f64, hi: f64| *v = if v.is_finite() { v.clamp(lo, hi) } else { default };
+        fix(&mut self.speed, d.speed, 0.1, 1_000_000.0);
+        fix(&mut self.power_max, d.power_max, 0.0, 100.0);
+        fix(&mut self.power_min, d.power_min, 0.0, 100.0);
+        fix(&mut self.interval, d.interval, 0.001, 100.0);
+        fix(&mut self.fill_angle, d.fill_angle, -360.0, 360.0);
+        fix(&mut self.fill_angle_step, d.fill_angle_step, -360.0, 360.0);
+        fix(&mut self.overscan, d.overscan, 0.0, 1000.0);
+        fix(&mut self.kerf, d.kerf, -10.0, 10.0);
+        fix(&mut self.tab_width, d.tab_width, 0.0, 1000.0);
+        fix(&mut self.z_offset, d.z_offset, -1000.0, 1000.0);
+        fix(&mut self.z_step, d.z_step, -1000.0, 1000.0);
+        fix(&mut self.overcut, d.overcut, 0.0, 1000.0);
+        fix(&mut self.perf_cut, d.perf_cut, 0.01, 10_000.0);
+        fix(&mut self.perf_gap, d.perf_gap, 0.01, 10_000.0);
+        fix(&mut self.screen_cell, d.screen_cell, 0.01, 1000.0);
+        fix(&mut self.screen_angle, d.screen_angle, -360.0, 360.0);
+        fix(&mut self.sketch_width, d.sketch_width, 0.01, 1000.0);
+        fix(&mut self.dot_width, d.dot_width, 0.0, 100.0);
+        fix(&mut self.ramp_length, d.ramp_length, 0.0, 1000.0);
+        fix(&mut self.lead_in, d.lead_in, 0.0, 1000.0);
+        fix(&mut self.lead_out, d.lead_out, 0.0, 1000.0);
+        fix(&mut self.lead_angle, d.lead_angle, 0.0, 90.0);
+        self.passes = self.passes.clamp(1, 1000);
+        self.tab_count = self.tab_count.min(1000);
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -367,5 +400,24 @@ impl Layer {
     /// Objekte dieser Ebene können ausgewählt werden.
     pub fn selectable(&self) -> bool {
         self.visible && !self.locked
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_limits_absurd_values() {
+        let mut cs = CutSettings::default_for(LayerMode::Fill);
+        let normal = cs.clone();
+        cs.sanitize();
+        assert_eq!(cs, normal, "übliche Werte bleiben");
+        (cs.passes, cs.interval, cs.speed, cs.power_max, cs.perf_cut) = (u32::MAX, 1e-12, f64::NAN, 1e9, 0.0);
+        cs.sanitize();
+        assert_eq!(
+            (cs.passes, cs.interval, cs.speed, cs.power_max, cs.perf_cut),
+            (1000, 0.001, normal.speed, 100.0, 0.01)
+        );
     }
 }

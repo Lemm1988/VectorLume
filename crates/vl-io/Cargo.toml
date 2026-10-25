@@ -21,4 +21,5 @@ barcoders.workspace = true
 datamatrix.workspace = true
 
 [dev-dependencies]
+vl-testkit.workspace = true
 rqrr = "0.11"

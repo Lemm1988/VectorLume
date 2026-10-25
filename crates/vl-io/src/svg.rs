@@ -7,11 +7,38 @@ use vl_core::{Affine, Document, ImageAdjust, ImageObject, PathBuilder, Point, Ra
 
 /// usvg rechnet in CSS-Pixeln (96 dpi).
 const PX_TO_MM: f64 = 25.4 / 96.0;
+/// Größter Zahlenbetrag in Geometrie-Angaben. usvg braucht bei riesigen Koordinaten extrem lange (bei 1e28 Sekunden,
+/// bei 1e38 Minuten); solche Werte stehen nur in beschädigten Dateien.
+const MAX_NUMBER: f64 = 1e15;
+/// Attribute mit Koordinaten, Größen und Transformationen.
+const GEOMETRY: [&str; 18] = [
+    "d",
+    "points",
+    "x",
+    "y",
+    "x1",
+    "y1",
+    "x2",
+    "y2",
+    "cx",
+    "cy",
+    "r",
+    "rx",
+    "ry",
+    "width",
+    "height",
+    "viewBox",
+    "transform",
+    "style",
+];
 
 pub fn import_svg(data: &[u8], fonts: Option<Arc<usvg::fontdb::Database>>) -> Result<Imported, String> {
     let mut opt = usvg::Options::default();
     if let Some(db) = fonts {
         opt.fontdb = db;
+    }
+    if let Some(v) = absurd_number(data) {
+        return Err(format!("SVG enthält eine unsinnig große Zahl ({v:e}) – die Datei ist vermutlich beschädigt."));
     }
     let tree = usvg::Tree::from_data(data, &opt).map_err(|e| format!("SVG konnte nicht gelesen werden: {e}"))?;
     let mut out = Imported::default();
@@ -24,6 +51,59 @@ pub fn import_svg(data: &[u8], fonts: Option<Arc<usvg::fontdb::Database>>) -> Re
         out.warnings.push("Im SVG wurden keine Vektorpfade gefunden.".into());
     }
     Ok(out)
+}
+
+/// Erste Zahl in einem Geometrie-Attribut, deren Betrag [`MAX_NUMBER`] übersteigt (komprimierte oder nicht lesbare
+/// Dateien werden nicht geprüft, das übernimmt usvg).
+fn absurd_number(data: &[u8]) -> Option<f64> {
+    let text = std::str::from_utf8(data).ok()?;
+    let opt = roxmltree::ParsingOptions { allow_dtd: true, ..Default::default() };
+    let doc = roxmltree::Document::parse_with_options(text, opt).ok()?;
+    doc.descendants()
+        .flat_map(|n| n.attributes())
+        .filter(|a| GEOMETRY.contains(&a.name()))
+        .find_map(|a| numbers(a.value()).find(|v| v.abs() > MAX_NUMBER))
+}
+
+/// Alle Zahlen eines Attributwerts (auch ohne Trennzeichen wie in `M10-5.5.5`).
+fn numbers(s: &str) -> impl Iterator<Item = f64> + '_ {
+    let b = s.as_bytes();
+    let mut i = 0;
+    std::iter::from_fn(move || {
+        while i < b.len() {
+            let start = i;
+            if b[i] == b'-' || b[i] == b'+' {
+                i += 1;
+            }
+            let digits = |i: &mut usize| {
+                let from = *i;
+                while *i < b.len() && b[*i].is_ascii_digit() {
+                    *i += 1;
+                }
+                *i > from
+            };
+            let mut any = digits(&mut i);
+            if i < b.len() && b[i] == b'.' {
+                i += 1;
+                any |= digits(&mut i);
+            }
+            if !any {
+                i = start + 1;
+                continue;
+            }
+            if i < b.len() && (b[i] == b'e' || b[i] == b'E') {
+                let mut j = i + 1;
+                if j < b.len() && (b[j] == b'-' || b[j] == b'+') {
+                    j += 1;
+                }
+                if digits(&mut j) {
+                    i = j;
+                }
+            }
+            return s[start..i].parse().ok();
+        }
+        None
+    })
 }
 
 fn collect_group(group: &usvg::Group, out: &mut Imported, skipped_images: &mut usize) {
@@ -216,6 +296,15 @@ mod tests {
         let ImportedItem::Path { path, layer, .. } = &imp.items[1] else { panic!() };
         assert!((path.bounds(&Affine::IDENTITY).center().x - 60.0).abs() < 1e-3);
         assert_eq!(*layer, None); // Schwarz -> aktuelle Ebene
+    }
+
+    #[test]
+    fn rejects_absurd_numbers() {
+        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" width="10mm" height="10mm">
+            <path d="M0 0 Q 5 1e30 10 0" stroke="black"/></svg>"#;
+        assert!(import_svg(svg, None).unwrap_err().contains("beschädigt"));
+        let found: Vec<f64> = numbers("M10-5.5.5e2 L1E+3,2e").collect();
+        assert_eq!(found, [10.0, -5.5, 50.0, 1000.0, 2.0]);
     }
 
     #[test]

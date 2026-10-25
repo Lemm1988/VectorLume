@@ -64,6 +64,7 @@ Materialbibliothek, weitere Steuerungen (Ruida, Marlin, Smoothieware, Galvo), Ka
 | `vl-device` | Treiber-Thread: GRBL mit Zeichenzähl-Streaming und Echtzeitbefehlen, Marlin/Smoothieware mit Senden und Warten; Statusabfrage, Not-Stopp, Simulator für alle drei | `Device`, `Command`, `Event`, `SimTransport` |
 | `vl-io` | Import SVG (inkl. Text), DXF (inkl. Blöcke, Bulges, Splines), PDF/AI, HPGL, Bilder; Schrift → Pfad; SVG-/DXF-Export | `import_file`, `text_to_path`, `export_svg`, `export_dxf` |
 | `app` | Oberfläche, Bedienlogik, Rückgängig, Einstellungen | `VectorLumeApp` |
+| `vl-testkit` | Nur für Tests, wird nicht ausgeliefert: Robustheitsprüfung von Dateilesern mit verfälschten Beispielen | `check`, `variants` |
 
 Die Oberfläche blockiert nie: Werkzeugwege werden in Hintergrund-Threads berechnet, die Maschinensteuerung läuft in einem
 eigenen Treiber-Thread und kommuniziert über Kanäle.
@@ -83,6 +84,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF-06 | Rückgängig, Zwischenablage | 200 Schritte; **Bearbeitungsverlauf** (*Bearbeiten → Bearbeitungsverlauf…*: jeder Stand mit seiner Änderung – hinzugefügt, gelöscht, verschoben, skaliert/gedreht, Ebene, Gruppierung, bearbeitet, Reihenfolge, Ebeneneinstellungen; bei einem Objekt mit Namen, sonst mit Anzahl; ermittelt durch Vergleich der Stände über die Objekt-IDs; Klick springt zurück oder vor), Ausschneiden/Kopieren/Einfügen (jedes Mal 5 mm weiter versetzt)/**An Ort und Stelle einfügen** (Strg+Umschalt+V)/Duplizieren | ✅ |
 | LF-06a | Tastenkürzel anpassen | *Bearbeiten → Tastenkürzel…*: alle 47 Befehle (Datei, Bearbeiten, Anordnen, Ansicht, Werkzeuge) mit ihrer Belegung, Suche nach Befehl oder Taste; „Ändern“ nimmt die nächste Tastenkombination auf (Esc bricht ab), „Entfernen“ und „Standard“ je Befehl, „Alle auf Standard zurücksetzen“. Auch Befehle ohne Standardkürzel belegbar (z. B. Spiegeln, 90° drehen, Zerlegen, Verschweißen, Zentrieren, Vieleck/Stern/Trimmen/Laschen). Eine schon vergebene Kombination wird beim bisherigen Befehl entfernt und gemeldet; Pfeiltasten, Esc, Eingabe, Leertaste und Tab bleiben fest. Gespeichert werden nur Abweichungen (sprachunabhängig, z. B. `Ctrl+Shift+S`); Menüs und Knopf-Hinweise zeigen die aktuelle Belegung | ✅ |
 | LF-07 | Zuletzt geöffnet, Autosicherung | Liste der letzten 10 Dateien; Autosicherung alle 90 s im Hintergrund, Wiederherstellen nach Absturz (die Sicherung wird beim Start beiseitegelegt, damit eine per „Öffnen mit …“ übergebene Datei sie nicht ersetzt); **Fehlerbericht**: ein Programmfehler (Panic) hängt Version, System, Thread, Meldung, Programmstelle und Aufrufliste an `crash.log` im Einstellungsordner an; beim nächsten Start (nach dem Wiederherstellen-Hinweis) erscheint ein Hinweis mit „Bericht öffnen“, ein Fehler in einem Hintergrund-Thread wird sofort gemeldet | ✅ |
+| LF-07a | Beschädigte Dateien | Kein Import und kein Öffnen darf abstürzen oder hängen: unlesbare Dateien ergeben eine Meldung. SVG mit Zahlen über 10¹⁵ wird als beschädigt abgelehnt (usvg bräuchte sonst Minuten), DXF-Blockverweise ergeben höchstens 500 000 Elemente (Hinweis), Bögen höchstens eine volle Umdrehung, NaN/∞ in LightBurn-Dateien gelten als fehlend. Ebenenwerte aus Projekten, Materialbibliotheken und LightBurn-Dateien werden auf großzügige sinnvolle Bereiche begrenzt (z. B. 1–1000 Durchgänge, Linienabstand ab 0,001 mm, Leistung 0–100 %), Flächenberechnungen übergehen Konturen mit NaN/∞ oder über 1000 km, und ein Auftrag mit Objekten jenseits von 100 m wird mit Objektnamen abgelehnt | ✅ |
 
 ### 4.2 Gestalten und Bearbeiten
 | LF | Funktion | Umsetzung | Stand |
@@ -238,7 +240,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (283):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (302):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
@@ -248,6 +250,16 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
   Ghostscript, sonst übersprungen), Homographie und Entzerrung des Kamerabildes, Scan-Versatz (Interpolation, Verschiebung je Fahrtrichtung), Strichcodes (Umrisse, Prüfziffern, Zeichensatzwahl, QR-Code wird mit einem unabhängigen Decoder (`rqrr`, nur Test) wieder gelesen, auch invertiert), Übersetzung (Vorlagen, verschachtelte
   Meldungen, Vollständigkeit der englischen Tabelle). Zusätzlich
   prüft ein abschaltbarer Test echte LightBurn-Projekte aus einem Ordner (`VL_LBRN_DIR`).
+- **Robustheit (`vl-testkit`, nur Test):** Für jedes Dateiformat (SVG, DXF, PDF, HPGL, Gerber, Excellon, STL/OBJ,
+  LightBurn, CSV, Bilder, Projekt, Materialbibliothek, G-Code, GRBL-Einstellungen) und für Antworten der Steuerung
+  werden kleine gültige Beispiele nach festem Zufallsmuster je rund 500-mal verändert: abgeschnitten, Bytes verfälscht,
+  Zahlen durch Extremwerte (±1e308, NaN, ∞, 0, 4294967296 …) ersetzt, Abschnitte entfernt oder vervielfacht. Kein Fall
+  darf abstürzen, länger als 5 s rechnen oder hängen; die unveränderten Beispiele müssen sich lesen lassen. Gefunden und
+  behoben wurden so: Absturz der Flächenberechnung bei NaN/∞, ein sich selbst vielfach einfügender DXF-Block
+  (Milliarden Kopien), Bögen mit Milliarden Umdrehungen, Gerber-Makro mit riesiger Eckenzahl, SVG mit riesigen
+  Koordinaten, NaN-Leistung in LightBurn-Dateien, Projekte mit unsinnigen Ebenenwerten oder Objekten jenseits von 100 m
+  (Füllschraffur mit Milliarden Zeilen) und eine winzige Stempel-Rampe (Milliarden Rasterzellen), siehe LF-07a.
+  `VECTORLUME_ROBUST_TRACE=1` gibt jeden Fall vor dem Aufruf aus (für Abbrüche wie fehlenden Speicher).
 - **Oberflächentests ohne Bildschirm (`egui_kittest`, nur Test):** die App läuft unsichtbar mit eigenem, geleertem
   Einstellungsordner; Knöpfe werden über ihre Beschriftung bedient (Ecken abrunden, Menü *Anordnen*, Andocken und
   Zerschneiden, Bildanpassung). `cargo test -p vectorlume -- --ignored` rendert zusätzlich alle Dialoge, Menüs und

@@ -13,3 +13,4 @@ log.workspace = true
 
 [dev-dependencies]
 vl-cam.workspace = true
+vl-testkit.workspace = true

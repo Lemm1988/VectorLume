@@ -1,7 +1,7 @@
 //! Das Dokument: Objekte (Pfade und Bilder) auf Farbebenen.
 
 use crate::geom::{Affine, Point, Rect};
-use crate::layer::{LAYER_COUNT, Layer, LayerMode};
+use crate::layer::{CutSettings, LAYER_COUNT, Layer, LayerMode};
 use crate::path::{Polyline, VectorPath};
 use base64::Engine as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -441,6 +441,17 @@ impl Object {
         }
     }
 
+    /// Die ganze Form liegt je Achse höchstens `limit` vom Ursprung entfernt (siehe [`VectorPath::within`]).
+    pub fn within(&self, limit: f64) -> bool {
+        match &self.shape {
+            Shape::Path(p) => p.within(&self.transform, limit),
+            Shape::Image(img) => img.local_rect().corners().into_iter().all(|c| {
+                let q = self.transform.apply(c);
+                q.x.abs() <= limit && q.y.abs() <= limit
+            }),
+        }
+    }
+
     /// Abgeflachte Geometrie im Dokument-Koordinatensystem (Bilder: Umrissrechteck).
     pub fn polylines(&self, tol: f64) -> Vec<Polyline> {
         match &self.shape {
@@ -510,8 +521,13 @@ impl Document {
                 self.layer_order.push(i);
             }
         }
+        for l in &mut self.layers {
+            l.settings.sanitize();
+            l.sub.iter_mut().for_each(CutSettings::sanitize);
+        }
         for o in &mut self.objects {
             o.layer = o.layer.min(LAYER_COUNT - 1);
+            o.power_scale = if o.power_scale.is_finite() { o.power_scale.clamp(0.0, 100.0) } else { 100.0 };
         }
         let max_id = self.objects.iter().map(|o| o.id).max().unwrap_or(0);
         let max_group = self.objects.iter().filter_map(|o| o.group).max().unwrap_or(0);

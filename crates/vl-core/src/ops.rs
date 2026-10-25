@@ -68,10 +68,18 @@ impl Corner {
     }
 }
 
+/// Größter verarbeiteter Koordinatenbetrag in mm (1000 km). Darüber und bei NaN/∞ bricht die Flächenberechnung
+/// ab; solche Konturen (nur aus beschädigten Dateien denkbar) entfallen.
+const MAX_COORD: f64 = 1e9;
+
+fn usable(points: &[Point]) -> bool {
+    points.iter().all(|q| q.x.abs() <= MAX_COORD && q.y.abs() <= MAX_COORD)
+}
+
 fn contours(polys: &[Polyline]) -> Vec<Contour> {
     polys
         .iter()
-        .filter(|p| p.closed && p.points.len() >= 3)
+        .filter(|p| p.closed && p.points.len() >= 3 && usable(&p.points))
         .map(|p| p.points.iter().map(|q| [q.x, q.y]).collect())
         .collect()
 }
@@ -136,13 +144,16 @@ pub fn offset(polys: &[Polyline], distance: f64, corner: Corner) -> Vec<Polyline
     if distance.abs() < 1e-9 {
         return polys.to_vec();
     }
+    if !distance.is_finite() || distance.abs() > MAX_COORD {
+        return out;
+    }
     let shapes = normalize(polys);
     if !shapes.is_empty() {
         let style = OutlineStyle::new(distance).line_join(corner.join(distance));
         out.extend(to_polylines(shapes.outline(&style)));
     }
     let d = distance.abs();
-    for p in polys.iter().filter(|p| !p.closed && p.points.len() >= 2) {
+    for p in polys.iter().filter(|p| !p.closed && p.points.len() >= 2 && usable(&p.points)) {
         let path: Contour = p.points.iter().map(|q| [q.x, q.y]).collect();
         let cap = match corner {
             Corner::Round => LineCap::Round((8.0 * ARC_TOLERANCE / d).sqrt()),
@@ -425,7 +436,7 @@ pub fn convex_hull(points: &[Point]) -> Vec<Point> {
 pub fn offset_fill(polys: &[Polyline], interval: f64, max_rings: usize) -> Vec<Polyline> {
     let interval = interval.max(0.01);
     let shapes = normalize(polys);
-    if shapes.is_empty() {
+    if shapes.is_empty() || interval > MAX_COORD {
         return Vec::new();
     }
     let mut out = Vec::new();
