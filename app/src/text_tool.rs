@@ -333,11 +333,21 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.label(tr("Schrift"));
                 font_combo(ui, &mut d.spec.family, &mut d.filter, families.as_deref());
                 ui.end_row();
+                let single_line = vl_io::text::is_single_line(&d.spec.family);
+                if single_line {
+                    ui.label("");
+                    ui.label(
+                        RichText::new(tr("Einlinienschrift: offene Striche – im Modus Linie gravieren oder ritzen"))
+                            .small()
+                            .color(theme::of(ui).text_weak),
+                    );
+                    ui.end_row();
+                }
                 ui.label(tr("Stil"));
                 ui.horizontal(|ui| {
                     ui.toggle_value(&mut d.spec.bold, RichText::new("F").strong());
                     ui.toggle_value(&mut d.spec.italic, RichText::new("K").italics());
-                    ui.checkbox(&mut d.spec.weld, tr("Verschweißen")).on_hover_text(tr(
+                    ui.add_enabled(!single_line, egui::Checkbox::new(&mut d.spec.weld, tr("Verschweißen"))).on_hover_text(tr(
                         "Überlappende Buchstaben (z. B. Schreibschrift) zu einer Kontur vereinen, damit beim Schneiden \
                          und Füllen nichts doppelt gebrannt wird",
                     ));
@@ -512,7 +522,12 @@ fn font_combo(ui: &mut egui::Ui, family: &mut String, filter: &mut String, famil
                     ui.add(egui::TextEdit::singleline(filter).hint_text(tr("Suchen…")));
                     let f = filter.to_lowercase();
                     for name in list.iter().filter(|n| f.is_empty() || n.to_lowercase().contains(&f)) {
-                        ui.selectable_value(family, name.clone(), name);
+                        let label = if vl_io::text::is_single_line(name) {
+                            format!("{name}  ·  {}", tr("Einlinie"))
+                        } else {
+                            name.clone()
+                        };
+                        ui.selectable_value(family, name.clone(), label);
                     }
                 },
             );

@@ -7,7 +7,7 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
 
 ## Funktionen
 
-- **Gestalten:** Rechteck (mit Eckenradius), Ellipse, Linie, Vieleck, Stern, Text mit installierten Schriften
+- **Gestalten:** Rechteck (mit Eckenradius), Ellipse, Linie, Vieleck, Stern, Text mit installierten Schriften oder eingebauten Einlinienschriften
   (bearbeitbar, entlang eines Pfades, variabel mit Seriennummer `{n}`, `{datum}`, `{zeit}` und Datenliste aus CSV);
   QR-Code, Data Matrix, Code 128/39, EAN-13/-8, UPC-A (auch mit Seriennummer, invertiert für eloxiertes Aluminium,
   mit Strichbreiten-Ausgleich);

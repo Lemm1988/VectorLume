@@ -20,12 +20,18 @@ pub fn system_fonts() -> Arc<Database> {
         .clone()
 }
 
-/// Alphabetisch sortierte Schriftfamilien.
+/// Alphabetisch sortierte Schriftfamilien, dazu die eingebauten Einlinienschriften.
 pub fn font_families(db: &Database) -> Vec<String> {
     let mut names: Vec<String> = db.faces().filter_map(|f| f.families.first().map(|(n, _)| n.clone())).collect();
+    names.extend(crate::hershey::families().map(String::from));
     names.sort_by_key(|n| n.to_lowercase());
     names.dedup();
     names
+}
+
+/// Gehört die Familie zu den eingebauten Einlinienschriften (offene Striche, nur im Modus Linie sinnvoll)?
+pub fn is_single_line(family: &str) -> bool {
+    crate::hershey::is_single_line(family)
 }
 
 struct Outline<'a> {
@@ -55,9 +61,89 @@ impl ttf_parser::OutlineBuilder for Outline<'_> {
     }
 }
 
+/// Glyphenquelle: installierte Schrift oder eingebaute Einlinienschrift. Maße in Schrifteinheiten, Y nach oben,
+/// Ursprung einer Glyphe am linken Rand auf der Grundlinie.
+trait Glyphs {
+    type Id: Copy;
+    /// Glyphe zum Zeichen, ersatzweise das Fragezeichen.
+    fn glyph(&self, ch: char) -> Option<Self::Id>;
+    fn advance(&self, g: Self::Id) -> f64;
+    fn kerning(&self, _left: Self::Id, _right: Self::Id) -> f64 {
+        0.0
+    }
+    fn outline(&self, g: Self::Id, pb: &mut PathBuilder, t: Affine);
+    fn cap_height(&self) -> f64;
+    fn line_height(&self) -> f64;
+}
+
+struct Ttf<'a, 'b>(&'a ttf_parser::Face<'b>);
+
+impl Glyphs for Ttf<'_, '_> {
+    type Id = ttf_parser::GlyphId;
+
+    fn glyph(&self, ch: char) -> Option<Self::Id> {
+        self.0.glyph_index(ch).or_else(|| self.0.glyph_index('?'))
+    }
+
+    fn advance(&self, g: Self::Id) -> f64 {
+        self.0.glyph_hor_advance(g).unwrap_or(0) as f64
+    }
+
+    fn kerning(&self, left: Self::Id, right: Self::Id) -> f64 {
+        self.0
+            .tables()
+            .kern
+            .and_then(|k| {
+                k.subtables
+                    .into_iter()
+                    .filter(|s| s.horizontal && !s.variable)
+                    .find_map(|s| s.glyphs_kerning(left, right))
+            })
+            .unwrap_or(0) as f64
+    }
+
+    fn outline(&self, g: Self::Id, pb: &mut PathBuilder, t: Affine) {
+        self.0.outline_glyph(g, &mut Outline { pb, t });
+    }
+
+    fn cap_height(&self) -> f64 {
+        let f = self.0;
+        f.capital_height().filter(|&h| h > 0).map(|h| h as f64).unwrap_or(f.ascender() as f64 * 0.7)
+    }
+
+    fn line_height(&self) -> f64 {
+        let f = self.0;
+        f.ascender() as f64 - f.descender() as f64 + f.line_gap() as f64
+    }
+}
+
+impl Glyphs for crate::hershey::Font {
+    type Id = crate::hershey::GlyphRef;
+
+    fn glyph(&self, ch: char) -> Option<Self::Id> {
+        crate::hershey::Font::glyph(self, ch)
+    }
+
+    fn advance(&self, g: Self::Id) -> f64 {
+        crate::hershey::Font::advance(self, g)
+    }
+
+    fn outline(&self, g: Self::Id, pb: &mut PathBuilder, t: Affine) {
+        crate::hershey::Font::outline(self, g, pb, t)
+    }
+
+    fn cap_height(&self) -> f64 {
+        crate::hershey::Font::cap_height(self)
+    }
+
+    fn line_height(&self) -> f64 {
+        crate::hershey::Font::line_height(self)
+    }
+}
+
 /// Erzeugt den Text als Pfad. Die linke obere Ecke der ersten Zeile liegt bei (0, 0).
 pub fn text_to_path(db: &Database, spec: &TextSpec) -> Result<VectorPath, String> {
-    with_face(db, spec, |face| layout(face, spec))
+    render(db, spec, None)
 }
 
 /// Erzeugt einen Text aus Textdaten mit dem bereits eingesetzten Inhalt `text` (Platzhalter ersetzt):
@@ -67,17 +153,21 @@ pub fn render_text(db: &Database, data: &TextData, text: &str) -> Result<VectorP
         return crate::barcode::render_barcode(db, data, b, text);
     }
     let spec = TextSpec { text: text.to_string(), ..data.spec.clone() };
-    match &data.on_path {
-        Some(on) => with_face(db, &spec, |face| layout_on_path(face, &spec, on)),
-        None => with_face(db, &spec, |face| layout(face, &spec)),
-    }
+    render(db, &spec, data.on_path.as_ref())
 }
 
-fn with_face(
-    db: &Database,
-    spec: &TextSpec,
-    f: impl FnOnce(&ttf_parser::Face) -> Result<VectorPath, String>,
-) -> Result<VectorPath, String> {
+fn render(db: &Database, spec: &TextSpec, on_path: Option<&TextOnPath>) -> Result<VectorPath, String> {
+    fn run<G: Glyphs>(g: &G, spec: &TextSpec, on_path: Option<&TextOnPath>) -> Result<VectorPath, String> {
+        match on_path {
+            Some(on) => layout_on_path(g, spec, on),
+            None => layout(g, spec),
+        }
+    }
+    // Einlinienschrift: offene Striche, Verschweißen entfällt
+    if let Some(font) = crate::hershey::font(&spec.family, spec.bold, spec.italic) {
+        let spec = TextSpec { text: font.prepare(&spec.text), ..spec.clone() };
+        return run(font, &spec, on_path);
+    }
     let query = Query {
         families: &[Family::Name(&spec.family), Family::SansSerif],
         weight: if spec.bold { Weight::BOLD } else { Weight::NORMAL },
@@ -87,7 +177,7 @@ fn with_face(
     let id = db.query(&query).ok_or_else(|| format!("Schrift „{}“ nicht gefunden.", spec.family))?;
     let result = db.with_face_data(id, |data, index| -> Result<VectorPath, String> {
         let face = ttf_parser::Face::parse(data, index).map_err(|e| format!("Schrift unlesbar: {e}"))?;
-        f(&face)
+        run(&Ttf(&face), spec, on_path)
     });
     let path = result.ok_or_else(|| "Schriftdaten konnten nicht geladen werden.".to_string())??;
     Ok(if spec.weld { welded(&path) } else { path })
@@ -103,15 +193,13 @@ fn welded(path: &VectorPath) -> VectorPath {
     out
 }
 
-fn layout(face: &ttf_parser::Face, spec: &TextSpec) -> Result<VectorPath, String> {
-    let scale = cap_scale(face, spec);
-    let cap = spec.height_mm.max(0.1) / scale;
-    let line_height =
-        (face.ascender() as f64 - face.descender() as f64 + face.line_gap() as f64) * scale * spec.line_spacing;
-    let ascent = cap * scale;
+fn layout<G: Glyphs>(g: &G, spec: &TextSpec) -> Result<VectorPath, String> {
+    let scale = spec.height_mm.max(0.1) / g.cap_height();
+    let line_height = g.line_height() * scale * spec.line_spacing;
+    let ascent = spec.height_mm.max(0.1);
 
     let lines: Vec<&str> = spec.text.lines().collect();
-    let widths: Vec<f64> = lines.iter().map(|l| line_width(face, l, scale, spec.letter_spacing)).collect();
+    let widths: Vec<f64> = lines.iter().map(|l| line_width(g, l, scale, spec.letter_spacing)).collect();
     let max_width = widths.iter().cloned().fold(0.0, f64::max);
 
     let mut pb = PathBuilder::new();
@@ -122,16 +210,16 @@ fn layout(face: &ttf_parser::Face, spec: &TextSpec) -> Result<VectorPath, String
             TextAlign::Center => (max_width - widths[i]) / 2.0,
             TextAlign::Right => max_width - widths[i],
         };
-        let mut prev: Option<ttf_parser::GlyphId> = None;
+        let mut prev = None;
         for ch in line.chars() {
-            let Some(gid) = face.glyph_index(ch).or_else(|| face.glyph_index('?')) else { continue };
+            let Some(gid) = g.glyph(ch) else { continue };
             if let Some(p) = prev {
-                x += kerning(face, p, gid) * scale;
+                x += g.kerning(p, gid) * scale;
             }
             // Schrift: Y nach oben -> Dokument: Y nach unten
             let t = Affine::scale(scale, -scale).then(&Affine::translate(x, baseline));
-            face.outline_glyph(gid, &mut Outline { pb: &mut pb, t });
-            x += face.glyph_hor_advance(gid).unwrap_or(0) as f64 * scale + spec.letter_spacing;
+            g.outline(gid, &mut pb, t);
+            x += g.advance(gid) * scale + spec.letter_spacing;
             prev = Some(gid);
         }
     }
@@ -142,15 +230,10 @@ fn layout(face: &ttf_parser::Face, spec: &TextSpec) -> Result<VectorPath, String
     Ok(path)
 }
 
-fn cap_scale(face: &ttf_parser::Face, spec: &TextSpec) -> f64 {
-    let cap = face.capital_height().filter(|&h| h > 0).map(|h| h as f64).unwrap_or(face.ascender() as f64 * 0.7);
-    spec.height_mm.max(0.1) / cap
-}
-
 /// Text entlang einer Linie: jede Glyphe sitzt mit ihrer Mitte auf dem Pfad und folgt dessen Richtung.
 /// Geschlossene Pfade beginnen oben (bzw. unten bei umgekehrter Richtung); „Mitte“ zentriert dort.
-fn layout_on_path(face: &ttf_parser::Face, spec: &TextSpec, on: &TextOnPath) -> Result<VectorPath, String> {
-    let scale = cap_scale(face, spec);
+fn layout_on_path<G: Glyphs>(g: &G, spec: &TextSpec, on: &TextOnPath) -> Result<VectorPath, String> {
+    let scale = spec.height_mm.max(0.1) / g.cap_height();
     let text = spec.text.lines().collect::<Vec<_>>().join(" ");
     let mut pts = on.points.clone();
     if on.reverse {
@@ -167,7 +250,7 @@ fn layout_on_path(face: &ttf_parser::Face, spec: &TextSpec, on: &TextOnPath) -> 
     }
     let poly = Polyline::new(pts, on.closed);
     let total = polyline_length(&poly);
-    let width = line_width(face, &text, scale, spec.letter_spacing);
+    let width = line_width(g, &text, scale, spec.letter_spacing);
     let start = on.offset
         + match (spec.align, on.closed) {
             (TextAlign::Left, _) => 0.0,
@@ -178,19 +261,19 @@ fn layout_on_path(face: &ttf_parser::Face, spec: &TextSpec, on: &TextOnPath) -> 
         };
     let mut pb = PathBuilder::new();
     let mut x = 0.0;
-    let mut prev: Option<ttf_parser::GlyphId> = None;
+    let mut prev = None;
     for ch in text.chars() {
-        let Some(gid) = face.glyph_index(ch).or_else(|| face.glyph_index('?')) else { continue };
+        let Some(gid) = g.glyph(ch) else { continue };
         if let Some(p) = prev {
-            x += kerning(face, p, gid) * scale;
+            x += g.kerning(p, gid) * scale;
         }
-        let adv = face.glyph_hor_advance(gid).unwrap_or(0) as f64 * scale;
+        let adv = g.advance(gid) * scale;
         if let Some((p, angle)) = position_at(&poly, start + x + adv / 2.0) {
             let t = Affine::scale(scale, -scale)
                 .then(&Affine::translate(-adv / 2.0, -on.distance))
                 .then(&Affine::rotate(angle))
                 .then(&Affine::translate(p.x, p.y));
-            face.outline_glyph(gid, &mut Outline { pb: &mut pb, t });
+            g.outline(gid, &mut pb, t);
         }
         x += adv + spec.letter_spacing;
         prev = Some(gid);
@@ -202,27 +285,18 @@ fn layout_on_path(face: &ttf_parser::Face, spec: &TextSpec, on: &TextOnPath) -> 
     Ok(path)
 }
 
-fn line_width(face: &ttf_parser::Face, line: &str, scale: f64, spacing: f64) -> f64 {
+fn line_width<G: Glyphs>(g: &G, line: &str, scale: f64, spacing: f64) -> f64 {
     let mut w = 0.0;
     let mut prev = None;
     for ch in line.chars() {
-        let Some(gid) = face.glyph_index(ch).or_else(|| face.glyph_index('?')) else { continue };
+        let Some(gid) = g.glyph(ch) else { continue };
         if let Some(p) = prev {
-            w += kerning(face, p, gid) * scale;
+            w += g.kerning(p, gid) * scale;
         }
-        w += face.glyph_hor_advance(gid).unwrap_or(0) as f64 * scale + spacing;
+        w += g.advance(gid) * scale + spacing;
         prev = Some(gid);
     }
     (w - spacing).max(0.0)
-}
-
-fn kerning(face: &ttf_parser::Face, left: ttf_parser::GlyphId, right: ttf_parser::GlyphId) -> f64 {
-    face.tables()
-        .kern
-        .and_then(|k| {
-            k.subtables.into_iter().filter(|s| s.horizontal && !s.variable).find_map(|s| s.glyphs_kerning(left, right))
-        })
-        .unwrap_or(0) as f64
 }
 
 /// Für Tests und Notfälle: beliebige installierte Schrift.
@@ -255,6 +329,30 @@ mod tests {
         // Großbuchstaben ohne Unterlänge: Höhe entspricht ungefähr der gewünschten Höhe.
         assert!((b.height() - 10.0).abs() < 1.5, "{b:?}");
         assert!(b.min.y > -1.0, "{b:?}");
+    }
+
+    #[test]
+    fn single_line_font_without_system_fonts() {
+        // Einlinienschrift braucht keine installierten Schriften
+        let db = Database::new();
+        let spec =
+            TextSpec { text: "HÄ ß".into(), family: "Hershey Sans".into(), height_mm: 10.0, ..Default::default() };
+        let path = text_to_path(&db, &spec).unwrap();
+        assert!(path.subpaths.iter().all(|s| !s.closed), "nur offene Striche");
+        let h = text_to_path(&db, &TextSpec { text: "H".into(), ..spec.clone() }).unwrap();
+        let b = h.bounds(&Affine::IDENTITY);
+        assert!((b.height() - 10.0).abs() < 1e-6 && b.min.y.abs() < 1e-6, "{b:?}");
+        // Umlautpunkte ragen über die Versalhöhe, ß wird zu ss
+        assert!(path.bounds(&Affine::IDENTITY).min.y < -0.5);
+        let ss = text_to_path(&db, &TextSpec { text: "ss".into(), ..spec.clone() }).unwrap();
+        let sz = text_to_path(&db, &TextSpec { text: "ß".into(), ..spec.clone() }).unwrap();
+        assert_eq!(ss, sz);
+        // Verschweißen bleibt ohne Wirkung, kursiv wird geneigt
+        assert_eq!(text_to_path(&db, &TextSpec { weld: true, ..spec.clone() }).unwrap(), path);
+        let it = text_to_path(&db, &TextSpec { text: "H".into(), italic: true, ..spec.clone() }).unwrap();
+        assert!(it.bounds(&Affine::IDENTITY).width() > b.width() + 1.0);
+        assert!(font_families(&db).iter().any(|f| f == "Hershey Script"));
+        assert!(is_single_line("Hershey Gothic") && !is_single_line("Arial"));
     }
 
     #[test]

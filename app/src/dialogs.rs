@@ -350,6 +350,15 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 .small()
                 .color(pal.text_weak),
             );
+            ui.label(
+                RichText::new(tr(
+                    "Einlinienschriften: The Hershey Fonts were originally created by Dr. A. V. Hershey while working \
+                     at the U. S. National Bureau of Standards. The format of the font data was originally created by \
+                     James Hurt, Cognition, Inc.",
+                ))
+                .small()
+                .color(pal.text_weak),
+            );
             // Liegt dem Setup bzw. dem portablen Paket bei (tools\package.ps1)
             let licenses = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("THIRD-PARTY-LICENSES.html")));
             if let Some(path) = licenses.filter(|p| p.is_file())

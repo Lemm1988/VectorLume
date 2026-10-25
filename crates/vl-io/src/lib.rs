@@ -4,6 +4,7 @@ pub mod barcode;
 pub mod csv;
 pub mod dxf;
 pub mod eps;
+pub mod hershey;
 pub mod hpgl;
 pub mod image;
 pub mod lightburn;

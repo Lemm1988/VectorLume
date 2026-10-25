@@ -1061,6 +1061,9 @@ pub static EN: &[(&str, &str)] = &[
     ("{} Schlitze angepasst.", "{} slots adjusted."),
     ("{} Schlitze anpassen", "{} Resize slots"),
     ("Schlitze anpassen…", "Resize slots…"),
+    ("Einlinienschrift: offene Striche – im Modus Linie gravieren oder ritzen", "Single-line font: open strokes – engrave or score in Line mode"),
+    ("Einlinie", "single-line"),
+    ("Einlinienschriften: The Hershey Fonts were originally created by Dr. A. V. Hershey while working at the U. S. National Bureau of Standards. The format of the font data was originally created by James Hurt, Cognition, Inc.", "Single-line fonts: The Hershey Fonts were originally created by Dr. A. V. Hershey while working at the U. S. National Bureau of Standards. The format of the font data was originally created by James Hurt, Cognition, Inc."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
