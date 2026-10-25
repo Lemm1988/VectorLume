@@ -295,6 +295,45 @@ fn render_centerline() {
     centerline_flow(true);
 }
 
+/// Kamerabild übernehmen: dunkles Quadrat in der Bildmitte landet an der passenden Stelle der Arbeitsfläche,
+/// auf einer Ebene ohne Ausgabe.
+#[test]
+fn camera_image_goes_into_project() {
+    let mut h = harness(false);
+    let app = h.state_mut();
+    let (bw, bh) = (app.settings.profile.bed_width, app.settings.profile.bed_height);
+    // Kamera sieht genau die Arbeitsfläche: Bildecken = Bettecken (Maschinenkoordinaten, Bild y nach unten)
+    let corners = [([0.0, 0.0], [0.0, bh]), ([1.0, 0.0], [bw, bh]), ([1.0, 1.0], [bw, 0.0]), ([0.0, 1.0], [0.0, 0.0])];
+    for (p, (img, bed)) in app.settings.camera.points.iter_mut().zip(corners) {
+        p.image = Some(img);
+        p.bed = bed;
+    }
+    let (w, hh) = (200usize, 200usize);
+    let rgb = (0..w * hh)
+        .flat_map(|i| {
+            let (x, y) = (i % w, i / w);
+            let dark = (80..120).contains(&x) && (80..120).contains(&y);
+            [if dark { 0 } else { 250 }; 3]
+        })
+        .collect();
+    app.camera.set_test_frame(w, hh, rgb);
+    crate::camera::insert_image(app);
+    let o = app.doc.objects.last().expect("Bild");
+    let Shape::Image(img) = &o.shape else { panic!("kein Bild") };
+    assert!(!app.doc.layers[o.layer].settings.output, "Ebene ohne Ausgabe");
+    assert!((img.width_mm - bw).abs() < 1e-9 && (img.height_mm - bh).abs() < 1e-9);
+    // Mitte dunkel, Rand hell (Bildmitte = Bettmitte)
+    let (iw, ih) = (img.image.width as usize, img.image.height as usize);
+    assert!(img.image.pixels[ih / 2 * iw + iw / 2] < 20);
+    assert!(img.image.pixels[ih / 10 * iw + iw / 10] > 230);
+    // nur der Bereich der Auswahl
+    let id = app.doc.add_path("R", 0, VectorPath::rect(10.0, 10.0, 50.0, 20.0, 0.0));
+    app.selection = vec![id];
+    crate::camera::insert_image(app);
+    let Shape::Image(img) = &app.doc.objects.last().unwrap().shape else { panic!() };
+    assert!((img.width_mm - 50.0).abs() < 1e-9 && (img.height_mm - 20.0).abs() < 1e-9);
+}
+
 /// Grundformen zeigen ihre Parameter in der oberen Leiste, gewöhnliche Pfade nicht.
 fn primitive_fields_flow(render: bool) {
     use vl_core::primitive::Primitive;

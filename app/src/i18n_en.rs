@@ -1199,6 +1199,13 @@ pub static EN: &[(&str, &str)] = &[
     ("Mittellinien", "Centerlines"),
     ("Mittellinien: Striche werden zu einzelnen Linien statt zu Umrissen – für Strichzeichnungen und Handschrift, zum schnellen Ritzen oder Schneiden entlang der Linie.", "Centerlines: strokes become single lines instead of outlines – for line art and handwriting, for quick scoring or cutting along the line."),
     ("{} Linienzüge · {} Segmente · Ziel-Ebene „{}“", "{} lines · {} segments · target layer “{}”"),
+    ("Legt das entzerrte Kamerabild als Graustufenbild ins Projekt – den Bereich der Auswahl, sonst die ganze Arbeitsfläche –, z. B. um eine aufgelegte Skizze nachzuzeichnen. Es kommt auf eine eigene Ebene ohne Ausgabe.", "Puts the corrected camera image into the project as a grayscale image – the selected area, otherwise the whole work area – e.g. to trace a sketch lying on the bed. It goes onto its own layer without output."),
+    ("Dafür braucht es ein Kamerabild und eine gültige Ausrichtung.", "This needs a camera image and a valid alignment."),
+    ("Die Kamera ist nicht gültig ausgerichtet.", "The camera is not aligned correctly."),
+    ("Die Auswahl liegt nicht auf der Arbeitsfläche.", "The selection is not on the work area."),
+    ("Kamerabild", "Camera image"),
+    ("Kamerabild übernommen (Ebene ohne Ausgabe) – z. B. mit Anordnen → Bild nachzeichnen weiterverarbeiten.", "Camera image added (layer without output) – e.g. continue with Arrange → Trace image."),
+    ("{} Als Bild ins Projekt", "{} Add to project as image"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

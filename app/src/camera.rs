@@ -18,6 +18,9 @@ use vl_raster::warp::{Homography, warp_to_area};
 
 /// Längere Seite des entzerrten Bildes in Pixeln.
 const OVERLAY_PX: usize = 1200;
+/// Auflösung und Größengrenze beim Übernehmen ins Projekt.
+const INSERT_PX_PER_MM: f64 = 10.0;
+const INSERT_MAX_PX: usize = 4000;
 /// Abstand der Bilder im Live-Betrieb.
 const LIVE_INTERVAL: Duration = Duration::from_millis(300);
 /// Größe der Ausrichtmarken (Kreuze) in mm.
@@ -177,6 +180,12 @@ impl CameraState {
         self.frame = Some(frame);
         self.frame_gen += 1;
         self.error = None;
+    }
+
+    /// Bild für Oberflächentests (RGB, Zeile für Zeile).
+    #[cfg(test)]
+    pub(crate) fn set_test_frame(&mut self, width: usize, height: usize, rgb: Vec<u8>) {
+        self.set_frame(Frame { width, height, rgb: Arc::new(rgb) });
     }
 }
 
@@ -438,6 +447,15 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.label(tr("Deckkraft"));
                 ui.add(egui::Slider::new(&mut app.settings.camera.opacity, 0.1..=1.0).show_value(false));
             });
+            let can_insert = app.camera.frame.is_some() && homography(&app.settings.camera, &app.settings.profile).is_some();
+            if ui
+                .add_enabled(can_insert, Button::new(trs(&format!("{} Als Bild ins Projekt", icon::IMAGE_SQUARE))))
+                .on_hover_text(tr("Legt das entzerrte Kamerabild als Graustufenbild ins Projekt – den Bereich der Auswahl, sonst die ganze Arbeitsfläche –, z. B. um eine aufgelegte Skizze nachzuzeichnen. Es kommt auf eine eigene Ebene ohne Ausgabe."))
+                .on_disabled_hover_text(tr("Dafür braucht es ein Kamerabild und eine gültige Ausrichtung."))
+                .clicked()
+            {
+                action = Some("insert");
+            }
             ui.label(
                 RichText::new(tr("Hinweis: Eine starke Objektivverzerrung (Fischauge) wird nicht ausgeglichen – am besten eine Kamera mit normalem Objektiv senkrecht über dem Bett verwenden."))
                     .small()
@@ -458,6 +476,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
         Some("stop") => app.camera.capture = None,
         Some("photo") => load_photo(app),
         Some("marks") => laser_marks(app),
+        Some("insert") => insert_image(app),
         _ => {}
     }
     if !open {
@@ -471,6 +490,70 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     if app.settings.camera != before {
         app.settings.save();
     }
+}
+
+/// Übernimmt das entzerrte Kamerabild als Graustufenbild ins Projekt: den Bereich der Auswahl (auf die
+/// Arbeitsfläche begrenzt), sonst die ganze Arbeitsfläche. Es landet auf einer freien Ebene ohne Ausgabe, damit
+/// das Foto nicht versehentlich graviert wird.
+pub(crate) fn insert_image(app: &mut VectorLumeApp) {
+    let Some(frame) = app.camera.frame.clone() else { return };
+    let profile = &app.settings.profile;
+    let Some(to_image) = homography(&app.settings.camera, profile).and_then(|h| h.inverse()) else {
+        app.toast(ToastKind::Error, tr("Die Kamera ist nicht gültig ausgerichtet."));
+        return;
+    };
+    let bed = profile.bed_rect();
+    let sel = app.selection_bounds();
+    let area = if sel.is_empty() {
+        bed
+    } else {
+        vl_core::Rect::new(
+            Point::new(sel.min.x.max(bed.min.x), sel.min.y.max(bed.min.y)),
+            Point::new(sel.max.x.min(bed.max.x), sel.max.y.min(bed.max.y)),
+        )
+    };
+    if area.width() < 1.0 || area.height() < 1.0 {
+        app.toast(ToastKind::Info, tr("Die Auswahl liegt nicht auf der Arbeitsfläche."));
+        return;
+    }
+    let max_px = ((area.width().max(area.height()) * INSERT_PX_PER_MM).round() as usize).clamp(16, INSERT_MAX_PX);
+    let w = warp_to_area(&frame.rgb, frame.width, frame.height, &to_image, area, max_px);
+    // Graustufen; außerhalb des Kamerabilds weiß
+    let gray: Vec<u8> = w
+        .rgba
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|p| {
+            if p[3] == 0 {
+                255
+            } else {
+                (0.299 * p[0] as f64 + 0.587 * p[1] as f64 + 0.114 * p[2] as f64).round() as u8
+            }
+        })
+        .collect();
+    let image = vl_core::ImageObject {
+        image: Arc::new(vl_core::RasterImage::new(w.width as u32, w.height as u32, gray)),
+        width_mm: area.width(),
+        height_mm: area.height(),
+        adjust: Default::default(),
+        clip: Vec::new(),
+    };
+    app.checkpoint();
+    let used = app.doc.used_layers();
+    let free = (0..vl_core::LAYER_COUNT).find(|l| !used.contains(l));
+    let layer = free.unwrap_or_else(|| vl_io::image_layer(&app.doc));
+    let id = app.doc.add_image(tr("Kamerabild"), layer, image, area.min);
+    if free.is_some() {
+        app.doc.layers[layer].settings.output = false;
+    }
+    app.selection = vec![id];
+    app.current_layer = layer;
+    app.mark_changed();
+    app.toast(
+        ToastKind::Success,
+        tr("Kamerabild übernommen (Ebene ohne Ausgabe) – z. B. mit Anordnen → Bild nachzeichnen weiterverarbeiten."),
+    );
 }
 
 fn load_photo(app: &mut VectorLumeApp) {
