@@ -84,7 +84,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 ### 4.2 Gestalten und Bearbeiten
 | LF | Funktion | Umsetzung | Stand |
 |---|---|---|---|
-| LF-10 | Arbeitsfläche | Bett mit adaptivem Raster, Lineale in Maschinenkoordinaten, Zoom am Mauszeiger, Verschieben (Mitte/Leertaste) | ✅ |
+| LF-10 | Arbeitsfläche | Bett mit adaptivem Raster, Lineale in Maschinenkoordinaten, Zoom am Mauszeiger, Verschieben (Mitte/Leertaste); Messwerkzeug (M): Strecke mit Objektfang ziehen, Abstand, ΔX/ΔY und Winkel auf der Arbeitsfläche und in der Werkzeugleiste | ✅ |
 | LF-11 | Auswählen und Transformieren | Klick, Umschalt-Klick, Rahmenauswahl (links→rechts: vollständig, rechts→links: berührend), Verschieben, 8 Griffe zum Skalieren, Drehgriff (Umschalt = 15°); Auswahl umkehren, alles auf der aktuellen Ebene, offene Formen auswählen | ✅ |
 | LF-12 | Zahleneingabe | X/Y/B/H in Maschinenkoordinaten, Seitenverhältnis sperren, Drehen um Winkel | ✅ |
 | LF-13 | Grundformen | Rechteck mit Eckenradius, Ellipse/Kreis, Linie (Umschalt = 45°), Vieleck, Stern | ✅ |

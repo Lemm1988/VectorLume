@@ -24,10 +24,11 @@ pub enum Tool {
     Text,
     Barcode,
     Node,
+    Measure,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 9] = [
+    pub const ALL: [Tool; 10] = [
         Tool::Select,
         Tool::Node,
         Tool::Rect,
@@ -37,6 +38,7 @@ impl Tool {
         Tool::Star,
         Tool::Text,
         Tool::Barcode,
+        Tool::Measure,
     ];
 
     pub fn icon(self) -> &'static str {
@@ -51,6 +53,7 @@ impl Tool {
             Tool::Text => i::TEXT_T,
             Tool::Barcode => i::QR_CODE,
             Tool::Node => i::BEZIER_CURVE,
+            Tool::Measure => i::RULER,
         }
     }
 
@@ -65,6 +68,7 @@ impl Tool {
             Tool::Text => tr("Text (T)"),
             Tool::Barcode => tr("QR-/Barcode (Q)"),
             Tool::Node => tr("Knoten bearbeiten (N)"),
+            Tool::Measure => tr("Messen (M)"),
         }
     }
 }
@@ -236,6 +240,8 @@ pub struct VectorLumeApp {
     pub show_device_settings: bool,
     pub show_rotary: bool,
     pub print_cut: crate::print_cut::PrintCut,
+    /// Letzte Messung des Messwerkzeugs (Start, Ende).
+    pub measure: Option<(Point, Point)>,
     pub camera: crate::camera::CameraState,
     pub show_about: bool,
     pub right_tab: crate::ui_side::RightTab,
@@ -318,6 +324,7 @@ impl VectorLumeApp {
             show_device_settings: false,
             show_rotary: false,
             print_cut: Default::default(),
+            measure: None,
             camera: Default::default(),
             show_about: false,
             right_tab: crate::ui_side::RightTab::Laser,

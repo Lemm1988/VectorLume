@@ -941,6 +941,8 @@ pub static EN: &[(&str, &str)] = &[
     ("Gleiche Höhe", "Same height"),
     ("Laser zur Auswahl fahren", "Move laser to selection"),
     ("Alles auf Ebene „{}“ auswählen", "Select all on layer “{}”"),
+    ("Messen (M)", "Measure (M)"),
+    ("Ziehen zum Messen · fängt an Knoten und Mitten", "Drag to measure · snaps to nodes and centres"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

@@ -433,7 +433,7 @@ impl VectorLumeApp {
             Tool::Star => {
                 (tr("Stern"), VectorPath::star(a, a.distance(b), a.distance(b) * o.star_inner, o.star_points))
             }
-            Tool::Select | Tool::Text | Tool::Barcode | Tool::Node => return,
+            Tool::Select | Tool::Text | Tool::Barcode | Tool::Node | Tool::Measure => return,
         };
         let size = path.bounds(&Affine::IDENTITY);
         if size.width() < 0.2 && size.height() < 0.2 {
@@ -706,6 +706,9 @@ impl VectorLumeApp {
                         clip.rect_stroke(r, 0.0, Stroke::new(1.0, pal.selection), egui::StrokeKind::Middle);
                     }
                 }
+                Drag::Create { tool: Tool::Measure, start } => {
+                    draw_measure(&clip, &tf, pal, *start, create_end.unwrap_or(*start));
+                }
                 Drag::Create { tool, start } => {
                     let a = *start;
                     let b = create_end.unwrap_or(a);
@@ -754,6 +757,13 @@ impl VectorLumeApp {
                 }
                 _ => {}
             }
+        }
+
+        if self.tool == Tool::Measure
+            && !matches!(self.drag, Drag::Create { .. })
+            && let Some((a, b)) = self.measure
+        {
+            draw_measure(&clip, &tf, pal, a, b);
         }
 
         if let Some(hint) = &self.snap_hint {
@@ -988,6 +998,9 @@ impl VectorLumeApp {
                         }
                     }
                 }
+                Drag::Create { tool: Tool::Measure, start } => {
+                    self.measure = end.map(|end| (start, self.snap_cursor(end, snap_tol)));
+                }
                 Drag::Create { tool, start } => {
                     if let Some(end) = end {
                         let end = self.snap_cursor(end, snap_tol);
@@ -1043,6 +1056,7 @@ impl VectorLumeApp {
                     let at = self.snap_cursor(p, snap_tol);
                     self.open_barcode_new(at);
                 }
+                Tool::Measure => self.measure = None,
                 _ => {}
             }
         }
@@ -1311,6 +1325,33 @@ impl VectorLumeApp {
             painter.line_segment([pos2(left.left(), s.y), pos2(left.right(), s.y)], Stroke::new(1.0, pal.accent));
         }
     }
+}
+
+/// Abstand, Achsabstände und Winkel einer Messstrecke (Winkel gegen den Uhrzeigersinn wie auf dem Bildschirm).
+pub fn measure_text(a: Point, b: Point) -> String {
+    let d = b - a;
+    let angle = (-d.y).atan2(d.x).to_degrees();
+    format!("{:.2} mm · ΔX {:.2} · ΔY {:.2} · {:.1}°", d.length(), d.x.abs(), d.y.abs(), angle)
+}
+
+/// Messstrecke mit Achsabständen (gestrichelt) und Beschriftung.
+fn draw_measure(painter: &egui::Painter, tf: &ViewTf, pal: &theme::Palette, a: Point, b: Point) {
+    let (sa, sb) = (tf.to_screen(a), tf.to_screen(b));
+    let corner = pos2(sb.x, sa.y);
+    let weak = Stroke::new(1.0, pal.text_weak);
+    painter.extend(Shape::dashed_line(&[sa, corner, sb], weak, 4.0, 3.0));
+    let stroke = Stroke::new(1.5, pal.warning);
+    painter.line_segment([sa, sb], stroke);
+    for p in [sa, sb] {
+        painter.circle_filled(p, 3.0, pal.warning);
+    }
+    let text = measure_text(a, b);
+    let font = egui::FontId::proportional(12.0);
+    let galley = painter.layout_no_wrap(text, font, pal.text);
+    let at = sb + vec2(12.0, 12.0);
+    let bg = egui::Rect::from_min_size(at, galley.size()).expand(4.0);
+    painter.rect_filled(bg, 4.0, pal.panel.gamma_multiply(0.92));
+    painter.galley(at, galley, pal.text);
 }
 
 /// Fangpunkt bzw. Ausrichtungslinien anzeigen.

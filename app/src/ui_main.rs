@@ -88,6 +88,7 @@ pub fn shortcuts(app: &mut VectorLumeApp, ctx: &egui::Context) {
         (Key::T, Tool::Text),
         (Key::Q, Tool::Barcode),
         (Key::N, Tool::Node),
+        (Key::M, Tool::Measure),
     ] {
         if pressed(sc(Modifiers::NONE, k)) {
             app.tool = t;
@@ -631,6 +632,15 @@ fn power_scale_field(app: &mut VectorLumeApp, ui: &mut Ui) {
 fn tool_options(app: &mut VectorLumeApp, ui: &mut Ui) {
     if app.tool == Tool::Node {
         crate::node_tool::options(app, ui);
+        return;
+    }
+    if app.tool == Tool::Measure {
+        match app.measure {
+            Some((a, b)) => ui.label(crate::canvas::measure_text(a, b)),
+            None => ui.label(
+                RichText::new(tr("Ziehen zum Messen · fängt an Knoten und Mitten")).color(theme::of(ui).text_weak),
+            ),
+        };
         return;
     }
     let o = &mut app.tool_options;
