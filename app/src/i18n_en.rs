@@ -1149,6 +1149,7 @@ pub static EN: &[(&str, &str)] = &[
     ("{} Ins Projekt", "{} Add to project"),
     ("Noch {} Punkt(e) nötig", "{} more point(s) needed"),
     ("Mittelpunkt finden…", "Find center…"),
+    ("Eckenradius des Rechtecks", "Corner radius of the rectangle"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

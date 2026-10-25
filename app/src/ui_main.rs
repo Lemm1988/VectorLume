@@ -9,6 +9,7 @@ use egui::{
     Sense, Stroke, Ui, vec2,
 };
 use egui_phosphor::regular as icon;
+use vl_core::primitive::Primitive;
 use vl_core::{Affine, LAYER_COUNT, Point};
 
 pub fn shortcuts(app: &mut VectorLumeApp, ctx: &egui::Context) {
@@ -637,6 +638,7 @@ fn properties(app: &mut VectorLumeApp, ui: &mut Ui) {
         }
         ui.add_space(6.0);
         power_scale_field(app, ui);
+        primitive_fields(app, ui);
 
         if !has {
             return;
@@ -667,6 +669,59 @@ fn properties(app: &mut VectorLumeApp, ui: &mut Ui) {
             app.mark_changed();
         }
     });
+}
+
+/// Parameter einer einzeln ausgewählten Grundform: Eckenradius, Ecken des Vielecks, Zacken und Innenradius.
+fn primitive_fields(app: &mut VectorLumeApp, ui: &mut Ui) {
+    let [id] = app.selection[..] else { return };
+    let Some(obj) = app.doc.get(id) else { return };
+    let Some(p) = obj.live_primitive() else { return };
+    let weak = theme::of(ui).text_weak;
+    ui.add_space(6.0);
+    let mut changed = None;
+    match p {
+        Primitive::Rect { .. } => {
+            let mut r = obj.corner_radius().unwrap_or(0.0);
+            ui.label(RichText::new(icon::FRAME_CORNERS).color(weak)).on_hover_text(tr("Eckenradius"));
+            let resp = ui
+                .add(DragValue::new(&mut r).speed(0.1).range(0.0..=1000.0).max_decimals(2).suffix(" mm"))
+                .on_hover_text(tr("Eckenradius des Rechtecks"));
+            if resp.changed() {
+                app.checkpoint_coalesced("primitive");
+                if let Some(o) = app.doc.get_mut(id) {
+                    o.set_corner_radius(r);
+                }
+                changed = Some(id);
+            }
+        }
+        Primitive::Polygon { center, radius, mut sides } => {
+            ui.label(RichText::new(tr("Ecken")).color(weak));
+            if ui.add(DragValue::new(&mut sides).range(3..=64)).changed() {
+                changed = Some(id);
+                app.checkpoint_coalesced("primitive");
+                if let Some(o) = app.doc.get_mut(id) {
+                    o.set_primitive(Primitive::Polygon { center, radius, sides });
+                }
+            }
+        }
+        Primitive::Star { center, radius, mut inner, mut points } => {
+            ui.label(RichText::new(tr("Zacken")).color(weak));
+            let a = ui.add(DragValue::new(&mut points).range(3..=64));
+            ui.label(RichText::new(tr("Innenradius")).color(weak));
+            let b = ui.add(DragValue::new(&mut inner).speed(0.01).range(0.05..=0.95).fixed_decimals(2));
+            if a.changed() || b.changed() {
+                changed = Some(id);
+                app.checkpoint_coalesced("primitive");
+                if let Some(o) = app.doc.get_mut(id) {
+                    o.set_primitive(Primitive::Star { center, radius, inner, points });
+                }
+            }
+        }
+    }
+    if let Some(id) = changed {
+        app.geom.invalidate(id);
+        app.mark_changed();
+    }
 }
 
 /// Leistung der ausgewählten Objekte in Prozent der Ebenenleistung (z. B. für Materialtests).

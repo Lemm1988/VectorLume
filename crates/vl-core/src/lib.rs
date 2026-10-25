@@ -12,6 +12,7 @@ pub mod nest;
 pub mod nodes;
 pub mod ops;
 pub mod path;
+pub mod primitive;
 pub mod project;
 pub mod slots;
 pub mod text;

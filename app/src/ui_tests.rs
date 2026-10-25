@@ -139,6 +139,45 @@ fn node_tool_extends_open_end_to_wall() {
     assert_eq!(p.subpaths.len(), 1);
 }
 
+/// Grundformen zeigen ihre Parameter in der oberen Leiste, gewöhnliche Pfade nicht.
+fn primitive_fields_flow(render: bool) {
+    use vl_core::primitive::Primitive;
+    let mut h = harness(render);
+    let star = Primitive::Star { center: Point::new(150.0, 150.0), radius: 40.0, inner: 0.45, points: 5 };
+    let id = h.state_mut().doc.add_primitive("Stern", 0, star);
+    h.state_mut().selection = vec![id];
+    h.run_ok();
+    assert!(h.query_by_label("Zacken").is_some() && h.query_by_label("Innenradius").is_some());
+    if render {
+        save(&mut h, "leiste_stern");
+    }
+    let rect = Primitive::Rect { x: 40.0, y: 40.0, width: 60.0, height: 30.0, radius: 0.0 };
+    let id = h.state_mut().doc.add_primitive("Rechteck", 0, rect);
+    h.state_mut().selection = vec![id];
+    h.run_ok();
+    assert!(h.query_by_label("Zacken").is_none());
+    if render {
+        save(&mut h, "leiste_rechteck");
+    }
+    // Knoten bearbeiten macht daraus einen gewöhnlichen Pfad
+    let app = h.state_mut();
+    if let Some(Shape::Path(p)) = app.doc.get_mut(id).map(|o| &mut o.shape) {
+        vl_core::nodes::move_node(p, vl_core::nodes::NodeRef { sub: 0, idx: 1 }, Point::new(120.0, 35.0));
+    }
+    assert!(app.doc.get(id).unwrap().live_primitive().is_none());
+}
+
+#[test]
+fn primitive_fields_follow_selection() {
+    primitive_fields_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_primitive_fields() {
+    primitive_fields_flow(true);
+}
+
 /// Mittelpunkt finden mit vorgetäuschter Kopfposition: drei Randpunkte übernehmen, Kreis ins Projekt.
 fn center_finder_flow(render: bool) {
     let mut h = harness(render);

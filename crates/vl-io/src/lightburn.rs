@@ -340,8 +340,18 @@ impl Importer<'_> {
             }
             "Rect" => {
                 let (w, h) = (num("W").unwrap_or(0.0), num("H").unwrap_or(0.0));
-                let path = VectorPath::rect(-w / 2.0, -h / 2.0, w, h, num("Cr").unwrap_or(0.0));
-                self.add(n, "Rechteck", to_doc, Shape::Path(path))
+                let rect = vl_core::primitive::Primitive::Rect {
+                    x: -w / 2.0,
+                    y: -h / 2.0,
+                    width: w,
+                    height: h,
+                    radius: num("Cr").unwrap_or(0.0),
+                };
+                let id = self.add(n, "Rechteck", to_doc, Shape::Path(rect.path()));
+                if let Some(o) = self.doc.get_mut(id) {
+                    o.primitive = Some(rect);
+                }
+                id
             }
             "Ellipse" => {
                 let path = VectorPath::ellipse(Point::ZERO, num("Rx").unwrap_or(0.0), num("Ry").unwrap_or(0.0));

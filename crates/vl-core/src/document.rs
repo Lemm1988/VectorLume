@@ -384,6 +384,9 @@ pub struct Object {
     /// Leistung dieses Objekts in Prozent der Ebenenleistung (z. B. für Materialtests).
     #[serde(default = "full_power", skip_serializing_if = "is_full_power")]
     pub power_scale: f64,
+    /// Parameter einer Grundform (Eckenradius, Ecken, Zacken); gilt nur, solange der Pfad daraus besteht.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub primitive: Option<crate::primitive::Primitive>,
 }
 
 fn full_power() -> f64 {
@@ -501,12 +504,22 @@ impl Document {
             shape,
             text: None,
             power_scale: 100.0,
+            primitive: None,
         });
         id
     }
 
     pub fn add_path(&mut self, name: impl Into<String>, layer: usize, path: VectorPath) -> ObjectId {
         self.add(name, layer, Affine::IDENTITY, Shape::Path(path))
+    }
+
+    /// Grundform mit nachträglich änderbaren Parametern.
+    pub fn add_primitive(&mut self, name: impl Into<String>, layer: usize, p: crate::primitive::Primitive) -> ObjectId {
+        let id = self.add_path(name, layer, p.path());
+        if let Some(o) = self.get_mut(id) {
+            o.primitive = Some(p);
+        }
+        id
     }
 
     /// Fügt ein Bild ein. Bildebenen werden automatisch auf den Modus „Bild“ gestellt, wenn sie noch leer sind.

@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use vl_cam::{BlockKind, Job, Op};
 use vl_core::nodes::{HandleRef, NodeRef};
+use vl_core::primitive::Primitive;
 use vl_core::trim::Trim;
 use vl_core::{Affine, ImageObject, Object, ObjectId, Point, Polyline, Rect as DRect, Shape as DocShape, VectorPath};
 
@@ -492,6 +493,7 @@ impl VectorLumeApp {
     fn create_shape(&mut self, tool: Tool, a: Point, b: Point, shift: bool) {
         let r = DRect::from_points(a, b);
         let o = &self.tool_options;
+        let mut primitive = None;
         let (name, path) = match tool {
             Tool::Rect => {
                 let (w, h) = if shift {
@@ -501,7 +503,9 @@ impl VectorLumeApp {
                 };
                 let x = if b.x < a.x { a.x - w } else { a.x };
                 let y = if b.y < a.y { a.y - h } else { a.y };
-                (tr("Rechteck"), VectorPath::rect(x, y, w, h, o.corner_radius))
+                let rect = Primitive::Rect { x, y, width: w, height: h, radius: o.corner_radius };
+                primitive = Some(rect);
+                (tr("Rechteck"), rect.path())
             }
             Tool::Ellipse => {
                 let (w, h) = if shift {
@@ -522,9 +526,16 @@ impl VectorLumeApp {
                 }
                 (tr("Linie"), VectorPath::line(a, end))
             }
-            Tool::Polygon => (tr("Vieleck"), VectorPath::regular_polygon(a, a.distance(b), o.polygon_sides)),
+            Tool::Polygon => {
+                let p = Primitive::Polygon { center: a, radius: a.distance(b), sides: o.polygon_sides };
+                primitive = Some(p);
+                (tr("Vieleck"), p.path())
+            }
             Tool::Star => {
-                (tr("Stern"), VectorPath::star(a, a.distance(b), a.distance(b) * o.star_inner, o.star_points))
+                let p =
+                    Primitive::Star { center: a, radius: a.distance(b), inner: o.star_inner, points: o.star_points };
+                primitive = Some(p);
+                (tr("Stern"), p.path())
             }
             Tool::Select | Tool::Text | Tool::Barcode | Tool::Node | Tool::Measure | Tool::Trim => return,
         };
@@ -534,6 +545,9 @@ impl VectorLumeApp {
         }
         self.checkpoint();
         let id = self.doc.add_path(name, self.current_layer, path);
+        if let Some(obj) = self.doc.get_mut(id) {
+            obj.primitive = primitive;
+        }
         self.selection = vec![id];
         self.mark_changed();
         self.tool = Tool::Select;
