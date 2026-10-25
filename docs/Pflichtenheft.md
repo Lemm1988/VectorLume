@@ -118,7 +118,7 @@ eigenen Treiber-Thread und kommuniziert über Kanäle.
 | LF | Funktion | Umsetzung | Stand |
 |---|---|---|---|
 | LF-40 | Verbindung | Anschlussliste mit USB-Kennung, Baudrate aus Profil, automatische Abfrage `$I` und `$$` | ✅ |
-| LF-41 | Status und Konsole | Zustand, Position (WPos/MPos+WCO) alle 200 ms, Fehler- und Alarmcodes mit deutschem Text, Konsole mit Schnellbefehlen | ✅ |
+| LF-41 | Status und Konsole | Zustand, Position (WPos/MPos+WCO) alle 200 ms, Fehler- und Alarmcodes mit deutschem Text, Konsole mit Schnellbefehlen und eigenen **Makro-Knöpfen** (Name + G-Code-Zeilen, in den Einstellungen gespeichert, Rechtsklick bearbeitet/entfernt, nur verbunden und ohne laufenden Job) | ✅ |
 | LF-42 | Referenzfahrt, Entsperren, Jog | `$H`, `$X`, `$J=` mit Schrittweite und Geschwindigkeit, Richtungen passend zur Nullpunkt-Ecke, Jog-Abbruch | ✅ |
 | LF-43 | Rahmen | Umriss der Ausgabe abfahren (Laser aus oder ≤ 5 % laut Profil), Anfahrt immer im Eilgang; als Rechteck oder als **Umriss-Rahmen** (konvexe Hülle aller gelaserten Strecken, folgt runden und schrägen Formen) | ✅ |
 | LF-44 | Job-Steuerung | Start, Pause (`!`), Fortsetzen (`~`), Stopp (Feed-Hold + Soft-Reset), Fortschritt, Restzeit; **fremde G-Code-Datei senden** (*Laser → G-Code-Datei senden…*: Kommentare, Leerzeilen, `%` und BOM entfernt, Bestätigung mit Warnhinweis, Inhalt ungeprüft, Restzeit aus dem Fortschritt hochgerechnet) | ✅ |

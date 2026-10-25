@@ -213,6 +213,8 @@ pub struct VectorLumeApp {
     pub selected_port: String,
     pub console: Vec<ConsoleLine>,
     pub console_input: String,
+    /// Makro im Bearbeiten-Fenster: Index (None = neu) und Entwurf.
+    pub macro_edit: Option<(Option<usize>, crate::settings::Macro)>,
     pub file_path: Option<PathBuf>,
     /// Name für Titel und Speichern-Dialog, solange das Projekt noch keine Datei hat (z. B. nach LightBurn-Import).
     pub name_hint: Option<String>,
@@ -294,6 +296,7 @@ impl VectorLumeApp {
             selected_port,
             console: Vec::new(),
             console_input: String::new(),
+            macro_edit: None,
             file_path: None,
             name_hint: None,
             dirty: false,

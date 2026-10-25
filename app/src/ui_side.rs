@@ -888,6 +888,98 @@ fn jog_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
 
 // ------------------------------------------------------------------ Konsole
 
+/// Makro-Knöpfe: Klick sendet die Zeilen, Rechtsklick bearbeitet oder entfernt.
+fn macros_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
+    let ready = app.machine.connected && !app.machine.job_running;
+    let mut send = None;
+    let mut remove = None;
+    ui.horizontal_wrapped(|ui| {
+        for (i, m) in app.settings.macros.iter().enumerate() {
+            let resp = ui
+                .add_enabled(ready, Button::new(&m.name))
+                .on_hover_text(m.gcode.trim())
+                .on_disabled_hover_text(tr("Erst mit dem Laser verbinden"));
+            if resp.clicked() {
+                send = Some(i);
+            }
+            resp.context_menu(|ui| {
+                if ui.button(trs(&format!("{} Bearbeiten…", icon::PENCIL_SIMPLE))).clicked() {
+                    app.macro_edit = Some((Some(i), m.clone()));
+                    ui.close();
+                }
+                if ui.button(trs(&format!("{} Entfernen", icon::TRASH))).clicked() {
+                    remove = Some(i);
+                    ui.close();
+                }
+            });
+        }
+        if ui
+            .small_button(trs(&format!("{} Makro", icon::PLUS)))
+            .on_hover_text(tr("Eigene Befehle als Knopf ablegen, z. B. Luft an/aus oder eine Parkposition. Rechtsklick auf einen Makro-Knopf bearbeitet ihn."))
+            .clicked()
+        {
+            app.macro_edit = Some((None, crate::settings::Macro::default()));
+        }
+    });
+    if let Some(i) = send {
+        let lines = vl_cam::lines_from_file(&app.settings.macros[i].gcode);
+        for line in lines {
+            app.send_line(line);
+        }
+    }
+    if let Some(i) = remove {
+        app.settings.macros.remove(i);
+        app.settings.save();
+    }
+    macro_editor(app, ui.ctx());
+}
+
+fn macro_editor(app: &mut VectorLumeApp, ctx: &egui::Context) {
+    let Some((index, draft)) = &mut app.macro_edit else { return };
+    let mut open = true;
+    let mut save = false;
+    let title = if index.is_some() { tr("Makro bearbeiten") } else { tr("Neues Makro") };
+    egui::Window::new(format!("{} {title}", icon::TERMINAL))
+        .id(egui::Id::new("macro_editor"))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .default_width(320.0)
+        .anchor(egui::Align2::CENTER_CENTER, vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            ui.add(egui::TextEdit::singleline(&mut draft.name).hint_text(tr("Name, z. B. Luft an")));
+            ui.add_space(4.0);
+            ui.add(
+                egui::TextEdit::multiline(&mut draft.gcode)
+                    .code_editor()
+                    .desired_rows(5)
+                    .desired_width(f32::INFINITY)
+                    .hint_text(tr("G-Code, eine Zeile je Befehl, z. B. M8")),
+            );
+            ui.label(
+                RichText::new(tr("Die Zeilen werden ungeprüft gesendet; Kommentare nach ; werden entfernt."))
+                    .small()
+                    .color(theme::of(ui).text_weak),
+            );
+            ui.add_space(6.0);
+            let ok = !draft.name.trim().is_empty() && !vl_cam::lines_from_file(&draft.gcode).is_empty();
+            if ui.add_enabled(ok, Button::new(trs(&format!("{} Speichern", icon::CHECK)))).clicked() {
+                save = true;
+            }
+        });
+    if save {
+        let (index, mut m) = app.macro_edit.take().unwrap_or_default();
+        m.name = m.name.trim().to_string();
+        match index.filter(|&i| i < app.settings.macros.len()) {
+            Some(i) => app.settings.macros[i] = m,
+            None => app.settings.macros.push(m),
+        }
+        app.settings.save();
+    } else if !open {
+        app.macro_edit = None;
+    }
+}
+
 fn console_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     let pal = theme::of(ui);
     ui.horizontal(|ui| {
@@ -910,6 +1002,7 @@ fn console_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
             app.console.clear();
         }
     });
+    macros_ui(app, ui);
     ui.add_space(4.0);
     let height = (ui.available_height() - 40.0).max(160.0);
     Frame::NONE.fill(pal.bg).corner_radius(CornerRadius::same(8)).inner_margin(Margin::same(8)).show(ui, |ui| {

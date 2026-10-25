@@ -32,6 +32,16 @@ pub struct AppSettings {
     pub snap_to_objects: bool,
     pub test_pattern: TestPattern,
     pub camera: crate::camera::CameraSettings,
+    /// Eigene Befehlsfolgen als Knöpfe in der Konsole.
+    pub macros: Vec<Macro>,
+}
+
+/// Benannte G-Code-Zeilen, die mit einem Klick gesendet werden (z. B. Luft an/aus, Parkposition).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Macro {
+    pub name: String,
+    pub gcode: String,
 }
 
 impl Default for AppSettings {
@@ -52,6 +62,7 @@ impl Default for AppSettings {
             snap_to_objects: true,
             test_pattern: TestPattern::default(),
             camera: Default::default(),
+            macros: Vec::new(),
         }
     }
 }
