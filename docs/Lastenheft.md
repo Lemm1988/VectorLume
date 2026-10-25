@@ -102,7 +102,7 @@ Die Anforderungen sind nach Bereichen gegliedert. Priorität: **M** = Muss (erst
 | LF-42 | Referenzfahrt, Entsperren, Verfahren (Jog) in Schritten | M |
 | LF-43 | Rahmen fahren (Umriss des Jobs abfahren) | M |
 | LF-44 | Job starten, pausieren, fortsetzen, stoppen; Fortschrittsanzeige | M |
-| LF-45 | Job-Ursprung: absolut, Benutzer-Ursprung, aktuelle Position; Ankerpunkt (9 Punkte) | M |
+| LF-45 | Job-Ursprung: absolut, Benutzer-Ursprung, aktuelle Position; Ankerpunkt (9 Punkte); Mittelpunkt eines Werkstücks mit dem Laser antasten | M |
 | LF-46 | Maschinenprofil (Arbeitsfläche, Nullpunkt-Ecke, S-Max, Geschwindigkeiten), Werte vom Gerät lesen | M |
 | LF-47 | Simulator ohne angeschlossenen Laser | M |
 | LF-48 | Weitere Steuerungen: Marlin, Smoothieware, Ruida, Trocen, TopWisdom, Galvo (EZCAD-Karten) | S |

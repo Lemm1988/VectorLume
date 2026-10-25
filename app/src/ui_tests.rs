@@ -139,6 +139,49 @@ fn node_tool_extends_open_end_to_wall() {
     assert_eq!(p.subpaths.len(), 1);
 }
 
+/// Mittelpunkt finden mit vorgetäuschter Kopfposition: drei Randpunkte übernehmen, Kreis ins Projekt.
+fn center_finder_flow(render: bool) {
+    let mut h = harness(render);
+    let at = |h: &mut Harness<'static, VectorLumeApp>, x: f64, y: f64| {
+        h.state_mut().machine.status = Some(vl_device::Status { wpos: Some([x, y, 0.0]), ..Default::default() });
+        h.run_ok();
+    };
+    {
+        let app = h.state_mut();
+        app.machine.connected = true;
+        app.open_center_finder();
+    }
+    for (x, y) in [(130.0, 80.0), (100.0, 110.0), (70.0, 80.0)] {
+        at(&mut h, x, y);
+        h.get_by_label(&format!("{} Punkt übernehmen", egui_phosphor::regular::PLUS)).click();
+        h.run_ok();
+    }
+    let (c, r) = h.state().center_finder.result().expect("Kreis");
+    assert!(c.distance(Point::new(100.0, 80.0)) < 1e-9 && (r.unwrap() - 30.0).abs() < 1e-9);
+    assert!(h.query_by_label_contains("Durchmesser: 60.00 mm").is_some());
+    if render {
+        save(&mut h, "dialog_mittelpunkt");
+    }
+    h.get_by_label_contains("Ins Projekt").click();
+    h.run_ok();
+    // Maschinen- in Dokumentkoordinaten (Nullpunkt der Maschine z. B. unten links: Y gespiegelt)
+    let mid = h.state().settings.profile.machine_to_doc(Point::new(100.0, 80.0));
+    let b = h.state().doc.bounds();
+    assert!(b.center().distance(mid) < 1e-6 && (b.width() - 60.0).abs() < 1e-6, "{b:?} {mid:?}");
+    h.state_mut().machine.connected = false;
+}
+
+#[test]
+fn center_finder_takes_points_and_inserts_circle() {
+    center_finder_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_center_finder() {
+    center_finder_flow(true);
+}
+
 #[test]
 #[ignore = "rendert Bilder zur Sichtprüfung"]
 fn render_dialogs() {

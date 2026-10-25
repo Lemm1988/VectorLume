@@ -244,6 +244,7 @@ pub struct VectorLumeApp {
     pub show_device_settings: bool,
     pub show_rotary: bool,
     pub print_cut: crate::print_cut::PrintCut,
+    pub center_finder: crate::center_finder::CenterFinder,
     pub library: crate::library::Library,
     /// Letzte Messung des Messwerkzeugs (Start, Ende).
     pub measure: Option<(Point, Point)>,
@@ -332,6 +333,7 @@ impl VectorLumeApp {
             show_device_settings: false,
             show_rotary: false,
             print_cut: Default::default(),
+            center_finder: Default::default(),
             library: Default::default(),
             measure: None,
             trim_hover: None,
@@ -1486,14 +1488,17 @@ impl VectorLumeApp {
 
     pub fn set_user_origin_here(&mut self) {
         match self.machine.head_position() {
-            Some(p) => {
-                self.settings.job.user_origin = p;
-                self.settings.job.start_from = StartFrom::UserOrigin;
-                self.settings.save();
-                self.toast(ToastKind::Success, trs(&format!("Benutzer-Ursprung gesetzt: X {:.2} Y {:.2}", p.x, p.y)));
-            }
+            Some(p) => self.set_user_origin(p),
             None => self.toast(ToastKind::Error, tr("Position unbekannt – ist der Laser verbunden?")),
         }
+    }
+
+    /// Setzt den Benutzer-Ursprung (Arbeitskoordinaten) und startet Jobs künftig dort.
+    pub fn set_user_origin(&mut self, p: Point) {
+        self.settings.job.user_origin = p;
+        self.settings.job.start_from = StartFrom::UserOrigin;
+        self.settings.save();
+        self.toast(ToastKind::Success, trs(&format!("Benutzer-Ursprung gesetzt: X {:.2} Y {:.2}", p.x, p.y)));
     }
 
     /// Wechselt das aktive Gerät (nur getrennt und ohne laufenden Job).

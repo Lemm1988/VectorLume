@@ -13,6 +13,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     crate::text_tool::show(app, ctx);
     crate::rotary_ui::show(app, ctx);
     crate::print_cut::show(app, ctx);
+    crate::center_finder::show(app, ctx);
     device_settings(app, ctx);
     about(app, ctx);
     notes(app, ctx);

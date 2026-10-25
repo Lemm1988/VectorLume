@@ -569,6 +569,9 @@ fn laser_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Laser zur Auswahl fahren"), "", app.can_jog_to_doc() && !app.doc.objects.is_empty()) {
         app.move_laser_to_selection();
     }
+    if menu_item(ui, tr("Mittelpunkt finden…"), "", true) {
+        app.open_center_finder();
+    }
     if menu_item(ui, tr("Job starten"), "", connected && !app.machine.job_running) {
         app.start_job();
     }

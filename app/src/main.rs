@@ -6,6 +6,7 @@ mod app;
 mod autosave;
 mod camera;
 mod canvas;
+mod center_finder;
 mod dialogs;
 mod history;
 mod i18n;

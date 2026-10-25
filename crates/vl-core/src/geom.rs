@@ -313,6 +313,40 @@ impl Affine {
     }
 }
 
+/// Ausgleichskreis durch die Punkte (algebraisch nach Kåsa, um den Schwerpunkt zentriert): bei genau drei Punkten
+/// der Umkreis. `None` bei weniger als drei Punkten oder wenn sie (fast) auf einer Geraden liegen.
+pub fn fit_circle(points: &[Point]) -> Option<(Point, f64)> {
+    if points.len() < 3 {
+        return None;
+    }
+    let n = points.len() as f64;
+    let m = points.iter().fold(Point::ZERO, |a, p| a + *p) * (1.0 / n);
+    // Normalgleichungen für x² + y² + D·x + E·y + F = 0 in Koordinaten relativ zum Schwerpunkt
+    let (mut sxx, mut sxy, mut syy, mut sxz, mut syz, mut sz) = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    for p in points {
+        let (x, y) = (p.x - m.x, p.y - m.y);
+        let z = x * x + y * y;
+        sxx += x * x;
+        sxy += x * y;
+        syy += y * y;
+        sxz += x * z;
+        syz += y * z;
+        sz += z;
+    }
+    // Wegen Σx = Σy = 0 entkoppelt F: F = −Σz / n; D, E aus dem 2×2-System
+    let det = sxx * syy - sxy * sxy;
+    let scale = (sxx + syy).max(1e-300);
+    if det.abs() <= 1e-12 * scale * scale {
+        return None;
+    }
+    let d = -(sxz * syy - syz * sxy) / det;
+    let e = -(sxx * syz - sxy * sxz) / det;
+    let f = -sz / n;
+    let center = Point::new(m.x - d / 2.0, m.y - e / 2.0);
+    let r2 = d * d / 4.0 + e * e / 4.0 - f;
+    (r2 > 0.0).then(|| (center, r2.sqrt()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -383,5 +417,27 @@ mod tests {
         let u = a.union(&b);
         assert_eq!(u.min, Point::new(-5.0, 0.0));
         assert_eq!(u.max, Point::new(10.0, 12.0));
+    }
+}
+
+#[cfg(test)]
+mod circle_tests {
+    use super::*;
+
+    #[test]
+    fn fit_circle_finds_center_and_radius() {
+        let c = Point::new(120.0, -35.0);
+        let on = |deg: f64, r: f64| c + Point::new(deg.to_radians().cos(), deg.to_radians().sin()) * r;
+        let (m, r) = fit_circle(&[on(10.0, 40.0), on(100.0, 40.0), on(250.0, 40.0)]).unwrap();
+        assert!(m.distance(c) < 1e-9 && (r - 40.0).abs() < 1e-9, "{m:?} {r}");
+        // fünf rundum verteilte Punkte mit ±0,05 mm Anfahrfehler
+        let pts: Vec<Point> = [(0.0, 0.05), (70.0, -0.04), (150.0, 0.03), (220.0, -0.05), (290.0, 0.02)]
+            .iter()
+            .map(|&(a, e)| on(a, 40.0 + e))
+            .collect();
+        let (m, r) = fit_circle(&pts).unwrap();
+        assert!(m.distance(c) < 0.05 && (r - 40.0).abs() < 0.05, "{m:?} {r}");
+        assert!(fit_circle(&[Point::ZERO, Point::new(1.0, 1.0), Point::new(2.0, 2.0)]).is_none(), "Gerade");
+        assert!(fit_circle(&[Point::ZERO, Point::new(1.0, 1.0)]).is_none());
     }
 }
