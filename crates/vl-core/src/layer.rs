@@ -88,10 +88,13 @@ pub enum DitherMode {
     /// 3D-Schichten: Durchgang k von n graviert nur, was dunkler als k/n ist – dunkle Stellen werden öfter
     /// gelasert und damit tiefer (Reliefs, Stempel). Durchgänge = Anzahl der Tiefenstufen.
     Slices3D,
+    /// Bleistiftskizze: Kanten und feine Strukturen dunkel, Flächen hell mit leichter Schattierung, danach
+    /// Fehlerverteilung (Jarvis). Strichbreite einstellbar.
+    Sketch,
 }
 
 impl DitherMode {
-    pub const ALL: [DitherMode; 13] = [
+    pub const ALL: [DitherMode; 14] = [
         DitherMode::Threshold,
         DitherMode::FloydSteinberg,
         DitherMode::Jarvis,
@@ -100,6 +103,7 @@ impl DitherMode {
         DitherMode::Burkes,
         DitherMode::Sierra,
         DitherMode::Ordered,
+        DitherMode::Sketch,
         DitherMode::Halftone,
         DitherMode::LineScreen,
         DitherMode::Grayscale,
@@ -122,6 +126,7 @@ impl DitherMode {
             DitherMode::LineScreen => "Linienraster",
             DitherMode::PassThrough => "Durchreichen (fertiges S/W-Bild)",
             DitherMode::Slices3D => "3D-Schichten (Tiefe über Durchgänge)",
+            DitherMode::Sketch => "Skizze (Bleistift)",
         }
     }
 
@@ -182,6 +187,8 @@ pub struct CutSettings {
     pub screen_cell: f64,
     /// Rasterwinkel in Grad für Halbton und Linienraster.
     pub screen_angle: f64,
+    /// Skizze: Breite der Striche in mm (Radius der Umgebung, mit der jeder Punkt verglichen wird).
+    pub sketch_width: f64,
     /// Füllen: alle Formen gemeinsam, je Gruppe oder je Form.
     pub fill_grouping: FillGrouping,
     /// Bild: Breite des Laserpunkts (mm); jede gebrannte Strecke wird an beiden Enden um die Hälfte gekürzt.
@@ -268,6 +275,7 @@ impl CutSettings {
             perf_gap: 1.0,
             screen_cell: 0.8,
             screen_angle: 45.0,
+            sketch_width: 0.5,
             fill_grouping: FillGrouping::All,
             dot_width: 0.0,
             ramp_length: 0.0,

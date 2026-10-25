@@ -75,6 +75,9 @@ pub fn engrave_image(img: &ImageObject, transform: &Affine, cs: &CutSettings) ->
         let lines = cs.dither == DitherMode::LineScreen;
         let pitch = (sampled.dx, sampled.dy);
         screen(&gray, cols, rows, pitch, cs.screen_cell, cs.screen_angle, lines)
+    } else if cs.dither == DitherMode::Sketch {
+        let sigma = cs.sketch_width.max(0.01) / sampled.dx.min(sampled.dy);
+        diffuse(&sketch(&gray, cols, rows, sigma), cols, rows, &JARVIS)
     } else {
         dither_gray(&gray, cols, rows, cs.dither)
     };
@@ -295,6 +298,63 @@ pub fn dither_gray(gray: &[f32], cols: usize, rows: usize, mode: DitherMode) -> 
         DitherMode::Atkinson => diffuse(gray, cols, rows, &ATKINSON),
         DitherMode::Burkes => diffuse(gray, cols, rows, &BURKES),
         DitherMode::Sierra => diffuse(gray, cols, rows, &SIERRA),
+        // ohne Ebenenwerte: Striche von 3 Zellen
+        DitherMode::Sketch => diffuse(&sketch(gray, cols, rows, 3.0), cols, rows, &JARVIS),
+    }
+}
+
+/// Anteil der Schattierung nach dem Grauwert in der Skizze (0 = nur Kanten).
+const SKETCH_SHADE: f32 = 0.5;
+
+/// Bleistiftskizze aus Grauwerten (1 = weiß): Jeder Punkt wird mit seiner weichgezeichneten Umgebung (`sigma`
+/// Zellen) verglichen („Abwedeln“). Gleichmäßige Flächen werden hell, Kanten auf ihrer dunklen Seite und feine
+/// Strukturen dunkel; dazu eine leichte Schattierung dunkler Bereiche nach dem ursprünglichen Grauwert. Ergebnis
+/// wieder Grauwerte.
+pub fn sketch(gray: &[f32], cols: usize, rows: usize, sigma: f64) -> Vec<f32> {
+    const EPS: f32 = 0.05;
+    let soft = blur(gray, cols, rows, sigma);
+    gray.iter()
+        .zip(&soft)
+        .map(|(&g, &s)| {
+            let edge = ((g + EPS) / (s + EPS)).min(1.0);
+            // quadratisch: helle Flächen bleiben fast frei, dunkle bekommen Ton
+            let dark = 1.0 - g;
+            (edge * edge * (1.0 - SKETCH_SHADE * dark * dark)).clamp(0.0, 1.0)
+        })
+        .collect()
+}
+
+/// Weichzeichnen mit drei Kastenfiltern (nähert eine Gaußglocke mit `sigma` Zellen an, Aufwand unabhängig von der
+/// Breite); an den Rändern wird der Randwert fortgesetzt.
+fn blur(data: &[f32], cols: usize, rows: usize, sigma: f64) -> Vec<f32> {
+    // drei Kästen der Breite w: sigma² = 3 · (w² − 1) / 12
+    let r = (((4.0 * sigma * sigma + 1.0).sqrt() - 1.0) / 2.0).round().max(1.0) as usize;
+    let mut a = data.to_vec();
+    let mut tmp = vec![0.0f32; a.len()];
+    for _ in 0..3 {
+        box_pass(&a, &mut tmp, cols, rows, r, true);
+        box_pass(&tmp, &mut a, cols, rows, r, false);
+    }
+    a
+}
+
+/// Gleitender Mittelwert über 2r+1 Zellen je Zeile (`horizontal`) bzw. Spalte.
+fn box_pass(src: &[f32], dst: &mut [f32], cols: usize, rows: usize, r: usize, horizontal: bool) {
+    let (n, lines, stride, step) = if horizontal { (cols, rows, cols, 1) } else { (rows, cols, 1, cols) };
+    if n == 0 {
+        return;
+    }
+    let w = (2 * r + 1) as f64;
+    let last = n as isize - 1;
+    for l in 0..lines {
+        let base = l * stride;
+        let at = |i: isize| src[base + i.clamp(0, last) as usize * step] as f64;
+        let r = r as isize;
+        let mut sum: f64 = (-r..=r).map(at).sum();
+        for i in 0..n as isize {
+            dst[base + i as usize * step] = (sum / w) as f32;
+            sum += at(i + r + 1) - at(i - r);
+        }
     }
 }
 
@@ -439,6 +499,21 @@ mod tests {
     }
 
     #[test]
+    fn sketch_darkens_edges_not_areas() {
+        // links dunkel, rechts hell: Strich an der Kante auf der dunklen Seite, Flächen heller als das Original
+        let (cols, rows) = (60, 10);
+        let gray: Vec<f32> = (0..cols * rows).map(|i| if i % cols < 30 { 0.3 } else { 0.9 }).collect();
+        let s = sketch(&gray, cols, rows, 3.0);
+        let at = |c: usize| s[5 * cols + c];
+        assert!(at(29) < at(5) - 0.2, "Kante {} Fläche {}", at(29), at(5));
+        assert!(at(5) > 0.3 && at(55) > 0.9);
+        assert!(at(31) > 0.9, "helle Seite bleibt hell: {}", at(31));
+        // Weichzeichner erhält den Mittelwert und glättet
+        let b = blur(&gray, cols, rows, 3.0);
+        assert!((b[5 * cols + 5] - 0.3).abs() < 1e-5 && (b[5 * cols + 29] - 0.6).abs() < 0.1);
+    }
+
+    #[test]
     fn dithering_preserves_mean() {
         let (cols, rows) = (64, 64);
         let gray = vec![0.3f32; cols * rows];
@@ -449,6 +524,8 @@ mod tests {
                 DitherMode::Threshold | DitherMode::PassThrough => assert_eq!(mean, 1.0),
                 // Atkinson verteilt nur 6/8 des Fehlers und darf daher abweichen.
                 DitherMode::Atkinson => assert!((mean - 0.7).abs() < 0.15, "{mode:?}: {mean}"),
+                // gleichmäßige Fläche: keine Kanten, nur die leichte Schattierung 0,5 · 0,7²
+                DitherMode::Sketch => assert!((mean - 0.245).abs() < 0.03, "{mode:?}: {mean}"),
                 _ => assert!((mean - 0.7).abs() < 0.03, "{mode:?}: {mean}"),
             }
         }

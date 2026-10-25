@@ -497,6 +497,13 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
                 );
                 ui.end_row();
             }
+            if s.dither == DitherMode::Sketch {
+                ui.label(tr("Strichbreite"));
+                ui.add(DragValue::new(&mut s.sketch_width).speed(0.01).range(0.05..=10.0).mm()).on_hover_text(tr(
+                    "Wie breit die Striche an Kanten werden: Jeder Punkt wird mit seiner Umgebung dieser Größe verglichen. Kleine Werte zeigen feine Details, große kräftige Konturen.",
+                ));
+                ui.end_row();
+            }
             if s.dither.is_screen() {
                 ui.label(tr("Rasterweite"));
                 ui.horizontal(|ui| {

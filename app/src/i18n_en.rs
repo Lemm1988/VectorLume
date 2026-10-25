@@ -1220,6 +1220,8 @@ pub static EN: &[(&str, &str)] = &[
     ("Überlappende Linien entfernen", "Remove overlapping lines"),
     ("Gemeinsame Kanten aneinanderliegender Teile und doppelte Linien einer Linienebene nur einmal schneiden. Das zuerst gezeichnete Stück bleibt, die übrigen Konturen werden an diesen Stellen geöffnet.", "Cut shared edges of adjacent parts and duplicate lines of a line layer only once. The piece drawn first stays; the other outlines are opened at those spots."),
     ("Abstand, bis zu dem zwei Linien als deckungsgleich gelten", "Distance up to which two lines count as coincident"),
+    ("Wie breit die Striche an Kanten werden: Jeder Punkt wird mit seiner Umgebung dieser Größe verglichen. Kleine Werte zeigen feine Details, große kräftige Konturen.", "How wide the strokes at edges become: each point is compared with its surroundings of this size. Small values show fine detail, large values bold outlines."),
+    ("Skizze (Bleistift)", "Sketch (pencil)"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

@@ -304,6 +304,18 @@ fn tabs_flow(render: bool) {
     h.state_mut().doc.layers[0].settings.tab_width = 2.0;
     h.run_ok();
     let click = |h: &mut Harness<'static, VectorLumeApp>, p: Point| {
+        // erst klicken, wenn Hintergrundberechnungen fertig sind und die Ansicht stillsteht
+        let probe = |h: &Harness<'static, VectorLumeApp>| {
+            h.state().view.tf.map(|t| (t.to_screen(Point::ZERO), t.to_screen(Point::new(100.0, 100.0))))
+        };
+        for _ in 0..200 {
+            let before = probe(h);
+            h.run_ok();
+            if h.state().jobs.busy == 0 && probe(h) == before {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
         let pos = h.state().view.tf.expect("Ansicht").to_screen(p);
         h.hover_at(pos);
         h.run_ok();
@@ -532,6 +544,60 @@ fn render_dialogs() {
     h.get_by_label_contains("Andocken").hover();
     h.run_ok();
     save(&mut h, "menue_andocken");
+}
+
+/// Bildmodus Skizze: synthetisches „Foto“ (beleuchtete Kugel, Rahmen, Streifen) in der Vorschau.
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_sketch() {
+    let mut h = harness(true);
+    let (w, hgt) = (400u32, 300u32);
+    let pixels = (0..w * hgt)
+        .map(|i| {
+            let (x, y) = ((i % w) as f64, (i / w) as f64);
+            let (dx, dy) = ((x - 150.0) / 90.0, (y - 150.0) / 90.0);
+            let r2 = dx * dx + dy * dy;
+            let v = if r2 < 1.0 {
+                // Kugel, Licht von oben links
+                let z = (1.0 - r2).sqrt();
+                0.15 + 0.8 * ((-dx - dy + z) / 3f64.sqrt()).max(0.0)
+            } else if x > 280.0 && ((y / 20.0) as i32) % 2 == 0 {
+                0.25
+            } else if !(15.0..=385.0).contains(&x) || !(15.0..=285.0).contains(&y) {
+                0.4
+            } else {
+                0.85
+            };
+            (v.clamp(0.0, 1.0) * 255.0) as u8
+        })
+        .collect();
+    let image = vl_core::ImageObject {
+        image: std::sync::Arc::new(vl_core::RasterImage::new(w, hgt, pixels)),
+        width_mm: 80.0,
+        height_mm: 60.0,
+        adjust: Default::default(),
+        clip: vec![],
+    };
+    let id = h.state_mut().doc.add_image("Foto", 0, image, Point::new(40.0, 40.0));
+    let layer = h.state().doc.get(id).unwrap().layer;
+    let s = &mut h.state_mut().doc.layers[layer].settings;
+    s.mode = vl_core::LayerMode::Image;
+    s.dither = vl_core::DitherMode::Sketch;
+    s.interval = 0.1;
+    h.state_mut().selection = vec![id];
+    h.state_mut().view.request_fit(Some(vl_core::Rect::new(Point::new(35.0, 35.0), Point::new(125.0, 105.0))));
+    h.run_ok();
+    h.state_mut().preview.active = true;
+    for _ in 0..100 {
+        h.step();
+        if h.state().preview.job.is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    h.run_ok();
+    assert!(h.state().preview.job.is_some(), "{:?}", h.state().preview.error);
+    save(&mut h, "bildmodus_skizze");
 }
 
 #[test]
