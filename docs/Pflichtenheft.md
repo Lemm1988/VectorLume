@@ -252,6 +252,9 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 - **Leistung:** Ein abschaltbarer Messtest (`perf_many_shapes`, `--release -- --ignored --nocapture`) zeichnet 5000 Kreise:
   etwa 3 ms je Bild, alle ausgewählt etwa 8 ms (vorher 36 ms). Umrandungen werden exakt aus den Kurven berechnet
   (Endpunkte und Extremstellen, ohne Abflachen), Auswahlprüfungen laufen über Hash-Mengen statt Suche je Objekt.
+  `perf_large_photo` (vl-cam) erzeugt den G-Code für ein 4000×4000-Pixel-Foto auf 400×400 mm mit 0,1 mm Zeilenabstand:
+  Jarvis-Raster 9,5 Mio. Zeilen in etwa 6 s (vorher 16 s), Graustufen 0,5 Mio. Zeilen in 1,5 s. Die G-Code-Ausgabe
+  schreibt Zahlen direkt in die Zeile, ohne Zwischen-Strings.
 - **Statische Prüfung:** `cargo clippy --workspace --all-targets` ohne Warnungen, `cargo fmt`.
 - **Hardware-Test (durch den Auftraggeber):** zuerst Rahmen ohne Leistung, dann ein kleiner Testjob mit 5–10 % Leistung.
 

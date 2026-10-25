@@ -766,6 +766,34 @@ mod tests {
         assert!(max_x(&by_group.blocks[2]) > 50.0 && max_x(&by_group.blocks[3]) > 50.0);
     }
 
+    /// Zeitmessung: Foto 400 × 400 mm mit 0,1 mm Zeilenabstand (nur von Hand, `--release -- --ignored --nocapture`).
+    #[test]
+    #[ignore = "Zeitmessung"]
+    fn perf_large_photo() {
+        let n = 4000u32;
+        let pixels: Vec<u8> = (0..n * n).map(|i| ((i % n + i / n) / 32 % 256) as u8).collect();
+        for dither in [DitherMode::Jarvis, DitherMode::Grayscale] {
+            let mut doc = Document::new();
+            let img = ImageObject {
+                image: Arc::new(RasterImage::new(n, n, pixels.clone())),
+                width_mm: 400.0,
+                height_mm: 400.0,
+                adjust: ImageAdjust::default(),
+                clip: Vec::new(),
+            };
+            doc.add_image("Foto", 0, img, Point::ZERO);
+            let mut cs = vl_core::CutSettings::default_for(LayerMode::Image);
+            cs.dither = dither;
+            cs.interval = 0.1;
+            doc.layers[0].settings = cs;
+            let profile = MachineProfile { bed_width: 410.0, bed_height: 410.0, ..Default::default() };
+            let t = std::time::Instant::now();
+            let job = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
+            let lines = job.gcode.len();
+            println!("{dither:?}: {:.2} s, {lines} Zeilen G-Code", t.elapsed().as_secs_f64());
+        }
+    }
+
     #[test]
     fn slices_engrave_darker_areas_more_often() {
         let mut doc = Document::new();

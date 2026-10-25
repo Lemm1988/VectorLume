@@ -43,15 +43,30 @@ fn fmt_um(v: i64) -> String {
 
 /// Ganzzahl mit `decimals` gedachten Nachkommastellen, ohne überflüssige Nullen.
 fn fmt_fixed(v: i64, decimals: u32) -> String {
-    let sign = if v < 0 { "-" } else { "" };
+    let mut s = String::new();
+    push_fixed(&mut s, v, decimals);
+    s
+}
+
+/// Wie [`fmt_fixed`], hängt aber an `out` an (ohne Zwischen-Strings – bei Millionen Zeilen spürbar).
+fn push_fixed(out: &mut String, v: i64, decimals: u32) {
+    use std::fmt::Write;
+    if v < 0 {
+        out.push('-');
+    }
     let a = v.unsigned_abs();
     let unit = 10u64.pow(decimals);
-    let (int, frac) = (a / unit, a % unit);
+    let (int, mut frac) = (a / unit, a % unit);
+    let _ = write!(out, "{int}");
     if frac == 0 {
-        return format!("{sign}{int}");
+        return;
     }
-    let frac = format!("{frac:0w$}", w = decimals as usize);
-    format!("{sign}{int}.{}", frac.trim_end_matches('0'))
+    let mut width = decimals as usize;
+    while frac % 10 == 0 {
+        frac /= 10;
+        width -= 1;
+    }
+    let _ = write!(out, ".{frac:0width$}");
 }
 
 fn fmt_num(v: f64) -> String {
@@ -71,12 +86,12 @@ struct Emitter<'a> {
 }
 
 impl Emitter<'_> {
-    fn axes(&mut self, p: Point) -> Option<String> {
+    /// Hängt die Achsenwörter für `p` an `line` an; `false`, wenn sich die Position nicht ändert.
+    fn push_axes(&mut self, line: &mut String, p: Point) -> bool {
         let target = (to_um(p.x), to_um(p.y));
         if self.pos == Some(target) {
-            return None;
+            return false;
         }
-        let mut words = String::new();
         let (dx, dy) = match self.pos {
             Some(q) => (target.0 - q.0, target.1 - q.1),
             None => (1, 1),
@@ -86,23 +101,26 @@ impl Emitter<'_> {
             CoordMode::Relative => (dx, dy),
         };
         if dx != 0 {
-            words.push_str(&format!("X{}", fmt_um(vx)));
+            line.push('X');
+            push_fixed(line, vx, 3);
         }
         if dy != 0 {
-            if !words.is_empty() {
-                words.push(' ');
+            if dx != 0 {
+                line.push(' ');
             }
-            words.push(if self.opts.rotary_a { 'A' } else { 'Y' });
-            words.push_str(&fmt_um(vy));
+            line.push(if self.opts.rotary_a { 'A' } else { 'Y' });
+            push_fixed(line, vy, 3);
         }
         self.pos = Some(target);
-        Some(words)
+        true
     }
 
     fn rapid(&mut self, p: Point) {
-        if let Some(axes) = self.axes(p) {
+        let mut line = String::with_capacity(24);
+        line.push_str("G0 ");
+        if self.push_axes(&mut line, p) {
             self.motion = Some(0);
-            self.out.push(format!("G0 {axes}"));
+            self.out.push(line);
         }
     }
 
@@ -122,36 +140,38 @@ impl Emitter<'_> {
     }
 
     fn feed_move(&mut self, p: Point, feed: f64, power: f32) {
-        let Some(axes) = self.axes(p) else { return };
-        let mut line = String::new();
+        use std::fmt::Write;
+        let mut line = String::with_capacity(32);
         if self.motion != Some(1) {
             line.push_str("G1 ");
-            self.motion = Some(1);
         }
-        line.push_str(&axes);
+        if !self.push_axes(&mut line, p) {
+            return;
+        }
+        self.motion = Some(1);
         let f = feed.round() as i64;
         if self.feed != Some(f) {
-            line.push_str(&format!(" F{f}"));
+            let _ = write!(line, " F{f}");
             self.feed = Some(f);
         }
-        let (s, text) = self.s_value(power as f64);
+        let s = self.s_key(power as f64);
         if self.s != Some(s) {
-            line.push_str(&format!(" S{text}"));
+            line.push_str(" S");
+            if self.opts.firmware == Firmware::Smoothieware {
+                push_fixed(&mut line, s, 4);
+            } else {
+                let _ = write!(line, "{s}");
+            }
             self.s = Some(s);
         }
         self.out.push(line);
     }
 
-    /// S als Vergleichswert und Text. Smoothieware erwartet einen Anteil 0…1, die anderen ganze Zahlen.
-    fn s_value(&self, power: f64) -> (i64, String) {
+    /// S als Vergleichswert: Smoothieware erwartet einen Anteil 0…1 (hier in Zehntausendstel), die anderen ganze
+    /// Zahlen bis S-Max.
+    fn s_key(&self, power: f64) -> i64 {
         let v = power * self.opts.s_max;
-        if self.opts.firmware == Firmware::Smoothieware {
-            let k = (v * 10_000.0).round() as i64;
-            (k, fmt_fixed(k, 4))
-        } else {
-            let k = v.round() as i64;
-            (k, k.to_string())
-        }
+        if self.opts.firmware == Firmware::Smoothieware { (v * 10_000.0).round() as i64 } else { v.round() as i64 }
     }
 }
 
@@ -180,7 +200,9 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
         CoordMode::Absolute => None,
         CoordMode::Relative => Some((0, 0)),
     };
-    let mut e = Emitter { out: Vec::new(), opts, pos: start, motion: None, feed: None, s: None, z: 0 };
+    let ops: usize = tp.blocks.iter().map(|b| b.ops.len()).sum();
+    let out = Vec::with_capacity(ops + 2 * tp.blocks.len() + opts.comments.len() + 16);
+    let mut e = Emitter { out, opts, pos: start, motion: None, feed: None, s: None, z: 0 };
     for c in &opts.comments {
         e.out.push(ascii_comment(c));
     }
