@@ -157,7 +157,6 @@ pub static EN: &[(&str, &str)] = &[
     ("Über VectorLume", "About VectorLume"),
     ("Software zum Gestalten und Lasern für Diodenlaser mit GRBL, Marlin oder Smoothieware. Eigenständig in Rust entwickelt.", "Design and laser software for diode lasers with GRBL, Marlin or Smoothieware. Independently developed in Rust."),
     ("Tastenkürzel", "Keyboard shortcuts"),
-    ("Auswahl, Rechteck, Ellipse, Linie, Text", "Select, rectangle, ellipse, line, text"),
     ("Mausrad", "Mouse wheel"),
     ("Zoomen", "Zoom"),
     ("Mittlere Maustaste / Leertaste + Ziehen", "Middle mouse button / Space + drag"),
@@ -1111,6 +1110,9 @@ pub static EN: &[(&str, &str)] = &[
     ("Als PDF exportieren…", "Export as PDF…"),
     ("3D-Schichten (Tiefe über Durchgänge)", "3D slices (depth via passes)"),
     ("{} Tiefenstufen = Durchgänge; jeder Durchgang graviert nur, was dunkler als seine Stufe ist. Mit Z-Schritt je Durchgang bleibt der Fokus in der Tiefe.", "{} depth levels = passes; each pass only engraves what is darker than its level. With a Z step per pass the focus follows the depth."),
+    ("Auswahl, Rechteck, Ellipse, Linie, Text, Code", "Select, rectangle, ellipse, line, text, code"),
+    ("Knoten bearbeiten, Messen", "Edit nodes, measure"),
+    ("1 Teil ausgewählt", "1 part selected"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
@@ -1138,4 +1140,5 @@ pub static SOURCES: &[(&str, &str)] = &[
     ("trace_ui.rs", include_str!("trace_ui.rs")),
     ("ui_main.rs", include_str!("ui_main.rs")),
     ("ui_side.rs", include_str!("ui_side.rs")),
+    ("ui_tests.rs", include_str!("ui_tests.rs")),
 ];

@@ -222,7 +222,7 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
 
 ## 8. Qualitätssicherung
 
-- **Automatische Tests (171):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
+- **Automatische Tests (175):** Geometrie, Pfade, Projektdatei, Dithering, Bildabtastung (auch gedreht), Schraffur mit
   Löchern und Winkeln, Rasterläufe, Reihenfolge/innen-vor-außen, Zeitschätzung, G-Code (absolut/relativ, exakte
   Rückkehr), Bereichsprüfung, GRBL-Antworten, Streaming über den Simulator inkl. Pufferüberlauf-Erkennung und Not-Stopp,
   SVG/DXF/PDF/HPGL/Bild/Schrift-Import, DXF-Export, Rückgängig, Boolesche Operationen/Versatz/Laschen, Knoten,
@@ -232,6 +232,10 @@ Y im Dokument ist die abgewickelte Oberfläche. Ausgabe: `y' = Anker + (y − An
   Ghostscript, sonst übersprungen), Homographie und Entzerrung des Kamerabildes, Scan-Versatz (Interpolation, Verschiebung je Fahrtrichtung), Strichcodes (Umrisse, Prüfziffern, Zeichensatzwahl, QR-Code wird mit einem unabhängigen Decoder (`rqrr`, nur Test) wieder gelesen, auch invertiert), Übersetzung (Vorlagen, verschachtelte
   Meldungen, Vollständigkeit der englischen Tabelle). Zusätzlich
   prüft ein abschaltbarer Test echte LightBurn-Projekte aus einem Ordner (`VL_LBRN_DIR`).
+- **Oberflächentests ohne Bildschirm (`egui_kittest`, nur Test):** die App läuft unsichtbar mit eigenem, geleertem
+  Einstellungsordner; Knöpfe werden über ihre Beschriftung bedient (Ecken abrunden, Menü *Anordnen*, Andocken und
+  Zerschneiden, Bildanpassung). `cargo test -p vectorlume -- --ignored` rendert zusätzlich alle Dialoge, Menüs und
+  Werkzeugleisten nach `target/ui-bilder` zur Sichtprüfung – auch bei gesperrtem Bildschirm.
 - **End-to-End:** Ein Job mit Schnitt, Kreuzschraffur und Graustufenbild sowie die Rahmenfahrt werden zeilenweise durch
   den Simulator gestreamt – jede Zeile muss mit `ok` bestätigt werden.
 - **Oberfläche:** manuell bzw. per automatisierten Klicks geprüft (Zeichnen, Drehen, Text, Import, Vorschau, Job im

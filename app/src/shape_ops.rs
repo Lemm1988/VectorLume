@@ -1073,7 +1073,7 @@ fn nest_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
                     ui.spinner();
                     ui.label(RichText::new(tr("rechnet…")).small().color(pal.text_weak));
                 } else {
-                    ui.label(RichText::new(trs(&format!("{units} Teile ausgewählt"))).small().color(pal.text_weak));
+                    ui.label(RichText::new(if units == 1 { tr("1 Teil ausgewählt").to_string() } else { trs(&format!("{units} Teile ausgewählt")) }).small().color(pal.text_weak));
                 }
             });
         });

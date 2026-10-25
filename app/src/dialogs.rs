@@ -288,6 +288,8 @@ fn notes(app: &mut VectorLumeApp, ctx: &egui::Context) {
     egui::Window::new(trs(&format!("{} Projektnotizen", icon::NOTE)))
         .open(&mut open)
         .collapsible(false)
+        .pivot(Align2::CENTER_CENTER)
+        .default_pos(ctx.content_rect().center())
         .default_width(380.0)
         .show(ctx, |ui| {
             let pal = theme::of(ui);
@@ -314,7 +316,14 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
         return;
     }
     let mut open = true;
-    egui::Window::new(tr("Über VectorLume")).open(&mut open).collapsible(false).resizable(false).default_width(420.0).show(
+    egui::Window::new(tr("Über VectorLume"))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .default_width(420.0)
+        .pivot(Align2::CENTER_CENTER)
+        .default_pos(ctx.content_rect().center())
+        .show(
         ctx,
         |ui| {
             let pal = theme::of(ui);
@@ -328,7 +337,8 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
             ui.label(RichText::new(tr("Tastenkürzel")).strong());
             egui::Grid::new("keys").num_columns(2).show(ui, |ui| {
                 for (k, d) in [
-                    ("V / R / E / L / T", tr("Auswahl, Rechteck, Ellipse, Linie, Text")),
+                    ("V / R / E / L / T / Q", tr("Auswahl, Rechteck, Ellipse, Linie, Text, Code")),
+                    ("N / M", tr("Knoten bearbeiten, Messen")),
                     (tr("Mausrad"), tr("Zoomen")),
                     (tr("Mittlere Maustaste / Leertaste + Ziehen"), tr("Ansicht verschieben")),
                     (tr("Umschalt beim Ziehen"), tr("Seitenverhältnis frei / 15°-Schritte / Achse fixieren")),

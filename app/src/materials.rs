@@ -3,7 +3,7 @@
 use crate::app::{ToastKind, VectorLumeApp};
 use crate::i18n::{tr, trs};
 use crate::theme;
-use egui::{Button, Color32, CornerRadius, DragValue, RichText, Sense, Stroke, Ui, pos2, vec2};
+use egui::{Align2, Button, Color32, CornerRadius, DragValue, RichText, Sense, Stroke, Ui, pos2, vec2};
 use egui_phosphor::regular as icon;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -169,6 +169,8 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
     egui::Window::new(trs(&format!("{} Materialtest", icon::GRID_FOUR)))
         .open(&mut open)
         .collapsible(false)
+        .pivot(Align2::CENTER_CENTER)
+        .default_pos(ctx.content_rect().center())
         .resizable(false)
         .default_width(860.0)
         .show(ctx, |ui| {
@@ -541,6 +543,8 @@ fn library_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
     egui::Window::new(trs(&format!("{} Materialbibliothek", icon::BOOKS)))
         .open(&mut open)
         .collapsible(false)
+        .pivot(Align2::CENTER_CENTER)
+        .default_pos(ctx.content_rect().center())
         .resizable(true)
         .default_width(560.0)
         .default_height(520.0)
