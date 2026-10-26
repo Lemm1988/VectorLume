@@ -226,6 +226,8 @@ pub struct VectorLumeApp {
     pub current_layer: usize,
     /// Gewählter Reiter der Ebeneneinstellungen: 0 = Hauptbearbeitung, ab 1 Unterebenen.
     pub sub_tab: usize,
+    /// Fenster mit den Einstellungen der aktuellen Ebene (Rechts- oder Doppelklick auf eine Ebene).
+    pub layer_window: bool,
     pub tool: Tool,
     pub tool_options: ToolOptions,
     pub view: View,
@@ -346,6 +348,7 @@ impl VectorLumeApp {
             selection: Vec::new(),
             current_layer: 0,
             sub_tab: 0,
+            layer_window: false,
             tool: Tool::Select,
             tool_options: ToolOptions::default(),
             view: View::default(),
@@ -1082,6 +1085,10 @@ impl VectorLumeApp {
         if self.selection.is_empty() {
             return;
         }
+        if !self.doc.objects_in(&self.selection).any(|o| o.group.is_some()) {
+            self.toast(ToastKind::Info, tr("Die Auswahl enthält keine Gruppe."));
+            return;
+        }
         self.checkpoint();
         self.doc.ungroup(&self.selection);
         self.mark_changed();
@@ -1639,6 +1646,28 @@ impl VectorLumeApp {
     pub fn jog_to_doc(&mut self, p: Point) {
         let m = self.settings.profile.doc_to_machine(p);
         self.send_jog(false, &format!("X{} Y{}", vl_cam::gcode::fmt_mm(m.x), vl_cam::gcode::fmt_mm(m.y)));
+    }
+
+    /// Wo der Job tatsächlich gelasert wird, wenn er nicht an seiner Stelle auf der Arbeitsfläche startet
+    /// („Benutzer-Ursprung“, „Aktuelle Position“ bei bekannter Kopfposition) – in Dokumentkoordinaten.
+    pub fn output_footprint(&self) -> Option<Rect> {
+        let js = &self.settings.job;
+        let target = match js.start_from {
+            StartFrom::Absolute => return None,
+            StartFrom::UserOrigin => js.user_origin,
+            StartFrom::CurrentPosition => self.machine.head_position()?,
+        };
+        if self.settings.profile.rotary.active_scale().is_some() {
+            return None;
+        }
+        let b = vl_cam::output_objects(&self.doc, &self.selection, js)
+            .iter()
+            .fold(Rect::EMPTY, |r, o| r.union(&o.bounds()));
+        if b.is_empty() {
+            return None;
+        }
+        let shift = self.settings.profile.machine_to_doc(target) - js.anchor.point_in(&b);
+        Some(Rect::new(b.min + shift, b.max + shift))
     }
 
     /// Laser kann zu Dokumentpunkten fahren: verbunden, kein Job, absolute Koordinaten, keine Drehachse.

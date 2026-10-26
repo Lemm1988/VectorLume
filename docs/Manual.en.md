@@ -59,7 +59,7 @@ Every shape belongs to one of 30 color layers. Click a color in the color bar at
 - For *Fill*: line interval, angle, crosshatch, overscan and angle step per pass.
 - **Sub-layers**: process the same shapes several times, e.g. fill first, then cut the outline.
 
-Layers can be hidden, locked and reordered. Individual objects can get their own power as a percentage of the layer power.
+Clicking a layer shows its settings below the layer list; a **right-click or double-click** opens them in a separate window. Layers can be hidden, locked and reordered. Individual objects can get their own power as a percentage of the layer power.
 
 ## Engraving images
 
@@ -126,7 +126,7 @@ Under *Arrange → Generators*:
 
 The **Origin** (9 anchor points) sets which corner of the job lies on that point. Move the head by hand in the **Move** tab. **Move laser to selection** and **Find center** help with aligning to existing workpieces.
 
-The job settings also offer: optimize cut order, cut inner shapes before outer, start at corners and remove overlapping lines (shared edges are cut only once). To set the order yourself, choose *Arrange → Cut order by clicking…* and click the shapes one after another; the numbers show the order within each layer. Enter applies it and switches optimization off, Esc cancels.
+The job settings also offer: optimize cut order, cut inner shapes before outer, start at corners and remove overlapping lines (shared edges are cut only once). If the job does not start from *Absolute coordinates* but from the *User origin* or the *Current position*, a dashed green frame on the work area shows where it will actually be lasered. For templates with fixed positions (e.g. a jig for pens) always use *Absolute coordinates*. To set the order yourself, choose *Arrange → Cut order by clicking…* and click the shapes one after another; the numbers show the order within each layer. Enter applies it and switches optimization off, Esc cancels.
 
 Send finished G-code files from other programs with *Laser → Send G-code file…*; save your own jobs with *File → Save G-code…*.
 

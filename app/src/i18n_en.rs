@@ -1534,6 +1534,11 @@ pub static EN: &[(&str, &str)] = &[
     ("Die Seite ist leer.", "The page is empty."),
     ("Leeres Bild.", "Empty image."),
     ("Die Steuerung sendet unverständliche Zeichen – stimmt die Baudrate in den Maschineneinstellungen (GRBL-Laser meist 115200)?", "The controller is sending unreadable characters – is the baud rate in the machine settings correct (GRBL lasers usually 115200)?"),
+    ("Die Auswahl enthält keine Gruppe.", "The selection contains no group."),
+    ("Wird hier gelasert", "Will be lasered here"),
+    ("Rechtsklick oder Doppelklick: Einstellungen in eigenem Fenster", "Right-click or double-click: settings in a separate window"),
+    ("Der Job wird mit dem Ankerpunkt dorthin verschoben – der grün gestrichelte Rahmen auf der Arbeitsfläche zeigt, wo gelasert wird. Für Vorlagen und feste Positionen „Absolute Koordinaten“ wählen.", "The job is moved there by its anchor point – the dashed green frame on the work area shows where it will be lasered. For templates and fixed positions choose \"Absolute coordinates\"."),
+    ("Ebene „{}“", "Layer \"{}\""),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

@@ -298,6 +298,80 @@ fn render_centerline() {
 }
 
 /// Laschen von Hand: Klick auf die Kontur setzt eine, Klick darauf entfernt sie wieder; der Job lässt die Lücke aus.
+/// Klick in eine Vorlage: Schrift und Bild in einem größeren, darüberliegenden Umriss bleiben anklickbar; die Linie
+/// des Umrisses wählt den Umriss, die freie Fläche der Vorlage die Vorlage.
+#[test]
+fn click_selects_smallest_shape_under_pointer() {
+    let mut h = harness(false);
+    let app = h.state_mut();
+    let image = vl_core::ImageObject {
+        image: std::sync::Arc::new(vl_core::RasterImage::new(16, 8, vec![128; 16 * 8])),
+        width_mm: 20.0,
+        height_mm: 10.0,
+        adjust: Default::default(),
+        clip: Vec::new(),
+    };
+    let logo = app.doc.add_image("Logo", 29, image, Point::new(60.0, 20.0));
+    let text = app.doc.add_path("Schrift", 2, VectorPath::rect(20.0, 22.0, 30.0, 6.0, 0.0));
+    let pen = app.doc.add_path("Stift", 3, VectorPath::rect(10.0, 15.0, 100.0, 20.0, 0.0));
+    let jig = app.doc.add_path("Vorlage", 0, VectorPath::rect(0.0, 0.0, 297.0, 210.0, 0.0));
+    let tol = 0.5;
+    assert_eq!(app.hit_test(Point::new(30.0, 25.0), tol), Some(text));
+    assert_eq!(app.hit_test(Point::new(70.0, 25.0), tol), Some(logo));
+    assert_eq!(app.hit_test(Point::new(15.0, 30.0), tol), Some(pen));
+    assert_eq!(app.hit_test(Point::new(10.2, 25.0), tol), Some(pen), "Linie des Stifts");
+    assert_eq!(app.hit_test(Point::new(200.0, 100.0), tol), Some(jig));
+    assert_eq!(app.hit_test(Point::new(400.0, 300.0), tol), None);
+    // gesperrte Ebenen zählen nicht
+    app.doc.layers[2].locked = true;
+    assert_eq!(app.hit_test(Point::new(30.0, 25.0), tol), Some(pen));
+}
+
+/// „Benutzer-Ursprung“ verschiebt den Job: der Rahmen auf der Arbeitsfläche zeigt, wo er wirklich landet.
+#[test]
+fn output_footprint_follows_start_mode() {
+    let mut h = harness(false);
+    let app = h.state_mut();
+    app.settings.profile.bed_height = 400.0;
+    app.doc.add_path("Schrift", 0, VectorPath::rect(40.0, 370.0, 70.0, 8.0, 0.0));
+    app.settings.job.start_from = vl_cam::StartFrom::Absolute;
+    assert_eq!(app.output_footprint(), None);
+    app.settings.job.start_from = vl_cam::StartFrom::UserOrigin;
+    app.settings.job.user_origin = Point::new(0.0, 0.0);
+    app.settings.job.anchor = vl_cam::Anchor::BottomLeft;
+    // Ursprung vorne links (Maschine 0/0 = Dokument unten links): die Schrift rutscht in die Ecke
+    let r = app.output_footprint().unwrap();
+    assert!((r.min.x - 0.0).abs() < 1e-6 && (r.max.y - 400.0).abs() < 1e-6, "{r:?}");
+    assert!((r.width() - 70.0).abs() < 1e-6 && (r.height() - 8.0).abs() < 1e-6);
+}
+
+/// Rechtsklick auf eine Ebene öffnet ihre Einstellungen in einem Fenster.
+#[test]
+fn right_click_on_layer_opens_settings_window() {
+    let mut h = harness(false);
+    {
+        let app = h.state_mut();
+        app.doc.add_path("A", 0, VectorPath::rect(10.0, 10.0, 20.0, 20.0, 0.0));
+        app.doc.add_path("B", 3, VectorPath::rect(40.0, 10.0, 20.0, 20.0, 0.0));
+        app.doc.layers[3].name = "Gravur".into();
+    }
+    h.run_ok();
+    let rect = h.get_by_label("Gravur").rect();
+    h.hover_at(rect.center());
+    for pressed in [true, false] {
+        h.event(egui::Event::PointerButton {
+            pos: rect.center(),
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
+    h.run_ok();
+    assert!(h.state().layer_window);
+    assert_eq!(h.state().current_layer, 3);
+    assert!(h.query_by_label_contains("Ebene „Gravur“").is_some());
+}
+
 fn tabs_flow(render: bool) {
     let mut h = harness(render);
     let id = add(&mut h, VectorPath::rect(40.0, 40.0, 60.0, 30.0, 0.0));

@@ -99,6 +99,7 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     let pal = theme::of(ui);
     section_title(ui, icon::STACK, tr("Ebenen"));
     ui.add_space(4.0);
+    let mut scroll_to_settings = false;
     let used = app.doc.used_layers();
     if used.is_empty() {
         ui.label(
@@ -195,16 +196,53 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                     })
             })
             .response;
-        if resp.clicked() {
+        let open_window = resp.secondary_clicked() || resp.double_clicked();
+        if resp.clicked() || open_window {
             if app.current_layer != l {
                 app.sub_tab = 0;
+                scroll_to_settings = true;
             }
             app.current_layer = l;
         }
+        if open_window {
+            app.layer_window = true;
+        }
+        resp.on_hover_text(tr("Rechtsklick oder Doppelklick: Einstellungen in eigenem Fenster"));
         ui.add_space(3.0);
     }
 
     ui.add_space(6.0);
+    layer_settings(app, ui);
+    if scroll_to_settings {
+        ui.scroll_to_cursor(Some(Align::BOTTOM));
+    }
+    image_adjust_ui(app, ui);
+    layer_window(app, ui.ctx());
+}
+
+/// Fenster mit den Einstellungen der aktuellen Ebene; ein Klick auf eine andere Ebene wechselt den Inhalt.
+fn layer_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
+    if !app.layer_window {
+        return;
+    }
+    let mut open = true;
+    let name = app.doc.layers[app.current_layer].name.clone();
+    egui::Window::new(format!("{} {}", icon::STACK, trs(&format!("Ebene „{name}“"))))
+        .id(egui::Id::new("layer_window"))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .default_width(360.0)
+        .show(ctx, |ui| {
+            egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.8).show(ui, |ui| {
+                layer_settings(app, ui);
+            });
+        });
+    app.layer_window = open;
+}
+
+/// Einstellungen der aktuellen Ebene (Name, Unterebenen, Bearbeitung) – in der Seitenleiste und im Ebenenfenster.
+fn layer_settings(app: &mut VectorLumeApp, ui: &mut Ui) {
     let l = app.current_layer;
     // Auflösung des ersten Bildes der Ebene (dpi), zugleich „Ebene enthält Bilder“
     let image_dpi = app.doc.objects_on_layer(l).find_map(|o| match &o.shape {
@@ -272,8 +310,6 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
         app.doc.layers[l] = layer;
         app.mark_changed();
     }
-
-    image_adjust_ui(app, ui);
 }
 
 /// `image_dpi`: Auflösung des ersten Bildes, wenn diese Bearbeitung Bilder rastert.
@@ -851,6 +887,17 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 ui.end_row();
             }
         });
+        if js.start_from != StartFrom::Absolute {
+            ui.label(
+                RichText::new(tr(
+                    "Der Job wird mit dem Ankerpunkt dorthin verschoben – der grün gestrichelte Rahmen auf der \
+                     Arbeitsfläche zeigt, wo gelasert wird. Für Vorlagen und feste Positionen „Absolute Koordinaten“ \
+                     wählen.",
+                ))
+                .small()
+                .color(theme::of(ui).text_weak),
+            );
+        }
         ui.checkbox(&mut js.selected_only, tr("Nur Auswahl ausgeben"));
         ui.checkbox(&mut js.engrave_first, tr("Gravieren vor Schneiden"))
             .on_hover_text(tr("Bild- und Füllebenen zuerst, Linienebenen (Schnitte) zuletzt"));

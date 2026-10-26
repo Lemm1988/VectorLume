@@ -393,8 +393,19 @@ impl VectorLumeApp {
         }
     }
 
-    /// Oberstes Objekt unter dem Punkt (Toleranz in mm).
+    /// Objekt unter dem Punkt (Toleranz in mm). Vorrang hat eine getroffene Linie (die nächste, bei Gleichstand die
+    /// oberste). Sonst gewinnt das kleinste Objekt, in dessen Fläche der Punkt liegt – Bilder und Texte zählen mit
+    /// ihrem Rahmen. So bleibt anklickbar, was in einer größeren Form liegt, etwa Schrift in einer Vorlage, auch wenn
+    /// die Vorlage darüber liegt.
     pub(crate) fn hit_test(&mut self, p: Point, tol: f64) -> Option<ObjectId> {
+        let mut edge: Option<(f64, ObjectId)> = None;
+        let mut inside: Option<(f64, ObjectId)> = None;
+        let consider = |best: &mut Option<(f64, ObjectId)>, key: f64, id: ObjectId| {
+            // von oben nach unten: bei Gleichstand bleibt das obere
+            if best.is_none_or(|(k, _)| key < k) {
+                *best = Some((key, id));
+            }
+        };
         for idx in (0..self.doc.objects.len()).rev() {
             let obj = &self.doc.objects[idx];
             if !self.doc.layers[obj.layer].selectable() {
@@ -405,26 +416,29 @@ impl VectorLumeApp {
                     if let Some(inv) = obj.transform.inverse()
                         && img.local_rect().expanded(tol).contains(inv.apply(p))
                     {
-                        return Some(obj.id);
+                        let r = obj.transform.transform_rect(&img.local_rect());
+                        consider(&mut inside, r.width() * r.height(), obj.id);
                     }
                 }
                 DocShape::Path(_) => {
                     let Some((polys, bounds)) = self.geom.local(obj) else { continue };
-                    if !obj.transform.transform_rect(&bounds).expanded(tol).contains(p) {
+                    let world = obj.transform.transform_rect(&bounds);
+                    if !world.expanded(tol).contains(p) {
                         continue;
                     }
                     let Some(inv) = obj.transform.inverse() else { continue };
                     let local = inv.apply(p);
-                    let local_tol = tol / obj.transform.mean_scale();
-                    if vl_core::path::point_in_polylines(local, &polys)
-                        || polys.iter().any(|pl| pl.distance_to(local) <= local_tol)
-                    {
-                        return Some(obj.id);
+                    let scale = obj.transform.mean_scale();
+                    let d = polys.iter().map(|pl| pl.distance_to(local)).fold(f64::INFINITY, f64::min) * scale;
+                    if d <= tol {
+                        consider(&mut edge, d, obj.id);
+                    } else if obj.text.is_some() || vl_core::path::point_in_polylines(local, &polys) {
+                        consider(&mut inside, world.width() * world.height(), obj.id);
                     }
                 }
             }
         }
-        None
+        edge.or(inside).map(|(_, id)| id)
     }
 
     /// Linienstück unter dem Mauszeiger für das Trimm-Werkzeug. Ziele sind Pfade auf auswählbaren Ebenen (keine
@@ -740,6 +754,24 @@ impl VectorLumeApp {
             clip.circle_stroke(p, 7.0, Stroke::new(1.5, c));
             clip.line_segment([p - vec2(11.0, 0.0), p + vec2(11.0, 0.0)], Stroke::new(1.0, c));
             clip.line_segment([p - vec2(0.0, 11.0), p + vec2(0.0, 11.0)], Stroke::new(1.0, c));
+        }
+        // Startet der Job nicht an seiner Stelle, zeigt ein gestrichelter Rahmen, wo er tatsächlich landet
+        if !preview_active && let Some(out) = self.output_footprint() {
+            let r = tf.rect(&out);
+            let stroke = Stroke::new(1.5, pal.success);
+            clip.extend(Shape::dashed_line(
+                &[r.left_top(), r.right_top(), r.right_bottom(), r.left_bottom(), r.left_top()],
+                stroke,
+                7.0,
+                4.0,
+            ));
+            clip.text(
+                r.left_top() + vec2(0.0, -3.0),
+                egui::Align2::LEFT_BOTTOM,
+                tr("Wird hier gelasert"),
+                egui::FontId::proportional(11.0),
+                pal.success,
+            );
         }
         if self.settings.job.start_from == vl_cam::StartFrom::UserOrigin {
             let p = tf.to_screen(profile.machine_to_doc(self.settings.job.user_origin));
