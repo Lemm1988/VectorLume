@@ -98,6 +98,8 @@ impl Default for ToolOptions {
 pub enum JobPurpose {
     Preview,
     Start,
+    /// Job für „Job fortsetzen“ (ohne gespeicherten Abbruch).
+    Resume,
     /// Rahmen fahren; `true` = konvexe Hülle statt Rechteck.
     Frame(bool),
     Export(PathBuf),
@@ -145,6 +147,10 @@ pub struct MachineInfo {
     pub frame_passes: u32,
     /// Sperre des Startknopfs direkt nach einem Job (siehe [`StartGuard`]).
     pub start_guard: Option<StartGuard>,
+    /// Laufender Job (für „Job fortsetzen“ nach einem Abbruch).
+    pub running: Option<crate::resume_ui::RunningJob>,
+    /// Zuletzt abgebrochener Job.
+    pub aborted: Option<crate::resume_ui::Aborted>,
 }
 
 /// Nach einem Job erscheint „Job starten“ genau dort, wo man ihn angeklickt hat – der Mauszeiger steht meist noch
@@ -221,6 +227,10 @@ pub enum Modal {
         job: Arc<Job>,
     },
     LaserModeOff,
+    /// Endschalter-Alarm: was passiert ist und wie es weitergeht.
+    HardLimit {
+        head: Option<Point>,
+    },
     Safety {
         job: Arc<Job>,
     },
@@ -298,6 +308,8 @@ pub struct VectorLumeApp {
     pub show_rotary: bool,
     pub print_cut: crate::print_cut::PrintCut,
     pub center_finder: crate::center_finder::CenterFinder,
+    /// Fenster „Job fortsetzen“.
+    pub resume: crate::resume_ui::ResumeDialog,
     pub box_gen: crate::box_gen::BoxGen,
     pub hinge: crate::hinge_tool::HingeTool,
     pub puzzle: crate::puzzle_tool::PuzzleTool,
@@ -417,6 +429,7 @@ impl VectorLumeApp {
             show_rotary: false,
             print_cut: Default::default(),
             center_finder: Default::default(),
+            resume: Default::default(),
             box_gen: Default::default(),
             hinge: Default::default(),
             puzzle: Default::default(),
@@ -1423,6 +1436,17 @@ impl VectorLumeApp {
                     }
                     Err(e) => self.toast(ToastKind::Error, e),
                 },
+                JobPurpose::Resume => match result {
+                    Ok(job) if self.resume.building => {
+                        self.resume.building = false;
+                        self.resume.state = Some(crate::resume_ui::ResumeState::new(Arc::new(job), None));
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.resume = Default::default();
+                        self.toast(ToastKind::Error, e);
+                    }
+                },
                 JobPurpose::Frame(hull) => match result {
                     Ok(job) => self.run_frame(&job, hull),
                     Err(e) => self.toast(ToastKind::Error, e),
@@ -1437,6 +1461,9 @@ impl VectorLumeApp {
 
     /// Startet einen fertigen Job nach Sicherheitshinweis bzw. Bestätigung der Warnungen.
     pub fn launch_job(&mut self, job: Arc<Job>) {
+        for n in &job.notes {
+            self.toast(ToastKind::Info, trs(n));
+        }
         if !self.settings.safety_acknowledged {
             self.modal = Some(Modal::Safety { job });
         } else if !job.warnings.is_empty() {
@@ -1475,6 +1502,7 @@ impl VectorLumeApp {
         if !self.ready_to_start() {
             return;
         }
+        self.machine.running = None;
         self.machine.document_job = false;
         // Keine Schätzung: die Restzeit wird aus dem Fortschritt hochgerechnet
         self.machine.job_estimate = 0.0;
@@ -1484,6 +1512,7 @@ impl VectorLumeApp {
     pub fn run_frame(&mut self, job: &Job, hull: bool) {
         let lines = strip_for_streaming(&vl_cam::frame_gcode(job, &self.settings.profile, hull));
         self.machine.frame_passes = 1;
+        self.machine.running = None;
         self.machine.frame_repeat = self.machine.frame_loop.then(|| lines.clone());
         self.device.send(Command::StartJob { name: tr("Rahmen").into(), lines });
     }
@@ -1558,13 +1587,19 @@ impl VectorLumeApp {
         }
     }
 
-    pub fn send_job(&mut self, job: &Job) {
+    pub fn send_job(&mut self, job: &Arc<Job>) {
         // Nur Jobs aus dem Dokument (nicht Materialtest/Rahmen) schalten Zähler weiter
-        self.machine.document_job = self.document_job.take() == Some(job as *const Job as usize);
+        self.machine.document_job = self.document_job.take() == Some(Arc::as_ptr(job) as usize);
         let lines = strip_for_streaming(&job.gcode);
         self.machine.job_estimate = job.estimate.seconds;
-        let name = self.file_path.as_ref().map(|p| file_name(p)).unwrap_or_else(|| tr("Job").into());
+        self.machine.running = Some(crate::resume_ui::RunningJob::new(job.clone()));
+        let name = self.job_name();
         self.device.send(Command::StartJob { name, lines });
+    }
+
+    /// Name eines Jobs aus dem Dokument (Dateiname).
+    pub fn job_name(&self) -> String {
+        self.file_path.as_ref().map(|p| file_name(p)).unwrap_or_else(|| tr("Job").into())
     }
 
     pub fn update_preview(&mut self) {
@@ -1913,13 +1948,25 @@ impl VectorLumeApp {
                     self.machine.frame_repeat = None;
                     self.machine.job_running = false;
                     self.machine.start_guard = Some(StartGuard::new());
+                    if let Some(r) = self.machine.running.take() {
+                        self.machine.aborted = (!ok).then(|| crate::resume_ui::Aborted {
+                            acked: r.original_line(self.machine.job_progress.0),
+                            head: self.machine.head_position(),
+                            job: r.job,
+                        });
+                    }
                     if std::mem::take(&mut self.machine.document_job) && ok {
                         self.advance_text_counters();
                     }
                     let text = format!("{message} ({})", vl_cam::format_duration(seconds));
                     self.toast(if ok { ToastKind::Success } else { ToastKind::Error }, text);
                 }
-                Event::Alarm(code, text) => self.toast(ToastKind::Error, trs(&format!("Alarm {code}: {text}"))),
+                Event::Alarm(code, text) => {
+                    if code == 1 {
+                        self.modal = Some(Modal::HardLimit { head: self.machine.head_position() });
+                    }
+                    self.toast(ToastKind::Error, trs(&format!("Alarm {code}: {text}")));
+                }
                 Event::Warning(text) => {
                     self.console_push(Direction::Info, text.clone());
                     self.toast(ToastKind::Error, text);

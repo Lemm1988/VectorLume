@@ -63,6 +63,129 @@ impl OutputMapping {
         }
         q
     }
+
+    /// Ausgabe → Dokument (ohne Drehachse).
+    fn unmap(&self, q: Point) -> Point {
+        self.profile.machine_to_doc(q + self.anchor_machine - self.base)
+    }
+
+    /// Ausgabe → Dokument; `None` bei Drehachse oder relativen Koordinaten (dort fehlt der feste Bezug).
+    pub fn to_doc(&self, q: Point) -> Option<Point> {
+        (self.rotary.is_none() && self.mode == CoordMode::Absolute).then(|| self.unmap(q))
+    }
+}
+
+/// Umrandung des gebrannten Wegs (Dokument).
+fn burn_bounds(toolpath: &Toolpath) -> Rect {
+    let mut r = Rect::EMPTY;
+    let mut prev: Option<Point> = None;
+    for op in toolpath.blocks.iter().flat_map(|b| &b.ops) {
+        if let Op::Move { to, power } = *op
+            && power > 0.0
+        {
+            if let Some(p) = prev {
+                r.include(p);
+            }
+            r.include(to);
+        }
+        prev = Some(op.target());
+    }
+    r
+}
+
+/// Der Anlauf (Overscan) beim Gravieren ist nötig, damit der Kopf beim Brennen schon seine Geschwindigkeit hat. Liegt
+/// das Motiv direkt am Rand, reichte er aber über den Rahmen hinaus: der Kopf führe gegen den Endschalter und der Job
+/// bräche ab. Leerfahrten werden deshalb auf die Arbeitsfläche begrenzt – nur dort, wo sie hinausreichen, und nur,
+/// wenn der gebrannte Weg selbst auf der Fläche liegt. Ergebnis: um wie viel mm höchstens gekürzt wurde.
+fn keep_travel_on_bed(toolpath: &mut Toolpath, mapping: &OutputMapping, profile: &MachineProfile) -> f64 {
+    if mapping.mode != CoordMode::Absolute || mapping.rotary.is_some() {
+        return 0.0;
+    }
+    let bed =
+        Rect::from_points(mapping.unmap(Point::ZERO), mapping.unmap(Point::new(profile.bed_width, profile.bed_height)));
+    let burns = burn_bounds(toolpath);
+    if !burns.is_empty() && !bed.expanded(1e-3).contains_rect(&burns) {
+        return 0.0;
+    }
+    let mut trimmed = 0.0_f64;
+    let mut clamp = |p: &mut Point| {
+        let c = Point::new(p.x.clamp(bed.min.x, bed.max.x), p.y.clamp(bed.min.y, bed.max.y));
+        trimmed = trimmed.max((p.x - c.x).abs()).max((p.y - c.y).abs());
+        *p = c;
+    };
+    for op in toolpath.blocks.iter_mut().flat_map(|b| &mut b.ops) {
+        match op {
+            Op::Rapid(p) => clamp(p),
+            Op::Move { to, power } if *power <= 0.0 => clamp(to),
+            Op::Move { .. } => {}
+        }
+    }
+    trimmed
+}
+
+/// Warnungen, wenn der Kopf über die Arbeitsfläche hinausfahren würde: wo und wie weit, warum, und was dann passiert.
+/// `mb` ist die Umrandung aller Bewegungen in Ausgabekoordinaten. Jede Zeile enthält „Arbeitsfläche“.
+fn bed_warnings(
+    toolpath: &Toolpath,
+    mapping: &OutputMapping,
+    profile: &MachineProfile,
+    mb: Rect,
+    check_y: bool,
+) -> Vec<String> {
+    let (w, h) = (profile.bed_width, profile.bed_height);
+    let eps = 1e-3;
+    let (mx, my) = (profile.origin.mirror_x(), profile.origin.mirror_y());
+    let mut out = Vec::new();
+    // Seite aus Sicht der Arbeitsfläche (vorne = beim Benutzer)
+    let mut edges = Vec::new();
+    if mb.min.x < -eps {
+        edges.push((if mx { "rechts" } else { "links" }, -mb.min.x, mb.min.x));
+    }
+    if mb.max.x > w + eps {
+        edges.push((if mx { "links" } else { "rechts" }, mb.max.x - w, mb.max.x));
+    }
+    if check_y && mb.min.y < -eps {
+        edges.push((if my { "vorne" } else { "hinten" }, -mb.min.y, mb.min.y));
+    }
+    if check_y && mb.max.y > h + eps {
+        edges.push((if my { "hinten" } else { "vorne" }, mb.max.y - h, mb.max.y));
+    }
+    if edges.is_empty() {
+        return out;
+    }
+    for (edge, over, to) in edges {
+        let (a, b) = (fmt_mm(over), fmt_mm(to));
+        out.push(match edge {
+            "links" => format!("Der Laserkopf würde links {a} mm über die Arbeitsfläche hinausfahren (bis X {b} mm)."),
+            "rechts" => {
+                format!("Der Laserkopf würde rechts {a} mm über die Arbeitsfläche hinausfahren (bis X {b} mm).")
+            }
+            "vorne" => format!("Der Laserkopf würde vorne {a} mm über die Arbeitsfläche hinausfahren (bis Y {b} mm)."),
+            _ => format!("Der Laserkopf würde hinten {a} mm über die Arbeitsfläche hinausfahren (bis Y {b} mm)."),
+        });
+    }
+    let bb = burn_bounds(toolpath);
+    let bm = Rect::from_points(mapping.map(bb.min), mapping.map(bb.max));
+    let motif_out = bm.min.x < -eps || bm.max.x > w + eps || (check_y && (bm.min.y < -eps || bm.max.y > h + eps));
+    out.push(if motif_out {
+        format!(
+            "Teile des Motivs liegen außerhalb der Arbeitsfläche ({} × {} mm) – das Motiv ganz auf die Fläche verschieben.",
+            fmt_mm(w),
+            fmt_mm(h)
+        )
+    } else {
+        "Das Motiv liegt auf der Arbeitsfläche, nur der Anlauf (Overscan) reicht darüber hinaus. Der Anlauf ist beim \
+         Gravieren normal – der Kopf braucht ihn, um beim Brennen schon seine Geschwindigkeit zu haben –, hier ist aber \
+         der Rahmen zu Ende: das Motiv etwas weiter vom Rand weg legen."
+            .into()
+    });
+    out.push(
+        "Am Rand der Arbeitsfläche stößt der Kopf an den Endschalter oder den Rahmen: Der Laser stoppt mit „Alarm 1“ und \
+         der Job bricht ab. Ohne Endschalter fährt er gegen den Rahmen – Riemen können überspringen und das Gerät kann \
+         beschädigt werden."
+            .into(),
+    );
+    out
 }
 
 #[derive(Clone, Debug)]
@@ -76,6 +199,10 @@ pub struct Job {
     pub start: Point,
     pub mapping: OutputMapping,
     pub warnings: Vec<String>,
+    /// Der Kopf würde über die Arbeitsfläche hinausfahren (Warnungen erklären, wo und warum).
+    pub leaves_bed: bool,
+    /// Hinweise ohne Rückfrage, z. B. ein am Rand gekürzter Anlauf.
+    pub notes: Vec<String>,
     pub estimate: Estimate,
     pub gcode: LineBuf,
 }
@@ -131,7 +258,7 @@ pub fn placement(
 
 /// Bereichsprüfung, Zeitschätzung und G-Code für einen fertigen Werkzeugweg.
 pub fn finish_job(
-    toolpath: Toolpath,
+    mut toolpath: Toolpath,
     design_bounds: Rect,
     profile: &MachineProfile,
     settings: &JobSettings,
@@ -139,6 +266,16 @@ pub fn finish_job(
     title: Option<String>,
 ) -> Job {
     let (anchor, mapping, start) = placement(&design_bounds, profile, settings);
+    let trimmed = keep_travel_on_bed(&mut toolpath, &mapping, profile);
+    let mut notes = Vec::new();
+    if trimmed > 0.05 {
+        let t = fmt_mm(trimmed);
+        notes.push(format!(
+            "Der Anlauf (Overscan) würde am Rand bis {t} mm über die Arbeitsfläche hinausreichen und wird dort gekürzt, \
+             damit der Kopf nicht gegen den Endschalter fährt. Die Kante kann dort etwas dunkler werden; für den vollen \
+             Anlauf das Motiv {t} mm weiter vom Rand weg legen."
+        ));
+    }
     let mut path_bounds = Rect::EMPTY;
     for b in &toolpath.blocks {
         for op in &b.ops {
@@ -149,21 +286,10 @@ pub fn finish_job(
     let rotary = profile.rotary.enabled.then_some(&profile.rotary);
     if mapping.mode == CoordMode::Absolute {
         let mb = Rect::from_points(mapping.map(path_bounds.min), mapping.map(path_bounds.max));
-        let eps = 1e-3;
         // Mit Drehachse ist y kein Weg auf der Arbeitsfläche, nur X wird geprüft.
-        let y_out = rotary.is_none() && (mb.min.y < -eps || mb.max.y > profile.bed_height + eps);
-        if mb.min.x < -eps || mb.max.x > profile.bed_width + eps || y_out {
-            warnings.push(format!(
-                "Der Job (inkl. Overscan) liegt außerhalb der Arbeitsfläche: X {} … {}, Y {} … {} mm (Fläche {} × {} mm).",
-                fmt_mm(mb.min.x),
-                fmt_mm(mb.max.x),
-                fmt_mm(mb.min.y),
-                fmt_mm(mb.max.y),
-                fmt_mm(profile.bed_width),
-                fmt_mm(profile.bed_height)
-            ));
-        }
+        warnings = bed_warnings(&toolpath, &mapping, profile, mb, rotary.is_none());
     }
+    let leaves_bed = !warnings.is_empty();
     if let Some(r) = rotary {
         let u = r.circumference();
         if design_bounds.height() > u + 1e-3 {
@@ -227,7 +353,19 @@ pub fn finish_job(
         layer_names,
     };
     let gcode = emit(&toolpath, &|p| mapping.map(p), &opts);
-    Job { toolpath, design_bounds, path_bounds, anchor, start, mapping, warnings, estimate: est, gcode }
+    Job {
+        toolpath,
+        design_bounds,
+        path_bounds,
+        anchor,
+        start,
+        mapping,
+        warnings,
+        leaves_bed,
+        notes,
+        estimate: est,
+        gcode,
+    }
 }
 
 /// Erzeugt den Werkzeugweg aller Ebenen in Ausgabereihenfolge (Dokumentkoordinaten).
@@ -975,7 +1113,36 @@ mod tests {
         let mut doc = Document::new();
         doc.add_path("zu groß", 0, VectorPath::rect(-5.0, 10.0, 20.0, 20.0, 0.0));
         let job = build_job(&doc, &[], &MachineProfile::default(), &JobSettings::default()).unwrap();
-        assert_eq!(job.warnings.len(), 1);
+        assert!(job.leaves_bed);
+        // wo, warum, was dann passiert
+        assert_eq!(job.warnings.len(), 3, "{:?}", job.warnings);
+        assert!(job.warnings[0].starts_with("Der Laserkopf würde links 5 mm"), "{:?}", job.warnings);
+        assert!(job.warnings[1].starts_with("Teile des Motivs"), "{:?}", job.warnings);
+        assert!(job.warnings[2].contains("Alarm 1"), "{:?}", job.warnings);
+    }
+
+    /// Eine Füllung direkt am Rand: der Overscan darf nicht über die Arbeitsfläche hinaus (Endschalter).
+    #[test]
+    fn overscan_stays_on_bed() {
+        let mut doc = Document::new();
+        doc.add_path("Bierdeckel", 0, VectorPath::rect(0.4, 305.6, 94.0, 94.0, 0.0));
+        doc.layers[0].settings = CutSettings { overscan: 2.5, ..CutSettings::default_for(LayerMode::Fill) };
+        let profile = MachineProfile { bed_width: 400.0, bed_height: 400.0, ..Default::default() };
+        let job = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
+        assert!(job.warnings.is_empty() && !job.leaves_bed, "{:?}", job.warnings);
+        assert!(job.path_bounds.min.x >= 0.0 && job.path_bounds.max.y <= 400.0, "{:?}", job.path_bounds);
+        // gekürzt wird nur, was hinausreicht – mit Hinweis
+        assert_eq!(job.notes.len(), 1);
+        assert!(job.notes[0].contains("bis 2.1 mm"), "{:?}", job.notes);
+        // auf der anderen Seite bleibt der Overscan vollständig
+        assert!((job.path_bounds.max.x - 96.9).abs() < 0.05, "{:?}", job.path_bounds);
+        // Gebranntes außerhalb bleibt eine Warnung
+        let mut doc = Document::new();
+        doc.add_path("zu weit links", 0, VectorPath::rect(-1.0, 10.0, 20.0, 20.0, 0.0));
+        doc.layers[0].settings = CutSettings::default_for(LayerMode::Fill);
+        let job = build_job(&doc, &[], &profile, &JobSettings::default()).unwrap();
+        assert!(job.leaves_bed && job.notes.is_empty());
+        assert!(job.warnings.iter().any(|w| w.starts_with("Teile des Motivs")), "{:?}", job.warnings);
     }
 
     #[test]

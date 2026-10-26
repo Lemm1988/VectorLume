@@ -1063,6 +1063,19 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                     app.start_job();
                 }
             }
+            if app.machine.aborted.is_some() {
+                ui.add_space(4.0);
+                if ui
+                    .add(
+                        Button::new(trs(&format!("{} Abgebrochenen Job fortsetzen…", icon::ARROW_CLOCKWISE)))
+                            .min_size(vec2(ui.available_width(), 28.0)),
+                    )
+                    .on_hover_text(tr("Den Rest ab der Abbruchstelle lasern – Stelle wird vorher angezeigt"))
+                    .clicked()
+                {
+                    app.open_resume();
+                }
+            }
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 let w = (ui.available_width() - 8.0) / 2.0;
@@ -1134,6 +1147,9 @@ fn preview_info(app: &mut VectorLumeApp, ui: &mut Ui) {
         }
         for w in &job.warnings {
             ui.label(RichText::new(format!("{} {w}", icon::WARNING)).small().color(pal.warning));
+        }
+        for n in &job.notes {
+            ui.label(RichText::new(format!("{} {}", icon::INFO, trs(n))).small().color(pal.text_weak));
         }
     });
 }

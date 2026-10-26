@@ -27,11 +27,11 @@ impl OriginCorner {
         }
     }
 
-    fn mirror_x(self) -> bool {
+    pub(crate) fn mirror_x(self) -> bool {
         matches!(self, OriginCorner::FrontRight | OriginCorner::RearRight)
     }
 
-    fn mirror_y(self) -> bool {
+    pub(crate) fn mirror_y(self) -> bool {
         matches!(self, OriginCorner::FrontLeft | OriginCorner::FrontRight)
     }
 }

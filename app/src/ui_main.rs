@@ -652,6 +652,9 @@ fn laser_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Stopp"), "", connected) {
         app.device.send(vl_device::Command::Stop);
     }
+    if menu_item(ui, tr("Job fortsetzen…"), "", !app.machine.job_running && !app.doc.objects.is_empty()) {
+        app.open_resume();
+    }
     if menu_item(ui, tr("G-Code-Datei senden…"), "", connected && !app.machine.job_running) {
         app.send_gcode_file_dialog();
     }

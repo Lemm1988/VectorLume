@@ -2034,3 +2034,102 @@ fn click_moves_laser_to_position() {
     crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = None);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Endschalter-Alarm mitten in einer Füllung (Simulator): der Abbruch wird gespeichert, „Job fortsetzen“ schlägt die
+/// Stelle kurz vor dem Abbruch vor, markiert sie und lasert nach der Referenzfahrt nur den Rest.
+#[test]
+fn aborted_job_can_be_resumed() {
+    use std::sync::Arc;
+    let dir = std::env::temp_dir().join(format!("vectorlume-ui-fortsetzen-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = Some(dir.clone()));
+    let mut h = harness_sized(false, egui::vec2(1600.0, 2400.0));
+    let (job, clean, limit_at) = {
+        let app = h.state_mut();
+        app.settings.safety_acknowledged = true;
+        app.settings.profile.return_to_origin = false;
+        let y = app.settings.profile.bed_height - 6.0;
+        app.doc.add_path("Füllung", 0, VectorPath::rect(2.0, y, 10.0, 4.0, 0.0));
+        app.doc.layers[0].settings =
+            vl_core::CutSettings { interval: 0.2, ..vl_core::CutSettings::default_for(vl_core::LayerMode::Fill) };
+        let job = vl_cam::build_job(&app.doc, &[], &app.settings.profile, &app.settings.job).unwrap();
+        // Endschalter nach der Hälfte; zum Fortsetzen dieselben Zeilen mit einer harmlosen statt der Störzeile
+        let base = vl_cam::strip_for_streaming(&job.gcode).to_vec();
+        let k = base.len() / 2;
+        let with = |extra: &str| {
+            let mut l = base.clone();
+            l.insert(k, extra.into());
+            vl_cam::Job { gcode: l.into(), ..job.clone() }
+        };
+        app.selected_port = vl_device::SIMULATOR_PORT.into();
+        app.connect();
+        (Arc::new(with("$SIM=LIMIT")), with("G90"), k)
+    };
+    wait_until(&mut h, |a| a.machine.connected && a.machine.status.is_some());
+    h.state_mut().send_job(&job);
+    wait_until(&mut h, |a| a.machine.job_running);
+    wait_until(&mut h, |a| !a.machine.job_running);
+    let acked = h.state().machine.aborted.as_ref().expect("Abbruch gespeichert").acked;
+    assert!(acked <= limit_at + 1, "{acked} / {limit_at}");
+    h.state_mut().machine.aborted.as_mut().unwrap().job = Arc::new(clean);
+    // Fenster erklärt den Endschalter-Alarm
+    h.run_steps(2);
+    assert!(matches!(h.state().modal, Some(crate::app::Modal::HardLimit { .. })));
+    h.get_by_label("Schließen").click();
+    h.run_steps(2);
+    assert!(h.state().modal.is_none());
+    // Referenzfahrt nach dem Alarm
+    wait_until(&mut h, |a| a.machine.status.as_ref().is_some_and(|s| s.state == vl_device::MachineState::Alarm));
+    h.state_mut().home();
+    wait_until(&mut h, |a| a.machine.status.as_ref().is_some_and(|s| s.state == vl_device::MachineState::Idle));
+    h.get_by_label_contains("Abgebrochenen Job fortsetzen").click();
+    h.run_steps(3);
+    let (line, marker) = {
+        let st = h.state().resume.state.as_ref().expect("Fenster mit Job");
+        let p = st.point().unwrap();
+        (p.line, st.marker())
+    };
+    assert!(line > 0 && line <= limit_at, "Stelle {line} / Abbruch {limit_at}");
+    let m = marker.expect("Markierung");
+    assert!(m.x >= 1.9 && m.x <= 12.1, "{m:?}");
+    h.get_by_label_contains("Ab hier fortsetzen").click();
+    h.run_steps(2);
+    wait_until(&mut h, |a| a.machine.job_running);
+    assert!(h.state().machine.job_name.contains("Fortsetzung"));
+    assert!(h.state().machine.job_progress.1 < job.gcode.len(), "nur der Rest wird gesendet");
+    for _ in 0..1500 {
+        h.run_ok();
+        if !h.state().machine.job_running {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(!h.state().machine.job_running);
+    assert!(h.state().machine.aborted.is_none(), "{:?}", h.state().toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+    h.state_mut().disconnect();
+    crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = None);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Fährt der Kopf über die Arbeitsfläche hinaus, erklärt der Startdialog wo und warum und warnt deutlich vor
+/// Einklemmen und Schäden am Gerät.
+#[test]
+fn start_warns_when_head_leaves_the_bed() {
+    let mut h = harness(false);
+    let job = {
+        let app = h.state_mut();
+        app.settings.safety_acknowledged = true;
+        app.doc.add_path("zu weit links", 0, VectorPath::rect(-3.0, 100.0, 20.0, 20.0, 0.0));
+        std::sync::Arc::new(vl_cam::build_job(&app.doc, &[], &app.settings.profile, &app.settings.job).unwrap())
+    };
+    assert!(job.leaves_bed);
+    h.state_mut().launch_job(job);
+    h.run_steps(2);
+    h.get_by_label_contains("Der Laserkopf würde links 3 mm");
+    h.get_by_label_contains("Teile des Motivs");
+    h.get_by_label_contains("Alarm 1");
+    h.get_by_label_contains("Nur starten, wenn wirklich nichts passieren kann");
+    h.get_by_label("Abbrechen").click();
+    h.run_steps(2);
+    assert!(h.state().modal.is_none());
+}

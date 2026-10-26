@@ -29,6 +29,7 @@ mod net_camera;
 mod node_tool;
 mod print_cut;
 mod puzzle_tool;
+mod resume_ui;
 mod rotary_ui;
 mod settings;
 mod setup_wizard;

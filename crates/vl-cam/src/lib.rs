@@ -5,6 +5,7 @@ pub mod gcode;
 pub mod job;
 pub mod machine;
 pub mod optimize;
+pub mod resume;
 pub mod testpattern;
 pub mod toolpath;
 

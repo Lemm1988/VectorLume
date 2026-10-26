@@ -15,6 +15,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     crate::rotary_ui::show(app, ctx);
     crate::print_cut::show(app, ctx);
     crate::center_finder::show(app, ctx);
+    crate::resume_ui::show(app, ctx);
     crate::box_gen::show(app, ctx);
     crate::hinge_tool::show(app, ctx);
     crate::puzzle_tool::show(app, ctx);
@@ -504,14 +505,51 @@ fn modal(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 for w in &job.warnings {
                     ui.label(format!("• {}", trs(w)));
                 }
+                if job.leaves_bed {
+                    ui.add_space(6.0);
+                    Frame::new().stroke(Stroke::new(1.5, pal.danger)).corner_radius(6.0).inner_margin(Margin::same(8)).show(ui, |ui| {
+                        ui.label(RichText::new(trs(&format!("{} Nur starten, wenn wirklich nichts passieren kann", icon::WARNING))).strong().color(pal.danger));
+                        ui.label(tr("Der Laserkopf fährt bei diesem Job über seinen Rahmen hinaus. Vorher ganz sicher gehen, dass nichts den Kopf blockiert oder einklemmt (Kabel, Werkstück, Halterungen) – fährt er gegen den Rahmen, kann das Gerät beschädigt werden. Besser: das Motiv auf die Arbeitsfläche verschieben."));
+                    });
+                }
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    if ui.add(Button::new(RichText::new(tr("Trotzdem starten")).color(Color32::WHITE)).fill(pal.warning)).clicked() {
+                    let fill = if job.leaves_bed { pal.danger } else { pal.warning };
+                    if ui.add(Button::new(RichText::new(tr("Trotzdem starten")).color(Color32::WHITE)).fill(fill)).clicked() {
                         let job = job.clone();
                         action = Some(Box::new(move |app: &mut VectorLumeApp| app.send_job(&job)));
                         keep = false;
                     }
                     if ui.button(tr("Abbrechen")).clicked() {
+                        keep = false;
+                    }
+                });
+            }
+            Modal::HardLimit { head } => {
+                ui.label(RichText::new(trs(&format!("{} Endschalter ausgelöst – Job abgebrochen", icon::WARNING))).font(theme::strong_font(18.0)).color(pal.danger));
+                ui.add_space(6.0);
+                ui.label(tr("Der Laserkopf ist an einen Endschalter gestoßen, also an das Ende seines Verfahrwegs. Die Steuerung hat sofort angehalten (Alarm 1), der Laser ist aus und der Job wurde abgebrochen. Wo der Kopf genau steht, ist danach nicht mehr sicher bekannt."));
+                if let Some(p) = head {
+                    ui.label(trs(&format!("Zuletzt gemeldete Position: X {} Y {} mm.", vl_cam::gcode::fmt_mm(p.x), vl_cam::gcode::fmt_mm(p.y))));
+                }
+                ui.add_space(4.0);
+                ui.label(tr("Häufigste Ursache: Der Job reicht über die Arbeitsfläche hinaus, z. B. der Anlauf (Overscan) einer Gravur direkt am Rand. VectorLume kürzt den Anlauf am Rand inzwischen selbst; reicht das Motiv selbst hinaus, warnt es vor dem Start."));
+                ui.add_space(6.0);
+                ui.label(RichText::new(tr("So geht es weiter:")).strong());
+                for t in [
+                    tr("Prüfen, dass nichts den Kopf blockiert oder einklemmt."),
+                    tr("Referenzfahrt machen (Laser → Referenzfahrt) – nur Entsperren reicht nicht."),
+                    tr("Werkstück liegen lassen und mit Laser → „Job fortsetzen…“ ab der Abbruchstelle weiterlasern."),
+                ] {
+                    ui.label(format!("• {t}"));
+                }
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button(tr("Referenzfahrt starten")).clicked() {
+                        action = Some(Box::new(|app: &mut VectorLumeApp| app.home()));
+                        keep = false;
+                    }
+                    if ui.button(tr("Schließen")).clicked() {
                         keep = false;
                     }
                 });

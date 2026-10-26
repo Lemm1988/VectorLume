@@ -478,6 +478,8 @@ impl Driver {
         }
         if let Some(job) = c.job.take() {
             let seconds = job.started.elapsed().as_secs_f64();
+            // Stand beim Abbruch, für „Job fortsetzen“
+            self.emit(Event::JobProgress { acked: job.acked, total: job.total });
             self.emit(Event::JobFinished {
                 ok: false, message: format!("„{}“ wurde gestoppt.", job.name), seconds
             });
@@ -494,6 +496,7 @@ impl Driver {
                     Firmware::Marlin => c.transport.write_all(b"M410\nM5\n"),
                     Firmware::Smoothieware => c.transport.write_all(b"M112\n"),
                 };
+                let _ = self.events.send(Event::JobProgress { acked: job.acked, total: job.total });
                 let _ = self.events.send(Event::JobFinished {
                     ok: false,
                     message: format!("„{}“ abgebrochen: Verbindung getrennt.", job.name),
@@ -663,6 +666,9 @@ impl Driver {
         c.paused = false;
         let seconds = job.started.elapsed().as_secs_f64();
         let message = message(&job.name);
+        if !ok {
+            self.emit(Event::JobProgress { acked: job.acked, total: job.total });
+        }
         self.emit(Event::JobFinished { ok, message, seconds });
     }
 

@@ -765,6 +765,31 @@ impl VectorLumeApp {
             clip.line_segment([p - vec2(11.0, 0.0), p + vec2(11.0, 0.0)], Stroke::new(1.0, c));
             clip.line_segment([p - vec2(0.0, 11.0), p + vec2(0.0, 11.0)], Stroke::new(1.0, c));
         }
+        // „Job fortsetzen“: wo als Erstes wieder gelasert wird
+        if let Some(st) = &self.resume.state
+            && self.resume.open
+            && let Some(m) = st.marker()
+        {
+            let p = tf.to_screen(m);
+            let b = tf.rect(&st.job.design_bounds);
+            let stroke = Stroke::new(1.5, pal.success);
+            clip.extend(Shape::dashed_line(
+                &[egui::pos2(b.left() - 12.0, p.y), egui::pos2(b.right() + 12.0, p.y)],
+                stroke,
+                6.0,
+                4.0,
+            ));
+            clip.circle_stroke(p, 6.0, stroke);
+            clip.line_segment([p - vec2(10.0, 0.0), p + vec2(10.0, 0.0)], stroke);
+            clip.line_segment([p - vec2(0.0, 10.0), p + vec2(0.0, 10.0)], stroke);
+            clip.text(
+                egui::pos2(b.right() + 16.0, p.y),
+                egui::Align2::LEFT_CENTER,
+                tr("Fortsetzen ab hier"),
+                egui::FontId::proportional(12.0),
+                pal.success,
+            );
+        }
         // Startet der Job nicht an seiner Stelle, zeigt ein gestrichelter Rahmen, wo er tatsächlich landet
         if !preview_active && let Some(out) = self.output_footprint() {
             let r = tf.rect(&out);

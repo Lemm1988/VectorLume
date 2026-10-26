@@ -363,7 +363,8 @@ impl TestPattern {
         let mut job = finish_job(tp, layout.bounds, profile, &settings, names, Some(title));
         if settings.start_from != StartFrom::Absolute {
             // Die Position gilt nur für absolute Koordinaten; sonst bestimmt der Ankerpunkt die Lage.
-            job.warnings.retain(|w| !w.contains("außerhalb"));
+            job.warnings.retain(|w| !w.contains("Arbeitsfläche"));
+            job.leaves_bed = false;
         }
         Ok(job)
     }
