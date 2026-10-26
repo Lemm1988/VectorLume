@@ -1545,6 +1545,13 @@ pub static EN: &[(&str, &str)] = &[
     ("Der letzte Job ist gerade erst fertig – zum erneuten Start den Mauszeiger kurz vom Knopf nehmen und noch einmal klicken.", "The last job has only just finished – to start again, move the mouse pointer off the button briefly and click once more."),
     ("+ {} Unterebene(n)", "+ {} sub-layer(s)"),
     ("{} Einstellungen…", "{} Settings…"),
+    ("Klick fährt den Laser dorthin – Esc beendet", "Click moves the laser there – Esc ends"),
+    ("{} Laser hierher fahren", "{} Move laser here"),
+    ("Danach fährt ein Klick auf die Arbeitsfläche den Laser (ausgeschaltet) an diese Stelle. Esc beendet. Einzeln auch per Rechtsklick auf die Arbeitsfläche → „Laser hierher fahren“.", "Afterwards a click on the work area moves the laser (switched off) to that spot. Esc ends. Single moves also via right-click on the work area → \"Move laser here\"."),
+    ("{} Laser per Klick verfahren", "{} Move laser by click"),
+    ("Während eines Jobs nicht möglich.", "Not possible while a job is running."),
+    ("Nur bei „Start von: Absolute Koordinaten“ möglich.", "Only possible with \"Start from: Absolute coordinates\"."),
+    ("Mit eingeschalteter Drehachse nicht möglich.", "Not possible with the rotary axis switched on."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

@@ -747,6 +747,16 @@ impl VectorLumeApp {
             self.draw_job(&clip, &tf, pal, dark, &job, 1.0, &[], false);
         }
 
+        if self.move_by_click {
+            clip.text(
+                work.left_top() + vec2(12.0, 10.0),
+                egui::Align2::LEFT_TOP,
+                tr("Klick fährt den Laser dorthin – Esc beendet"),
+                egui::FontId::proportional(13.0),
+                pal.accent,
+            );
+        }
+
         // Laserkopf und Benutzer-Ursprung
         if let Some(head) = self.machine.head_position() {
             let p = tf.to_screen(profile.machine_to_doc(head));
@@ -994,6 +1004,21 @@ impl VectorLumeApp {
                 self.snap_hint = None;
             }
             return;
+        }
+        // Laser per Klick verfahren: Fadenkreuz, Klick fährt den Laser dorthin, Esc beendet
+        if self.move_by_click {
+            if resp.hover_pos().is_some() && !space {
+                ctx.set_cursor_icon(CursorIcon::Crosshair);
+            }
+            if resp.clicked_by(PointerButton::Primary)
+                && !space
+                && let Some(p) = resp.interact_pointer_pos()
+            {
+                self.move_laser_to_point(tf.to_doc(p));
+            }
+            if !resp.secondary_clicked() {
+                return;
+            }
         }
         // Fangpunkt schon vor dem Zeichnen anzeigen
         if self.tool != Tool::Select
@@ -1250,9 +1275,28 @@ impl VectorLumeApp {
             }
         }
 
+        if resp.secondary_clicked()
+            && let Some(pos) = resp.interact_pointer_pos()
+        {
+            self.context_pos = Some(tf.to_doc(pos));
+        }
         resp.context_menu(|ui| {
             let has = !self.selection.is_empty();
             use egui_phosphor::regular as i;
+            let blocker = self.jog_to_doc_blocker();
+            let r = ui.add_enabled(
+                blocker.is_none() && self.context_pos.is_some(),
+                egui::Button::new(trs(&format!("{} Laser hierher fahren", i::CROSSHAIR))),
+            );
+            if let Some(why) = blocker {
+                r.on_disabled_hover_text(tr(why));
+            } else if r.clicked() {
+                if let Some(p) = self.context_pos {
+                    self.move_laser_to_point(p);
+                }
+                ui.close();
+            }
+            ui.separator();
             if ui.add_enabled(has, egui::Button::new(trs(&format!("{} Duplizieren", i::COPY)))).clicked() {
                 self.duplicate();
                 ui.close();

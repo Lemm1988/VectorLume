@@ -1923,8 +1923,21 @@ fn perf_many_shapes() {
     println!("alle ausgewählt: {:.1} ms je Bild", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
 }
 
-/// Nach einem Job steht „Job starten“ oft genau unter dem Mauszeiger (vorher Pause/Stopp): ein Klick, ohne den Zeiger
-/// wegzubewegen, startet nicht erneut – nach Wegbewegen und kurzer Wartezeit wieder ganz normal.
+fn tap(h: &mut Harness<'static, VectorLumeApp>, pos: egui::Pos2) {
+    for pressed in [true, false] {
+        h.event(egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+        h.run_steps(2);
+    }
+}
+
+/// Echter Ablauf am Touchpad: „Job starten“ anklicken, der Zeiger bleibt liegen, der Job läuft durch. Danach steht der
+/// Knopf wieder unter dem Zeiger – ein Tipp-Klick beim Weiterbewegen darf den Job nicht noch einmal starten. Erst
+/// nach Wegbewegen und Zurückkehren startet ein Klick wieder.
 #[test]
 fn start_button_is_guarded_after_a_job() {
     let dir = std::env::temp_dir().join(format!("vectorlume-ui-startsperre-{}", std::process::id()));
@@ -1934,31 +1947,89 @@ fn start_button_is_guarded_after_a_job() {
     {
         let app = h.state_mut();
         app.settings.safety_acknowledged = true;
-        app.doc.add_path("R", 0, VectorPath::rect(10.0, 10.0, 5.0, 5.0, 0.0));
+        app.settings.profile.return_to_origin = false;
+        // kleines Quadrat nahe am Nullpunkt (vorne links): kurzer Job im Simulator
+        let y = app.settings.profile.bed_height - 3.0;
+        app.doc.add_path("R", 0, VectorPath::rect(1.0, y, 1.0, 1.0, 0.0));
         app.selected_port = vl_device::SIMULATOR_PORT.into();
         app.connect();
     }
     wait_until(&mut h, |a| a.machine.connected && a.machine.status.is_some());
     let pos = h.get_by_label_contains("Job starten").rect().center();
-    // wie direkt nach einem Job, Zeiger ruht auf dem Knopf
-    h.state_mut().machine.start_guard = Some(crate::app::StartGuard::new());
     h.hover_at(pos);
-    h.run_ok();
-    h.get_by_label_contains("Job starten").click_accesskit();
-    h.run_ok();
-    assert!(h.state().preview.job.is_none() && !h.state().machine.job_running, "versehentlicher Neustart");
-    assert!(h.state().toasts.iter().any(|t| t.text.contains("gerade erst fertig")));
-    // Zeiger weg, Wartezeit vorbei: die Sperre fällt
-    h.hover_at(pos + egui::vec2(0.0, 200.0));
+    h.run_steps(2);
+    tap(&mut h, pos);
+    wait_until(&mut h, |a| a.machine.job_running);
+    for _ in 0..1500 {
+        h.run_ok();
+        if !h.state().machine.job_running {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(!h.state().machine.job_running, "Job nicht fertig geworden");
+    // Zeiger hat sich nicht bewegt; Wartezeit überspringen
+    for _ in 0..3 {
+        h.run_steps(2);
+    }
     if let Some(g) = &mut h.state_mut().machine.start_guard {
         g.since -= crate::app::StartGuard::DELAY;
     }
-    h.run_ok();
+    h.run_steps(3);
+    assert!(h.state().machine.start_guard.is_some(), "Sperre ohne Wegbewegen aufgehoben");
+    tap(&mut h, pos);
+    for _ in 0..20 {
+        h.run_ok();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(!h.state().machine.job_running, "Tipp-Klick hat den Job erneut gestartet");
+    assert!(h.state().toasts.iter().any(|t| t.text.contains("gerade erst fertig")));
+    // wegbewegen und zurück: jetzt startet ein Klick wieder
+    h.hover_at(pos + egui::vec2(0.0, 200.0));
+    h.run_steps(2);
     assert!(h.state().machine.start_guard.is_none());
     h.hover_at(pos);
-    h.run_ok();
-    h.get_by_label_contains("Job starten").click_accesskit();
+    h.run_steps(2);
+    tap(&mut h, pos);
     wait_until(&mut h, |a| a.machine.job_running);
+    h.state_mut().disconnect();
+    crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = None);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// „Laser per Klick verfahren“: ein Klick auf die Arbeitsfläche fährt den Laser dorthin (Simulator), Esc beendet.
+#[test]
+fn click_moves_laser_to_position() {
+    let dir = std::env::temp_dir().join(format!("vectorlume-ui-klickfahrt-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = Some(dir.clone()));
+    let mut h = harness(false);
+    {
+        let app = h.state_mut();
+        app.settings.profile.jog_speed = 30000.0;
+        app.selected_port = vl_device::SIMULATOR_PORT.into();
+        app.connect();
+    }
+    wait_until(&mut h, |a| a.machine.connected && a.machine.status.is_some());
+    h.state_mut().right_tab = crate::ui_side::RightTab::Jog;
+    h.run_steps(2);
+    h.get_by_label_contains("Laser per Klick verfahren").click();
+    h.run_steps(2);
+    assert!(h.state().move_by_click);
+    let bed_h = h.state().settings.profile.bed_height;
+    let target = Point::new(60.0, bed_h - 40.0);
+    let at = h.state().view.tf.unwrap().to_screen(target);
+    h.hover_at(at);
+    h.run_steps(2);
+    tap(&mut h, at);
+    // Ursprung vorne links: Maschine X 60, Y 40
+    wait_until(&mut h, |a| {
+        a.machine.head_position().is_some_and(|p| (p.x - 60.0).abs() < 0.5 && (p.y - 40.0).abs() < 0.5)
+    });
+    assert!(h.state().selection.is_empty(), "im Verfahrmodus wird nichts ausgewählt");
+    h.key_press(egui::Key::Escape);
+    h.run_steps(2);
+    assert!(!h.state().move_by_click);
     h.state_mut().disconnect();
     crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = None);
     let _ = std::fs::remove_dir_all(&dir);

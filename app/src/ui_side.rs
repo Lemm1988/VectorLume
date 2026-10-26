@@ -1046,8 +1046,9 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                     .fill(pal.success)
                     .min_size(vec2(ui.available_width(), 34.0)),
             );
+            let on_button = ui.input(|i| i.pointer.hover_pos()).is_some_and(|p| resp.rect.contains(p));
             if let Some(g) = &mut app.machine.start_guard
-                && g.released(resp.hovered())
+                && g.released(on_button)
             {
                 app.machine.start_guard = None;
             }
@@ -1191,6 +1192,22 @@ fn jog_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 });
             }
             ui.add_space(6.0);
+            let blocker = app.jog_to_doc_blocker();
+            let on = app.move_by_click;
+            let resp = ui
+                .add_enabled(
+                    blocker.is_none(),
+                    Button::selectable(on, trs(&format!("{} Laser per Klick verfahren", icon::CROSSHAIR))),
+                )
+                .on_hover_text(tr(
+                    "Danach fährt ein Klick auf die Arbeitsfläche den Laser (ausgeschaltet) an diese Stelle. Esc \
+                     beendet. Einzeln auch per Rechtsklick auf die Arbeitsfläche → „Laser hierher fahren“.",
+                ));
+            if let Some(why) = blocker {
+                resp.on_disabled_hover_text(tr(why));
+            } else if resp.clicked() {
+                app.move_by_click = !on;
+            }
             // Nur GRBL kann eine Verfahrbewegung gezielt abbrechen (Echtzeitbefehl 0x85).
             if app.firmware().is_grbl() && ui.button(trs(&format!("{} Bewegung abbrechen", icon::HAND_PALM))).clicked()
             {

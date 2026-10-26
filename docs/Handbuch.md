@@ -124,7 +124,7 @@ Unter *Anordnen → Generatoren*:
 - *Benutzer-Ursprung*: relativ zu einem gespeicherten Punkt.
 - *Aktuelle Position*: relativ zur Position des Laserkopfs.
 
-Mit dem **Ursprung** (9 Ankerpunkte) bestimmst du, welche Ecke des Jobs auf diesem Punkt liegt. Im Reiter **Bewegen** fährst du den Kopf von Hand. **Laser zur Auswahl fahren** und **Mittelpunkt finden** helfen beim Ausrichten auf vorhandenen Werkstücken.
+Mit dem **Ursprung** (9 Ankerpunkte) bestimmst du, welche Ecke des Jobs auf diesem Punkt liegt. Im Reiter **Bewegen** fährst du den Kopf von Hand; mit **Laser per Klick verfahren** fährt jeder Klick auf die Arbeitsfläche den (ausgeschalteten) Laser an diese Stelle, Esc beendet. Einzeln geht das auch per Rechtsklick auf die Arbeitsfläche → *Laser hierher fahren*. **Laser zur Auswahl fahren** und **Mittelpunkt finden** helfen beim Ausrichten auf vorhandenen Werkstücken.
 
 Unter den Job-Einstellungen findest du außerdem: Schnittreihenfolge optimieren, innen vor außen schneiden, an Ecken beginnen und überlappende Linien entfernen (gemeinsame Kanten nur einmal schneiden). Startet der Job nicht mit *Absoluten Koordinaten*, sondern am *Benutzer-Ursprung* oder an der *aktuellen Position*, zeigt ein grün gestrichelter Rahmen auf der Arbeitsfläche, wo tatsächlich gelasert wird. Für Vorlagen mit festen Positionen (z. B. eine Halterung für Stifte) immer *Absolute Koordinaten* verwenden. Willst du die Reihenfolge selbst bestimmen, wähle *Anordnen → Schnittreihenfolge per Klick…* und klicke die Formen nacheinander an; die Nummern zeigen die Reihenfolge innerhalb jeder Ebene. Eingabe übernimmt sie und schaltet die Optimierung aus, Esc bricht ab.
 

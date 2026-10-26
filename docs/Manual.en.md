@@ -124,7 +124,7 @@ Under *Arrange → Generators*:
 - *User origin*: relative to a saved point.
 - *Current position*: relative to the position of the laser head.
 
-The **Origin** (9 anchor points) sets which corner of the job lies on that point. Move the head by hand in the **Move** tab. **Move laser to selection** and **Find center** help with aligning to existing workpieces.
+The **Origin** (9 anchor points) sets which corner of the job lies on that point. Move the head by hand in the **Move** tab; with **Move laser by click** every click on the work area moves the (switched-off) laser to that spot, Esc ends. A single move also works via right-click on the work area → *Move laser here*. **Move laser to selection** and **Find center** help with aligning to existing workpieces.
 
 The job settings also offer: optimize cut order, cut inner shapes before outer, start at corners and remove overlapping lines (shared edges are cut only once). If the job does not start from *Absolute coordinates* but from the *User origin* or the *Current position*, a dashed green frame on the work area shows where it will actually be lasered. For templates with fixed positions (e.g. a jig for pens) always use *Absolute coordinates*. To set the order yourself, choose *Arrange → Cut order by clicking…* and click the shapes one after another; the numbers show the order within each layer. Enter applies it and switches optimization off, Esc cancels.
 

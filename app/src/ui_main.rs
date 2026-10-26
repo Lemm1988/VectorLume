@@ -42,7 +42,9 @@ pub fn shortcuts(app: &mut VectorLumeApp, ctx: &egui::Context) {
     }
     if pressed(sc(Modifiers::NONE, Key::Escape)) {
         // Klickmodi auf der Arbeitsfläche zuerst beenden
-        if app.tangent.is_some() {
+        if app.move_by_click {
+            app.move_by_click = false;
+        } else if app.tangent.is_some() {
             app.tangent = None;
         } else if app.print_cut.picking.is_some() {
             app.print_cut.picking = None;

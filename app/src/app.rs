@@ -147,9 +147,11 @@ pub struct MachineInfo {
     pub start_guard: Option<StartGuard>,
 }
 
-/// Nach einem Job erscheint „Job starten“ oft genau unter dem Mauszeiger (vorher standen dort Pause/Stopp). Damit ein
-/// versehentlicher Klick – etwa ein Antippen des Touchpads beim Weiterbewegen – den Job nicht gleich noch einmal
-/// startet, zählt ein Klick erst wieder, wenn der Zeiger den Knopf einmal verlassen hat und etwas Zeit vergangen ist.
+/// Nach einem Job erscheint „Job starten“ genau dort, wo man ihn angeklickt hat – der Mauszeiger steht meist noch
+/// darauf. Ein Touchpad meldet beim Auflegen des Fingers zum Weiterbewegen leicht einen Tipp-Klick, und der Job liefe
+/// sofort noch einmal. Ein Klick zählt deshalb erst wieder, wenn der Zeiger den Knopf nachweislich verlassen hat
+/// (Lage des Zeigers außerhalb des Knopfs bzw. außerhalb des Fensters) und etwas Zeit vergangen ist. Nicht über
+/// egui-„hovered“: im ersten Bild nach dem Jobende gilt der neu erschienene Knopf noch als nicht überfahren.
 #[derive(Clone, Copy, Debug)]
 pub struct StartGuard {
     pub(crate) since: Instant,
@@ -163,9 +165,9 @@ impl StartGuard {
         Self { since: Instant::now(), left: false }
     }
 
-    /// Je Bild aufrufen; `true`, sobald die Sperre aufgehoben ist.
-    pub fn released(&mut self, hovered: bool) -> bool {
-        self.left |= !hovered;
+    /// Je Bild mit „Zeiger liegt auf dem Knopf“ aufrufen; `true`, sobald die Sperre aufgehoben ist.
+    pub fn released(&mut self, pointer_on_button: bool) -> bool {
+        self.left |= !pointer_on_button;
         self.left && self.since.elapsed() >= Self::DELAY
     }
 }
@@ -254,6 +256,10 @@ pub struct VectorLumeApp {
     /// Fenster mit den Einstellungen der aktuellen Ebene (Rechts- oder Doppelklick auf eine Ebene): der Stand der
     /// Ebene beim Öffnen, für „Abbrechen“.
     pub layer_window: Option<vl_core::Layer>,
+    /// „Laser per Klick verfahren“: ein Klick auf die Arbeitsfläche fährt den Laser dorthin (Esc beendet).
+    pub move_by_click: bool,
+    /// Wo das Kontextmenü der Arbeitsfläche geöffnet wurde (Dokument).
+    pub context_pos: Option<Point>,
     pub tool: Tool,
     pub tool_options: ToolOptions,
     pub view: View,
@@ -375,6 +381,8 @@ impl VectorLumeApp {
             current_layer: 0,
             sub_tab: 0,
             layer_window: None,
+            move_by_click: false,
+            context_pos: None,
             tool: Tool::Select,
             tool_options: ToolOptions::default(),
             view: View::default(),
@@ -1694,6 +1702,32 @@ impl VectorLumeApp {
         }
         let shift = self.settings.profile.machine_to_doc(target) - js.anchor.point_in(&b);
         Some(Rect::new(b.min + shift, b.max + shift))
+    }
+
+    /// Warum der Laser gerade nicht zu einem Punkt der Arbeitsfläche fahren kann (`None` = er kann).
+    pub fn jog_to_doc_blocker(&self) -> Option<&'static str> {
+        if !self.machine.connected {
+            Some("Kein Laser verbunden.")
+        } else if self.machine.job_running {
+            Some("Während eines Jobs nicht möglich.")
+        } else if self.settings.job.start_from != StartFrom::Absolute {
+            Some("Nur bei „Start von: Absolute Koordinaten“ möglich.")
+        } else if self.settings.profile.rotary.active_scale().is_some() {
+            Some("Mit eingeschalteter Drehachse nicht möglich.")
+        } else {
+            None
+        }
+    }
+
+    /// Fährt den Laser (ausgeschaltet) zu einem angeklickten Punkt, begrenzt auf die Arbeitsfläche.
+    pub fn move_laser_to_point(&mut self, p: Point) {
+        if let Some(why) = self.jog_to_doc_blocker() {
+            self.toast(ToastKind::Info, tr(why));
+            return;
+        }
+        let pr = &self.settings.profile;
+        let p = Point::new(p.x.clamp(0.0, pr.bed_width), p.y.clamp(0.0, pr.bed_height));
+        self.jog_to_doc(p);
     }
 
     /// Laser kann zu Dokumentpunkten fahren: verbunden, kein Job, absolute Koordinaten, keine Drehachse.
