@@ -143,6 +143,31 @@ pub struct MachineInfo {
     pub frame_repeat: Option<vl_core::LineBuf>,
     /// Durchgänge des laufenden Rahmens.
     pub frame_passes: u32,
+    /// Sperre des Startknopfs direkt nach einem Job (siehe [`StartGuard`]).
+    pub start_guard: Option<StartGuard>,
+}
+
+/// Nach einem Job erscheint „Job starten“ oft genau unter dem Mauszeiger (vorher standen dort Pause/Stopp). Damit ein
+/// versehentlicher Klick – etwa ein Antippen des Touchpads beim Weiterbewegen – den Job nicht gleich noch einmal
+/// startet, zählt ein Klick erst wieder, wenn der Zeiger den Knopf einmal verlassen hat und etwas Zeit vergangen ist.
+#[derive(Clone, Copy, Debug)]
+pub struct StartGuard {
+    pub(crate) since: Instant,
+    left: bool,
+}
+
+impl StartGuard {
+    pub const DELAY: Duration = Duration::from_millis(1500);
+
+    pub fn new() -> Self {
+        Self { since: Instant::now(), left: false }
+    }
+
+    /// Je Bild aufrufen; `true`, sobald die Sperre aufgehoben ist.
+    pub fn released(&mut self, hovered: bool) -> bool {
+        self.left |= !hovered;
+        self.left && self.since.elapsed() >= Self::DELAY
+    }
 }
 
 impl MachineInfo {
@@ -226,8 +251,9 @@ pub struct VectorLumeApp {
     pub current_layer: usize,
     /// Gewählter Reiter der Ebeneneinstellungen: 0 = Hauptbearbeitung, ab 1 Unterebenen.
     pub sub_tab: usize,
-    /// Fenster mit den Einstellungen der aktuellen Ebene (Rechts- oder Doppelklick auf eine Ebene).
-    pub layer_window: bool,
+    /// Fenster mit den Einstellungen der aktuellen Ebene (Rechts- oder Doppelklick auf eine Ebene): der Stand der
+    /// Ebene beim Öffnen, für „Abbrechen“.
+    pub layer_window: Option<vl_core::Layer>,
     pub tool: Tool,
     pub tool_options: ToolOptions,
     pub view: View,
@@ -348,7 +374,7 @@ impl VectorLumeApp {
             selection: Vec::new(),
             current_layer: 0,
             sub_tab: 0,
-            layer_window: false,
+            layer_window: None,
             tool: Tool::Select,
             tool_options: ToolOptions::default(),
             view: View::default(),
@@ -1701,6 +1727,15 @@ impl VectorLumeApp {
         self.toast(ToastKind::Success, trs(&format!("Benutzer-Ursprung gesetzt: X {:.2} Y {:.2}", p.x, p.y)));
     }
 
+    /// Öffnet die Einstellungen der Ebene `l` in einem Fenster.
+    pub fn open_layer_window(&mut self, l: usize) {
+        if self.current_layer != l {
+            self.sub_tab = 0;
+        }
+        self.current_layer = l;
+        self.layer_window = Some(self.doc.layers[l].clone());
+    }
+
     /// Wechselt das aktive Gerät (nur getrennt und ohne laufenden Job).
     pub fn switch_device(&mut self, index: usize) {
         if self.machine.connected || index == self.settings.device_index {
@@ -1843,6 +1878,7 @@ impl VectorLumeApp {
                     }
                     self.machine.frame_repeat = None;
                     self.machine.job_running = false;
+                    self.machine.start_guard = Some(StartGuard::new());
                     if std::mem::take(&mut self.machine.document_job) && ok {
                         self.advance_text_counters();
                     }

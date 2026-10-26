@@ -59,7 +59,7 @@ Jede Form gehört zu einer der 30 Farbebenen. Klicke unten in der Farbleiste auf
 - Bei *Füllen*: Zeilenabstand, Winkel, Kreuzschraffur, Overscan und Winkelschritt je Durchgang.
 - **Unterebenen**: dieselben Formen mehrfach bearbeiten, z. B. erst füllen, dann die Kontur schneiden.
 
-Ein Klick auf eine Ebene zeigt ihre Einstellungen unter der Ebenenliste; **Rechts- oder Doppelklick** öffnet sie in einem eigenen Fenster. Ebenen lassen sich ausblenden, sperren und in ihrer Reihenfolge verschieben. Einzelnen Objekten kannst du eine eigene Leistung in Prozent der Ebenenleistung geben.
+Unter der Ebenenliste stellst du für die gewählte Ebene schnell Modus, Geschwindigkeit, Leistung und Durchgänge ein. **Alle Einstellungen** öffnest du mit einem **Rechts- oder Doppelklick auf die Ebene** (oder „Einstellungen…“) in einem eigenen Fenster; Änderungen wirken sofort, *Abbrechen* nimmt sie zurück. Ebenen lassen sich ausblenden, sperren und in ihrer Reihenfolge verschieben. Einzelnen Objekten kannst du eine eigene Leistung in Prozent der Ebenenleistung geben.
 
 ## Bilder gravieren
 

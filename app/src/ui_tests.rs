@@ -348,7 +348,17 @@ fn output_footprint_follows_start_mode() {
 /// Rechtsklick auf eine Ebene öffnet ihre Einstellungen in einem Fenster.
 #[test]
 fn right_click_on_layer_opens_settings_window() {
-    let mut h = harness(false);
+    layer_window_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_layer_window() {
+    layer_window_flow(true);
+}
+
+fn layer_window_flow(render: bool) {
+    let mut h = harness(render);
     {
         let app = h.state_mut();
         app.doc.add_path("A", 0, VectorPath::rect(10.0, 10.0, 20.0, 20.0, 0.0));
@@ -367,9 +377,23 @@ fn right_click_on_layer_opens_settings_window() {
         });
     }
     h.run_ok();
-    assert!(h.state().layer_window);
+    assert!(h.state().layer_window.is_some());
     assert_eq!(h.state().current_layer, 3);
     assert!(h.query_by_label_contains("Ebene „Gravur“").is_some());
+    if render {
+        h.run_steps(4);
+        save(&mut h, "ebenenfenster");
+    }
+    // Änderung im Fenster wirkt sofort, „Abbrechen“ stellt den alten Stand wieder her
+    let before = h.state().doc.layers[3].clone();
+    h.state_mut().doc.layers[3].settings.speed = 1234.0;
+    h.run_ok();
+    h.get_by_label("Abbrechen").click();
+    h.run_ok();
+    assert!(h.state().layer_window.is_none());
+    assert_eq!(h.state().doc.layers[3], before);
+    // Rechts in der Leiste bleibt nur die Schnelleinstellung
+    assert!(h.query_by_label_contains("Einstellungen…").is_some());
 }
 
 fn tabs_flow(render: bool) {
@@ -1897,4 +1921,45 @@ fn perf_many_shapes() {
         h.step();
     }
     println!("alle ausgewählt: {:.1} ms je Bild", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+}
+
+/// Nach einem Job steht „Job starten“ oft genau unter dem Mauszeiger (vorher Pause/Stopp): ein Klick, ohne den Zeiger
+/// wegzubewegen, startet nicht erneut – nach Wegbewegen und kurzer Wartezeit wieder ganz normal.
+#[test]
+fn start_button_is_guarded_after_a_job() {
+    let dir = std::env::temp_dir().join(format!("vectorlume-ui-startsperre-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = Some(dir.clone()));
+    let mut h = harness_sized(false, egui::vec2(1600.0, 2400.0));
+    {
+        let app = h.state_mut();
+        app.settings.safety_acknowledged = true;
+        app.doc.add_path("R", 0, VectorPath::rect(10.0, 10.0, 5.0, 5.0, 0.0));
+        app.selected_port = vl_device::SIMULATOR_PORT.into();
+        app.connect();
+    }
+    wait_until(&mut h, |a| a.machine.connected && a.machine.status.is_some());
+    let pos = h.get_by_label_contains("Job starten").rect().center();
+    // wie direkt nach einem Job, Zeiger ruht auf dem Knopf
+    h.state_mut().machine.start_guard = Some(crate::app::StartGuard::new());
+    h.hover_at(pos);
+    h.run_ok();
+    h.get_by_label_contains("Job starten").click_accesskit();
+    h.run_ok();
+    assert!(h.state().preview.job.is_none() && !h.state().machine.job_running, "versehentlicher Neustart");
+    assert!(h.state().toasts.iter().any(|t| t.text.contains("gerade erst fertig")));
+    // Zeiger weg, Wartezeit vorbei: die Sperre fällt
+    h.hover_at(pos + egui::vec2(0.0, 200.0));
+    if let Some(g) = &mut h.state_mut().machine.start_guard {
+        g.since -= crate::app::StartGuard::DELAY;
+    }
+    h.run_ok();
+    assert!(h.state().machine.start_guard.is_none());
+    h.hover_at(pos);
+    h.run_ok();
+    h.get_by_label_contains("Job starten").click_accesskit();
+    wait_until(&mut h, |a| a.machine.job_running);
+    h.state_mut().disconnect();
+    crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = None);
+    let _ = std::fs::remove_dir_all(&dir);
 }

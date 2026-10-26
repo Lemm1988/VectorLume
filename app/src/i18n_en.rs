@@ -1539,6 +1539,12 @@ pub static EN: &[(&str, &str)] = &[
     ("Rechtsklick oder Doppelklick: Einstellungen in eigenem Fenster", "Right-click or double-click: settings in a separate window"),
     ("Der Job wird mit dem Ankerpunkt dorthin verschoben – der grün gestrichelte Rahmen auf der Arbeitsfläche zeigt, wo gelasert wird. Für Vorlagen und feste Positionen „Absolute Koordinaten“ wählen.", "The job is moved there by its anchor point – the dashed green frame on the work area shows where it will be lasered. For templates and fixed positions choose \"Absolute coordinates\"."),
     ("Ebene „{}“", "Layer \"{}\""),
+    ("Rechtsklick oder Doppelklick: alle Einstellungen der Ebene", "Right-click or double-click: all layer settings"),
+    ("Alle Einstellungen der Ebene in einem Fenster (auch Rechtsklick auf die Ebene)", "All layer settings in a window (also right-click on the layer)"),
+    ("OK", "OK"),
+    ("Der letzte Job ist gerade erst fertig – zum erneuten Start den Mauszeiger kurz vom Knopf nehmen und noch einmal klicken.", "The last job has only just finished – to start again, move the mouse pointer off the button briefly and click once more."),
+    ("+ {} Unterebene(n)", "+ {} sub-layer(s)"),
+    ("{} Einstellungen…", "{} Settings…"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

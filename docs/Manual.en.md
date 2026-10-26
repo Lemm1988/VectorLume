@@ -59,7 +59,7 @@ Every shape belongs to one of 30 color layers. Click a color in the color bar at
 - For *Fill*: line interval, angle, crosshatch, overscan and angle step per pass.
 - **Sub-layers**: process the same shapes several times, e.g. fill first, then cut the outline.
 
-Clicking a layer shows its settings below the layer list; a **right-click or double-click** opens them in a separate window. Layers can be hidden, locked and reordered. Individual objects can get their own power as a percentage of the layer power.
+Below the layer list you can quickly set mode, speed, power and passes of the selected layer. **All settings** open in a separate window with a **right-click or double-click on the layer** (or "Settings…"); changes apply immediately, *Cancel* reverts them. Layers can be hidden, locked and reordered. Individual objects can get their own power as a percentage of the layer power.
 
 ## Engraving images
 

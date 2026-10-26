@@ -1,6 +1,6 @@
 //! Rechte Seitenleiste: Ebenen mit Laser-Einstellungen, Laser-Steuerung, Verfahren und Konsole.
 
-use crate::app::VectorLumeApp;
+use crate::app::{ToastKind, VectorLumeApp};
 use crate::i18n::{tr, trs};
 use crate::theme;
 use crate::units::UnitField;
@@ -99,7 +99,6 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     let pal = theme::of(ui);
     section_title(ui, icon::STACK, tr("Ebenen"));
     ui.add_space(4.0);
-    let mut scroll_to_settings = false;
     let used = app.doc.used_layers();
     if used.is_empty() {
         ui.label(
@@ -196,49 +195,131 @@ fn layers_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                     })
             })
             .response;
-        let open_window = resp.secondary_clicked() || resp.double_clicked();
-        if resp.clicked() || open_window {
+        if resp.secondary_clicked() || resp.double_clicked() {
+            app.open_layer_window(l);
+        } else if resp.clicked() {
             if app.current_layer != l {
                 app.sub_tab = 0;
-                scroll_to_settings = true;
             }
             app.current_layer = l;
         }
-        if open_window {
-            app.layer_window = true;
-        }
-        resp.on_hover_text(tr("Rechtsklick oder Doppelklick: Einstellungen in eigenem Fenster"));
+        resp.on_hover_text(tr("Rechtsklick oder Doppelklick: alle Einstellungen der Ebene"));
         ui.add_space(3.0);
     }
 
-    ui.add_space(6.0);
-    layer_settings(app, ui);
-    if scroll_to_settings {
-        ui.scroll_to_cursor(Some(Align::BOTTOM));
+    if !used.is_empty() {
+        ui.add_space(6.0);
+        layer_quick_edit(app, ui);
     }
     image_adjust_ui(app, ui);
     layer_window(app, ui.ctx());
 }
 
-/// Fenster mit den Einstellungen der aktuellen Ebene; ein Klick auf eine andere Ebene wechselt den Inhalt.
+/// Schnelleinstellung der gewählten Ebene unter der Liste: Modus, Geschwindigkeit, Leistung, Durchgänge. Alles
+/// Weitere steht im Ebenenfenster.
+fn layer_quick_edit(app: &mut VectorLumeApp, ui: &mut Ui) {
+    let pal = theme::of(ui);
+    let l = app.current_layer;
+    let mut s = app.doc.layers[l].settings.clone();
+    card(ui, |ui| {
+        ui.horizontal(|ui| {
+            let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
+            ui.painter().rect_filled(r, CornerRadius::same(4), theme::layer_color(app.doc.layers[l].color));
+            ui.label(RichText::new(&app.doc.layers[l].name).strong());
+            let subs = app.doc.layers[l].sub.len();
+            if subs > 0 {
+                ui.label(RichText::new(trs(&format!("+ {subs} Unterebene(n)"))).small().color(pal.text_weak));
+            }
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if ui
+                    .button(trs(&format!("{} Einstellungen…", icon::SLIDERS)))
+                    .on_hover_text(tr("Alle Einstellungen der Ebene in einem Fenster (auch Rechtsklick auf die Ebene)"))
+                    .clicked()
+                {
+                    app.open_layer_window(l);
+                }
+            });
+        });
+        ui.add_space(4.0);
+        egui::Grid::new("layer_quick").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
+            ui.label(tr("Modus"));
+            mode_combo(ui, &mut s, "layer_quick_mode");
+            ui.end_row();
+            ui.label(tr("Geschwindigkeit"));
+            ui.add(DragValue::new(&mut s.speed).speed(10.0).range(1.0..=60000.0).mm_per_min());
+            ui.end_row();
+            ui.label(tr("Leistung max."));
+            ui.add(egui::Slider::new(&mut s.power_max, 0.0..=100.0).suffix(" %").fixed_decimals(1));
+            ui.end_row();
+            ui.label(tr("Durchgänge"));
+            ui.add(DragValue::new(&mut s.passes).range(1..=100));
+            ui.end_row();
+        });
+    });
+    if s != app.doc.layers[l].settings {
+        app.checkpoint_coalesced("layer");
+        app.doc.layers[l].settings = s;
+        app.mark_changed();
+    }
+}
+
+/// Auswahl der Bearbeitungsart; beim Wechsel gelten die Startwerte des neuen Modus (Ausgabe und Luft bleiben).
+fn mode_combo(ui: &mut Ui, s: &mut CutSettings, id: &str) {
+    let before = s.mode;
+    egui::ComboBox::from_id_salt(id).selected_text(tr(s.mode.label())).show_ui(ui, |ui| {
+        for m in LayerMode::ALL {
+            ui.selectable_value(&mut s.mode, m, tr(m.label()));
+        }
+    });
+    if s.mode != before {
+        let keep = (s.output, s.air_assist);
+        *s = CutSettings::default_for(s.mode);
+        (s.output, s.air_assist) = keep;
+    }
+}
+
+/// Fenster mit allen Einstellungen der gewählten Ebene. Änderungen wirken sofort (die Vorschau folgt);
+/// „Abbrechen“ stellt den Stand beim Öffnen wieder her. Ein Klick auf eine andere Ebene wechselt den Inhalt.
 fn layer_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
-    if !app.layer_window {
-        return;
+    let Some(original) = &app.layer_window else { return };
+    if original.index != app.current_layer {
+        app.layer_window = Some(app.doc.layers[app.current_layer].clone());
     }
     let mut open = true;
+    let mut cancel = false;
     let name = app.doc.layers[app.current_layer].name.clone();
     egui::Window::new(format!("{} {}", icon::STACK, trs(&format!("Ebene „{name}“"))))
         .id(egui::Id::new("layer_window"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
-        .default_width(360.0)
+        .default_width(400.0)
+        .default_pos(ctx.content_rect().center() - vec2(200.0, 260.0))
         .show(ctx, |ui| {
-            egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.8).show(ui, |ui| {
+            egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.75).show(ui, |ui| {
                 layer_settings(app, ui);
             });
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.add(Button::new(tr("OK")).min_size(vec2(90.0, 28.0))).clicked() {
+                    app.layer_window = None;
+                }
+                if ui.add(Button::new(tr("Abbrechen")).min_size(vec2(90.0, 28.0))).clicked() {
+                    cancel = true;
+                }
+            });
         });
-    app.layer_window = open;
+    if cancel && let Some(original) = app.layer_window.take() {
+        let l = original.index;
+        if app.doc.layers[l] != original {
+            app.checkpoint();
+            app.doc.layers[l] = original;
+            app.mark_changed();
+        }
+    }
+    if !open {
+        app.layer_window = None;
+    }
 }
 
 /// Einstellungen der aktuellen Ebene (Name, Unterebenen, Bearbeitung) – in der Seitenleiste und im Ebenenfenster.
@@ -317,18 +398,7 @@ pub(crate) fn cut_settings_ui(ui: &mut Ui, s: &mut CutSettings, image_dpi: Optio
     let has_images = image_dpi.is_some();
     egui::Grid::new("cut_settings").num_columns(2).spacing(vec2(10.0, 6.0)).show(ui, |ui| {
         ui.label(tr("Modus"));
-        let before = s.mode;
-        egui::ComboBox::from_id_salt("layer_mode").selected_text(tr(s.mode.label())).show_ui(ui, |ui| {
-            for m in LayerMode::ALL {
-                ui.selectable_value(&mut s.mode, m, tr(m.label()));
-            }
-        });
-        if s.mode != before {
-            // Sinnvolle Startwerte für den neuen Modus übernehmen, Ausgabe/Luft beibehalten.
-            let keep = (s.output, s.air_assist);
-            *s = CutSettings::default_for(s.mode);
-            (s.output, s.air_assist) = keep;
-        }
+        mode_combo(ui, s, "layer_mode");
         ui.end_row();
 
         ui.label(tr("Geschwindigkeit"));
@@ -639,13 +709,6 @@ fn image_adjust_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
 }
 
 // ------------------------------------------------------------------ Laser
-
-fn colored_button(ui: &mut Ui, text: String, fill: Color32, enabled: bool) -> bool {
-    let b = Button::new(RichText::new(text).color(Color32::WHITE).strong())
-        .fill(fill)
-        .min_size(vec2(ui.available_width(), 34.0));
-    ui.add_enabled(enabled, b).clicked()
-}
 
 fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     let pal = theme::of(ui);
@@ -977,13 +1040,27 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
                 }
             });
         } else {
-            if colored_button(
-                ui,
-                trs(&format!("{}  Job starten", icon::PLAY)),
-                pal.success,
+            let resp = ui.add_enabled(
                 connected && !app.doc.objects.is_empty(),
-            ) {
-                app.start_job();
+                Button::new(RichText::new(trs(&format!("{}  Job starten", icon::PLAY))).color(Color32::WHITE).strong())
+                    .fill(pal.success)
+                    .min_size(vec2(ui.available_width(), 34.0)),
+            );
+            if let Some(g) = &mut app.machine.start_guard
+                && g.released(resp.hovered())
+            {
+                app.machine.start_guard = None;
+            }
+            if resp.clicked() {
+                if app.machine.start_guard.is_some() {
+                    app.toast(
+                        ToastKind::Info,
+                        tr("Der letzte Job ist gerade erst fertig – zum erneuten Start den Mauszeiger kurz vom Knopf \
+                            nehmen und noch einmal klicken."),
+                    );
+                } else {
+                    app.start_job();
+                }
             }
             ui.add_space(4.0);
             ui.horizontal(|ui| {
