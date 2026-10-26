@@ -4941,7 +4941,7 @@ dependencies = [
 
 [[package]]
 name = "vectorlume"
-version = "0.18.0"
+version = "0.18.1"
 dependencies = [
  "base64",
  "chrono",
@@ -5001,7 +5001,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vl-cam"
-version = "0.18.0"
+version = "0.18.1"
 dependencies = [
  "serde",
  "vl-core",
@@ -5011,7 +5011,7 @@ dependencies = [
 
 [[package]]
 name = "vl-core"
-version = "0.18.0"
+version = "0.18.1"
 dependencies = [
  "base64",
  "i_overlay",
@@ -5022,7 +5022,7 @@ dependencies = [
 
 [[package]]
 name = "vl-device"
-version = "0.18.0"
+version = "0.18.1"
 dependencies = [
  "log",
  "serialport",
@@ -5033,7 +5033,7 @@ dependencies = [
 
 [[package]]
 name = "vl-io"
-version = "0.18.0"
+version = "0.18.1"
 dependencies = [
  "barcoders",
  "base64",
@@ -5053,7 +5053,7 @@ dependencies = [
 
 [[package]]
 name = "vl-raster"
-version = "0.18.0"
+version = "0.18.1"
 dependencies = [
  "serde",
  "vl-core",
@@ -5061,7 +5061,7 @@ dependencies = [
 
 [[package]]
 name = "vl-testkit"
-version = "0.18.0"
+version = "0.18.1"
 
 [[package]]
 name = "walkdir"
