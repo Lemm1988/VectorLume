@@ -509,9 +509,7 @@ fn test_preview(
     }
     for poly in &layout.labels {
         let pts: Vec<egui::Pos2> = poly.points.iter().map(|&p| to_screen(p)).collect();
-        if pts.len() >= 2 {
-            painter.add(egui::Shape::closed_line(pts, Stroke::new(0.8, pal.text_weak)));
-        }
+        painter.add(crate::canvas::outline(pts, true, Stroke::new(0.8, pal.text_weak)));
     }
     clicked
 }

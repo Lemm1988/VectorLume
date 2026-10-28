@@ -189,3 +189,7 @@ Das ist die Standardbelegung. Unter *Bearbeiten → Tastenkürzel…* änderst d
 - **Gravur zu dunkel oder zu hell**: Materialtest machen; bei Bildern Zeilenabstand (dpi) und Bildeinstellungen anpassen.
 - **Teile fallen nicht heraus**: Durchgänge oder Leistung erhöhen, Fokus prüfen, Laschen entfernen.
 - **Programmfehler**: VectorLume schreibt einen Fehlerbericht (`crash.log` im Einstellungsordner) und zeigt ihn beim nächsten Start an. Bitte bei Fehlermeldungen mitschicken.
+
+## Marken
+
+LightBurn ist eine Marke der LightBurn Software, LLC. VectorLume ist ein eigenständiges Programm und steht in keiner Verbindung zu LightBurn Software; der Name dient nur dazu, das Dateiformat (.lbrn2) zu benennen, damit eigene Projekte weiterverwendet werden können.

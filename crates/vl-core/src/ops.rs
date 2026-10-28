@@ -310,7 +310,9 @@ pub fn simplify_points(pts: &[Point], closed: bool, tol: f64) -> Vec<Point> {
 }
 
 /// Punktfolge → Pfad. Mit `smoothing` (0…1) werden flache Knicke zu Catmull-Rom-Kurven; Knicke über
-/// `corner_deg` bleiben Ecken, ebenso die Enden offener Linienzüge.
+/// `corner_deg` bleiben Ecken, ebenso die Enden offener Linienzüge. Die Henkel richten sich nach der Länge ihres
+/// eigenen Abschnitts (Sehnenlängen-Gewichtung, höchstens ⅓ davon): nach dem Vereinfachen liegen lange und kurze
+/// Abschnitte nebeneinander, und gleich lange Henkel ließen kurze Abschnitte ausbeulen oder Schlaufen bilden.
 pub fn smooth_points(pts: &[Point], closed: bool, smoothing: f64, corner_deg: f64) -> crate::path::VectorPath {
     let n = pts.len();
     let mut pb = crate::path::PathBuilder::new();
@@ -338,9 +340,19 @@ pub fn smooth_points(pts: &[Point], closed: bool, smoothing: f64, corner_deg: f6
         u.cross(v).atan2(u.dot(v)).abs() > limit
     };
     let corners: Vec<bool> = (0..n).map(corner).collect();
-    // Tangente je Knoten (null an Ecken)
-    let tangent = |i: usize| {
-        if corners[i] { Point::ZERO } else { (pts[(i + 1) % n] - pts[(i + n - 1) % n]) * (k / 6.0) }
+    // Henkel am Knoten `i` für den Abschnitt nach (`out`) bzw. vor ihm; null an Ecken. Bei gleich langen
+    // Abschnitten ist das die übliche Catmull-Rom-Tangente (nächster − vorheriger) · k/6.
+    let handle = |i: usize, out: bool| {
+        if corners[i] {
+            return Point::ZERO;
+        }
+        let (prev, next) = (pts[(i + n - 1) % n], pts[(i + 1) % n]);
+        let (d_in, d_out) = (pts[i].distance(prev), pts[i].distance(next));
+        let sum = d_in + d_out;
+        if sum <= 0.0 {
+            return Point::ZERO;
+        }
+        (next - prev) * (k / 3.0 * if out { d_out } else { d_in } / sum)
     };
     let segments = if closed { n } else { n - 1 };
     for i in 0..segments {
@@ -349,7 +361,7 @@ pub fn smooth_points(pts: &[Point], closed: bool, smoothing: f64, corner_deg: f6
         if corners[i] && corners[j] {
             pb.line_to(p1);
         } else {
-            pb.cubic_to(p0 + tangent(i), p1 - tangent(j), p1);
+            pb.cubic_to(p0 + handle(i, true), p1 - handle(j, false), p1);
         }
     }
     if closed {

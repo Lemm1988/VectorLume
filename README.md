@@ -3,7 +3,7 @@
 Moderne Software zum Gestalten und Lasern für GRBL-Diodenlaser (zuerst für den **Sculpfun SF-A9 40 W**),
 geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
 
-> Privates Projekt – noch keine Lizenz vergeben, alle Rechte vorbehalten.
+> Der Quelltext ist öffentlich einsehbar, eine Lizenz ist aber noch nicht vergeben – alle Rechte vorbehalten.
 
 ## Funktionen
 
@@ -84,3 +84,7 @@ Einstellungen, Autosicherung und Materialbibliothek). Dateien können als Argume
 | `crates/vl-io` | Import (SVG, DXF, PDF/AI, EPS, HPGL, Bilder, 3D-Modelle, Gerber/Excellon, Schrift, CSV, LightBurn-Projekte), SVG-/DXF-/PDF-Export |
 | `app` | Oberfläche (egui) |
 | `docs` | [Lastenheft](docs/Lastenheft.md), [Pflichtenheft](docs/Pflichtenheft.md) mit Umsetzungsstand und Roadmap |
+
+## Marken
+
+LightBurn ist eine Marke der LightBurn Software, LLC. VectorLume ist ein eigenständiges Programm und steht in keiner Verbindung zu LightBurn Software; der Name dient nur dazu, das Dateiformat (.lbrn2) zu benennen, damit eigene Projekte weiterverwendet werden können. Gelesen wird nur das Dateiformat; Programmcode, Texte, Grafiken oder Handbuchinhalte von LightBurn sind nicht enthalten.

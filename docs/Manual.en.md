@@ -189,3 +189,7 @@ These are the defaults. Change them under *Edit → Keyboard shortcuts…*: clic
 - **Engraving too dark or too light**: run a material test; for images adjust the line interval (dpi) and image settings.
 - **Parts do not fall out**: increase passes or power, check the focus, remove tabs.
 - **Program error**: VectorLume writes an error report (`crash.log` in the settings folder) and shows it at the next start. Please include it when reporting bugs.
+
+## Trademarks
+
+LightBurn is a trademark of LightBurn Software, LLC. VectorLume is an independent program and is not affiliated with LightBurn Software; the name is used only to identify the file format (.lbrn2) so that your own projects can be reused.

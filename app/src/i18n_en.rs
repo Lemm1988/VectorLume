@@ -159,7 +159,6 @@ pub static EN: &[(&str, &str)] = &[
     ("Auswahl 1 mm (10 mm) verschieben", "Move selection 1 mm (10 mm)"),
     ("Vorschau", "Preview"),
     ("Arbeitsfläche einpassen", "Fit work area"),
-    ("Privates Projekt – alle Rechte vorbehalten.", "Private project – all rights reserved."),
     ("Verwendet freie Bibliotheken (u. a. egui, usvg, lopdf, image, serialport, nokhwa).\nThis software is based in part on the work of the Independent JPEG Group.", "Uses free libraries (including egui, usvg, lopdf, image, serialport, nokhwa).\nThis software is based in part on the work of the Independent JPEG Group."),
     ("Laser dieser Leistungsklasse (Klasse 4) können Augen dauerhaft schädigen und Brände verursachen.", "Lasers of this power class (class 4) can cause permanent eye damage and start fires."),
     ("Immer eine zur Wellenlänge passende Laserschutzbrille tragen (Diodenlaser: ca. 450 nm).", "Always wear laser safety glasses suitable for the wavelength (diode lasers: approx. 450 nm)."),
@@ -1597,6 +1596,8 @@ pub static EN: &[(&str, &str)] = &[
     ("Das Motiv liegt auf der Arbeitsfläche, nur der Anlauf (Overscan) reicht darüber hinaus. Der Anlauf ist beim Gravieren normal – der Kopf braucht ihn, um beim Brennen schon seine Geschwindigkeit zu haben –, hier ist aber der Rahmen zu Ende: das Motiv etwas weiter vom Rand weg legen.", "The design lies on the work area, only the run-up (overscan) extends beyond it. The run-up is normal when engraving – the head needs it to be at speed while burning – but here the frame ends: place the design a little further from the edge."),
     ("Am Rand der Arbeitsfläche stößt der Kopf an den Endschalter oder den Rahmen: Der Laser stoppt mit „Alarm 1“ und der Job bricht ab. Ohne Endschalter fährt er gegen den Rahmen – Riemen können überspringen und das Gerät kann beschädigt werden.", "At the edge of the work area the head hits the limit switch or the frame: the laser stops with \"alarm 1\" and the job is aborted. Without limit switches it runs into the frame – belts can skip and the machine can be damaged."),
     ("Der Anlauf (Overscan) würde am Rand bis {} mm über die Arbeitsfläche hinausreichen und wird dort gekürzt, damit der Kopf nicht gegen den Endschalter fährt. Die Kante kann dort etwas dunkler werden; für den vollen Anlauf das Motiv {} mm weiter vom Rand weg legen.", "The run-up (overscan) would extend up to {} mm beyond the work area at the edge and is shortened there so the head does not hit the limit switch. The edge there may turn out slightly darker; for the full run-up place the design {} mm further from the edge."),
+    ("Alle Rechte vorbehalten.", "All rights reserved."),
+    ("LightBurn ist eine Marke der LightBurn Software, LLC. VectorLume ist ein eigenständiges Programm und steht in keiner Verbindung zu LightBurn Software; der Name dient nur dazu, das Dateiformat (.lbrn2) zu benennen, damit eigene Projekte weiterverwendet werden können.", "LightBurn is a trademark of LightBurn Software, LLC. VectorLume is an independent program and is not affiliated with LightBurn Software; the name is used only to identify the file format (.lbrn2) so that your own projects can be reused."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.

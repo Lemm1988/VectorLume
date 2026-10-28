@@ -374,7 +374,15 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 edit_keys = true;
             }
             ui.add_space(6.0);
-            ui.label(RichText::new(tr("Privates Projekt – alle Rechte vorbehalten.")).small().color(pal.text_weak));
+            ui.label(RichText::new(tr("Alle Rechte vorbehalten.")).small().color(pal.text_weak));
+            ui.label(
+                RichText::new(tr("LightBurn ist eine Marke der LightBurn Software, LLC. VectorLume ist ein eigenständiges \
+                                  Programm und steht in keiner Verbindung zu LightBurn Software; der Name dient nur dazu, \
+                                  das Dateiformat (.lbrn2) zu benennen, damit eigene Projekte weiterverwendet werden \
+                                  können."))
+                .small()
+                .color(pal.text_weak),
+            );
             ui.label(
                 RichText::new(
                     tr("Verwendet freie Bibliotheken (u. a. egui, usvg, lopdf, image, serialport, nokhwa).\nThis software is based in part on the work of the Independent JPEG Group."),

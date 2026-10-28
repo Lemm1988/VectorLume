@@ -585,6 +585,25 @@ mod tests {
         assert!((r - 20.0).abs() < 1.0, "{r}");
     }
 
+    /// Feine Schraffur aus 1 px breiten Strichen (Strichzeichnung): alle Konturen bleiben im Bild, auch geglättet.
+    #[test]
+    fn thin_hatching_stays_inside_the_image() {
+        let img = image(90, 70, |x, y| {
+            (y % 5 == 0 && x > 3) || (x % 7 == 0 && y > 10) || (x as i64 - 2 * y as i64).rem_euclid(15) < 2
+        });
+        for opts in
+            [TraceOptions::default(), TraceOptions { smoothing: 1.0, tolerance: 0.3, ..TraceOptions::default() }]
+        {
+            let paths = trace(&img, &ImageAdjust::default(), &opts);
+            assert!(!paths.is_empty());
+            for poly in paths.iter().flat_map(|p| p.flatten(&Affine::IDENTITY, 0.01)) {
+                for q in &poly.points {
+                    assert!(q.x >= -0.5 && q.x <= 90.5 && q.y >= -0.5 && q.y <= 70.5, "{q:?}");
+                }
+            }
+        }
+    }
+
     #[test]
     fn invert_and_smoothing() {
         let img = image(30, 30, |x, y| {

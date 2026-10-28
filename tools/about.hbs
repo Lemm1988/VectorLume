@@ -22,6 +22,12 @@
 <h1>VectorLume – Lizenzen der verwendeten Bibliotheken</h1>
 <p class="note">Third-party licenses. VectorLume uses the following open-source libraries; their license texts are reproduced below.</p>
 <p class="note">This software is based in part on the work of the Independent JPEG Group.</p>
+<p class="note">Alle Bibliotheken werden unverändert verwendet; ihr Quelltext ist unter den verlinkten Seiten auf
+crates.io erhältlich (für MPL-2.0-Bibliotheken wie serialport ausdrücklich verlangt). / All libraries are used
+unmodified; their source code is available from the linked crates.io pages (as required for MPL-2.0 libraries such as
+serialport).</p>
+<p class="note">LightBurn is a trademark of LightBurn Software, LLC. VectorLume is not affiliated with LightBurn
+Software; it only reads the .lbrn2 file format.</p>
 
 <h2>Hershey-Schriften / Hershey Fonts</h2>
 <p>The single-line fonts (Hershey Sans, Serif, Script, Cursive, Gothic) use font data distributed under the following terms:</p>
@@ -45,7 +51,7 @@
 <h3 id="{{id}}">{{name}}</h3>
 <ul class="used-by">
 {{#each used_by}}
-  <li>{{crate.name}} {{crate.version}}</li>
+  <li><a href="https://crates.io/crates/{{crate.name}}/{{crate.version}}">{{crate.name}} {{crate.version}}</a></li>
 {{/each}}
 </ul>
 <pre>{{text}}</pre>

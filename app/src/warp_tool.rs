@@ -190,13 +190,7 @@ impl VectorLumeApp {
         }
         for poly in session.preview() {
             let pts: Vec<Pos2> = poly.points.iter().map(|p| tf.to_screen(*p)).collect();
-            if pts.len() >= 2 {
-                painter.add(if poly.closed {
-                    Shape::closed_line(pts, Stroke::new(1.2, color))
-                } else {
-                    Shape::line(pts, Stroke::new(1.2, color))
-                });
-            }
+            painter.add(crate::canvas::outline(pts, poly.closed, Stroke::new(1.2, color)));
         }
         let outline: Vec<Pos2> = session.warp.outline(24).iter().map(|p| tf.to_screen(*p)).collect();
         painter.extend(Shape::dashed_line(

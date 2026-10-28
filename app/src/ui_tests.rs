@@ -2133,3 +2133,36 @@ fn start_warns_when_head_leaves_the_bed() {
     h.run_steps(2);
     assert!(h.state().modal.is_none());
 }
+
+/// Konturen mit fast vollständiger Kehrtwende (Spitze eines dünnen nachgezeichneten Strichs) dürfen beim Zeichnen
+/// keine Nadeln quer über die Arbeitsfläche erzeugen.
+#[test]
+fn sharp_contour_tips_draw_without_needles() {
+    use egui::epaint::{Mesh, TessellationOptions, Tessellator};
+    use egui::{Pos2, Stroke};
+    // schmaler Keil: 200 px lang, an der Spitze 0,05 px breit
+    let pts =
+        vec![Pos2::new(100.0, 100.0), Pos2::new(300.0, 99.975), Pos2::new(100.0, 100.025), Pos2::new(100.0, 140.0)];
+    let bounds = |shape: egui::Shape| {
+        let mut tess = Tessellator::new(1.0, TessellationOptions::default(), [1, 1], vec![]);
+        let mut mesh = Mesh::default();
+        tess.tessellate_shape(shape, &mut mesh);
+        mesh.calc_bounds()
+    };
+    let b = bounds(crate::canvas::outline(pts, true, Stroke::new(1.2, egui::Color32::WHITE)));
+    assert!(b.max.x < 305.0 && b.min.x > 95.0 && b.min.y > 95.0 && b.max.y < 145.0, "{b:?}");
+    // doppelte Punkte und zu kurze Züge
+    let b = bounds(crate::canvas::outline(
+        vec![
+            Pos2::new(0.0, 0.0),
+            Pos2::new(0.0, 0.0),
+            Pos2::new(0.0, 0.0),
+            Pos2::new(10.0, 0.0),
+            Pos2::new(10.0, 10.0),
+        ],
+        true,
+        Stroke::new(1.2, egui::Color32::WHITE),
+    ));
+    assert!(b.min.x > -3.0 && b.max.x < 13.0 && b.max.y < 13.0, "{b:?}");
+    assert!(matches!(crate::canvas::outline(vec![Pos2::ZERO, Pos2::ZERO], true, Stroke::NONE), egui::Shape::Noop));
+}

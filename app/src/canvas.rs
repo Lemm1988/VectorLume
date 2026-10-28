@@ -122,6 +122,21 @@ struct CachedGeom {
     bounds: DRect,
 }
 
+/// Linienzug als Strich. Geschlossene Züge werden als offener Zug zurück zum Start gezeichnet: epaint kappt spitze
+/// Ecken nur bei offenen Zügen, bei geschlossenen zieht es jede Ecke auf Gehrung. Eine fast vollständige Kehrtwende –
+/// etwa die Spitze eines dünnen nachgezeichneten Strichs – würde dort zu einer langen Nadel quer über die
+/// Arbeitsfläche. Doppelte Punkte entfallen (drei gleiche hintereinander ergäben ungültige Eckpunkte).
+pub fn outline(mut pts: Vec<Pos2>, closed: bool, stroke: Stroke) -> Shape {
+    pts.dedup();
+    if closed && pts.len() >= 3 && pts.first() != pts.last() {
+        pts.push(pts[0]);
+    }
+    if pts.len() < 2 {
+        return Shape::Noop;
+    }
+    Shape::line(pts, stroke)
+}
+
 /// Abgeflachte Pfade im lokalen Objektsystem (werden nur bei Formänderung neu berechnet).
 #[derive(Default)]
 pub struct GeomCache {
@@ -715,7 +730,7 @@ impl VectorLumeApp {
                         if pts.len() < 2 {
                             continue;
                         }
-                        clip.add(if poly.closed { Shape::closed_line(pts, stroke) } else { Shape::line(pts, stroke) });
+                        clip.add(outline(pts, poly.closed, stroke));
                     }
                 }
             }
@@ -734,9 +749,7 @@ impl VectorLumeApp {
             for path in paths.iter() {
                 for poly in path.flatten(&vt, 0.4) {
                     let pts: Vec<Pos2> = poly.points.iter().map(|p| p2(*p)).collect();
-                    if pts.len() >= 2 {
-                        clip.add(if poly.closed { Shape::closed_line(pts, stroke) } else { Shape::line(pts, stroke) });
-                    }
+                    clip.add(outline(pts, poly.closed, stroke));
                 }
             }
         }
@@ -914,13 +927,7 @@ impl VectorLumeApp {
                     };
                     for poly in ghost.flatten(&vt, 0.3) {
                         let pts: Vec<Pos2> = poly.points.iter().map(|p| p2(*p)).collect();
-                        if pts.len() >= 2 {
-                            clip.add(if poly.closed {
-                                Shape::closed_line(pts, stroke)
-                            } else {
-                                Shape::line(pts, stroke)
-                            });
-                        }
+                        clip.add(outline(pts, poly.closed, stroke));
                     }
                     let size = DRect::from_points(a, b);
                     clip.text(

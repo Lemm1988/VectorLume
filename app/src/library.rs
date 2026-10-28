@@ -325,7 +325,7 @@ fn draw_preview(painter: &egui::Painter, rect: egui::Rect, item: &LibraryItem, s
         if pts.len() < 2 {
             continue;
         }
-        painter.add(if poly.closed { egui::Shape::closed_line(pts, stroke) } else { egui::Shape::line(pts, stroke) });
+        painter.add(crate::canvas::outline(pts, poly.closed, stroke));
     }
 }
 
