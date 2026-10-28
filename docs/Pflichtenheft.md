@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Bezug | [Lastenheft](Lastenheft.md) vom 24.10.2026 |
-| Stand | 28.10.2026, Version 0.18.8 (Phasen 1–3 abgeschlossen bis auf Ruida/Galvo, Phase 4 in Arbeit) |
+| Stand | 28.10.2026, Version 0.18.9 (Phasen 1–3 abgeschlossen bis auf Ruida/Galvo, Phase 4 in Arbeit) |
 | Status | privat |
 
 Legende: ✅ umgesetzt und getestet · 🟡 teilweise · ⏳ geplant (spätere Phase)
