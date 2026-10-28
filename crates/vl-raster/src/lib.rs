@@ -2,6 +2,7 @@
 //!
 //! Ergebnis ist eine „Intensität“ je Rasterzelle: 0.0 = Laser aus, 1.0 = volle Leistung.
 
+pub mod parts;
 pub mod render;
 pub mod trace;
 pub mod warp;

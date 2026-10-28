@@ -287,7 +287,8 @@ fn centerline_flow(render: bool) {
 }
 
 /// Nachzeichnen für Ausschneideteile (z. B. Kühlschrankmagnete): jede Kontur ein Objekt, jedes Teil mit allem darin
-/// eine eigene Gruppe, Streuteile gemeinsam; Gruppen lassen sich lösen und – auch über Ebenen hinweg – neu bilden.
+/// eine eigene Gruppe, einzelne Flecken bleiben einzeln; Gruppen lassen sich lösen und – auch über Ebenen hinweg –
+/// neu bilden.
 #[test]
 fn traced_parts_are_grouped_and_can_be_regrouped() {
     let mut h = harness(false);
@@ -326,8 +327,8 @@ fn traced_parts_are_grouped_and_can_be_regrouped() {
     assert_eq!(traced.len(), 8);
     let group_of = |app: &crate::app::VectorLumeApp, id| app.doc.get(id).unwrap().group;
     let groups: std::collections::HashSet<_> = traced.iter().map(|&id| group_of(app, id)).collect();
-    assert_eq!(groups.len(), 3, "zwei Teile und die Flecken");
-    assert!(groups.iter().all(Option::is_some));
+    assert_eq!(groups.iter().flatten().count(), 2, "zwei Teile");
+    assert_eq!(traced.iter().filter(|&&id| group_of(app, id).is_none()).count(), 2, "Flecken einzeln");
     // ein Teil auswählen (Klick wählt die ganze Gruppe) und lösen: nur dessen drei Konturen werden frei
     let left = *traced
         .iter()
@@ -337,7 +338,7 @@ fn traced_parts_are_grouped_and_can_be_regrouped() {
     assert_eq!(app.selection.len(), 3);
     app.ungroup();
     assert!(app.selection.iter().all(|&id| group_of(app, id).is_none()));
-    assert_eq!(traced.iter().filter(|&&id| group_of(app, id).is_none()).count(), 3);
+    assert_eq!(traced.iter().filter(|&&id| group_of(app, id).is_none()).count(), 5);
     // neu gruppieren, eine Kontur liegt dabei auf einer anderen Ebene: die Gruppe hält trotzdem zusammen
     let (a, b) = (app.selection[0], app.selection[1]);
     app.doc.get_mut(b).unwrap().layer = 1;

@@ -8,7 +8,7 @@ use egui_phosphor::regular as icon;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use vl_core::{Affine, ObjectId, Shape, VectorPath};
-use vl_raster::trace::{TraceOptions, trace};
+use vl_raster::trace::{TraceOptions, trace_parts};
 
 pub struct TraceUi {
     pub open: bool,
@@ -17,12 +17,16 @@ pub struct TraceUi {
     pub remove_image: bool,
     /// Ergebnis in Dokumentkoordinaten (für Vorschau und Übernahme).
     pub result: Option<Arc<Vec<VectorPath>>>,
+    /// Teil (Aufkleber, Magnet …) je Pfad des Ergebnisses, 0 = keines.
+    parts: Vec<u32>,
     /// Einstellungen, zu denen `result` bzw. die laufende Berechnung gehört.
     computed: Option<(ObjectId, TraceOptions)>,
     pub(crate) busy: bool,
-    tx: Sender<(ObjectId, TraceOptions, Vec<VectorPath>)>,
-    rx: Receiver<(ObjectId, TraceOptions, Vec<VectorPath>)>,
+    tx: Sender<Computed>,
+    rx: Receiver<Computed>,
 }
+
+type Computed = (ObjectId, TraceOptions, Vec<VectorPath>, Vec<u32>);
 
 impl Default for TraceUi {
     fn default() -> Self {
@@ -33,6 +37,7 @@ impl Default for TraceUi {
             opts: TraceOptions::default(),
             remove_image: false,
             result: None,
+            parts: Vec::new(),
             computed: None,
             busy: false,
             tx,
@@ -57,10 +62,11 @@ impl VectorLumeApp {
 
     /// Startet die Berechnung im Hintergrund, wenn sich Bild oder Einstellungen geändert haben.
     fn refresh_trace(&mut self, ctx: &egui::Context) {
-        while let Ok((id, opts, paths)) = self.trace.rx.try_recv() {
+        while let Ok((id, opts, paths, parts)) = self.trace.rx.try_recv() {
             self.trace.busy = false;
             if Some((id, opts.clone())) == self.trace.computed {
                 self.trace.result = Some(Arc::new(paths));
+                self.trace.parts = parts;
             }
         }
         let Some(id) = self.trace.target else { return };
@@ -94,8 +100,9 @@ impl VectorLumeApp {
             Affine::scale(img.width_mm / image.width.max(1) as f64, img.height_mm / image.height.max(1) as f64)
                 .then(&obj.transform);
         std::thread::spawn(move || {
-            let paths: Vec<VectorPath> = trace(&image, &adjust, &opts).iter().map(|p| p.transformed(&to_doc)).collect();
-            let _ = tx.send((id, opts, paths));
+            let (paths, parts) = trace_parts(&image, &adjust, &opts);
+            let paths: Vec<VectorPath> = paths.iter().map(|p| p.transformed(&to_doc)).collect();
+            let _ = tx.send((id, opts, paths, parts));
             ctx.request_repaint();
         });
     }
@@ -110,9 +117,9 @@ impl VectorLumeApp {
         }
     }
 
-    /// Übernimmt das Ergebnis: jede Kontur ein eigenes Objekt. Was in einem äußeren Umriss liegt, wird mit ihm
-    /// gruppiert (z. B. je Magnet oder Aufkleber eine Gruppe), alles Übrige bildet eine gemeinsame Gruppe. So lässt
-    /// sich jedes Teil gleich einzeln anordnen und mit „Gruppierung lösen“ bis auf einzelne Konturen zerlegen.
+    /// Übernimmt das Ergebnis: jede Kontur ein eigenes Objekt, je Teil des Bildes (z. B. Magnet oder Aufkleber,
+    /// `vl_raster::parts`) eine Gruppe; einzelne Formen bleiben einzeln. So lässt sich jedes Teil gleich einzeln
+    /// anordnen und mit „Gruppierung lösen“ bis auf einzelne Konturen zerlegen.
     pub(crate) fn apply_trace(&mut self) {
         let Some(paths) = self.trace.result.clone() else { return };
         let Some(id) = self.trace.target else { return };
@@ -124,17 +131,22 @@ impl VectorLumeApp {
         let layer = self.trace_layer();
         let ids: Vec<ObjectId> =
             paths.iter().map(|p| self.doc.add_path(tr("Nachgezeichnet"), layer, p.clone())).collect();
-        let parts = self.doc.auto_group(&ids);
-        let loose: Vec<ObjectId> =
-            ids.iter().copied().filter(|id| self.doc.get(*id).is_some_and(|o| o.group.is_none())).collect();
-        self.doc.group(&loose);
+        let mut by_part: std::collections::BTreeMap<u32, Vec<ObjectId>> = Default::default();
+        for (&obj, &part) in ids.iter().zip(&self.trace.parts) {
+            by_part.entry(part).or_default().push(obj);
+        }
+        let mut parts = 0;
+        for (_, members) in by_part.iter().filter(|(part, m)| **part != 0 && m.len() > 1) {
+            self.doc.group(members);
+            parts += 1;
+        }
         if self.trace.remove_image {
             self.doc.remove(&[id]);
         }
         self.selection = ids;
         self.mark_changed();
         self.trace.open = false;
-        let msg = if parts > 1 {
+        let msg = if parts > 0 {
             trs(&format!("{} Konturen erzeugt, {} Teile einzeln gruppiert.", paths.len(), parts))
         } else {
             trs(&format!("{} Konturen erzeugt.", paths.len()))

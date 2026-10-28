@@ -45,27 +45,45 @@ impl Default for TraceOptions {
 
 /// Zeichnet das Bild nach. `adjust` wird vor dem Schwellwert angewendet (wie in der Ansicht).
 pub fn trace(img: &RasterImage, adjust: &ImageAdjust, opts: &TraceOptions) -> Vec<VectorPath> {
+    trace_with(img, &level_table(adjust, opts), opts)
+}
+
+/// Wie `trace`, dazu je Pfad die Nummer des Teils (Aufkleber, Magnet …), zu dem er gehört – 0 = keines
+/// (`crate::parts`).
+pub fn trace_parts(img: &RasterImage, adjust: &ImageAdjust, opts: &TraceOptions) -> (Vec<VectorPath>, Vec<u32>) {
+    let lut = level_table(adjust, opts);
+    let paths = trace_with(img, &lut, opts);
     let (w, h) = (img.width as usize, img.height as usize);
-    if w == 0 || h == 0 {
-        return Vec::new();
-    }
+    let ink: Vec<bool> = img.pixels.iter().map(|&v| lut[v as usize] > 0.0).collect();
+    let parts = crate::parts::path_parts(&paths, &ink, w, h);
+    (paths, parts)
+}
+
+/// Abstand zum Schwellwert je Grauwert, > 0 = Motiv. Die Schwelle liegt zwischen zwei ganzen Grauwerten, damit
+/// kein Pixel genau auf ihr liegt.
+fn level_table(adjust: &ImageAdjust, opts: &TraceOptions) -> Vec<f32> {
     let identity = adjust.is_identity();
-    // Abstand zum Schwellwert je Grauwert, > 0 = Motiv. Die Schwelle liegt zwischen zwei ganzen Grauwerten,
-    // damit kein Pixel genau auf ihr liegt.
     let level = opts.threshold as f32 - 0.5;
     let sign = if opts.invert { -1.0 } else { 1.0 };
-    let lut: Vec<f32> = (0..=255u8)
+    (0..=255u8)
         .map(|v| {
             let g = if identity { v as f32 } else { adjust.apply(v as f32 / 255.0) * 255.0 };
             (level - g) * sign
         })
-        .collect();
+        .collect()
+}
+
+fn trace_with(img: &RasterImage, lut: &[f32], opts: &TraceOptions) -> Vec<VectorPath> {
+    let (w, h) = (img.width as usize, img.height as usize);
+    if w == 0 || h == 0 {
+        return Vec::new();
+    }
     if opts.centerline {
         let mask = img.pixels.iter().map(|&v| lut[v as usize] > 0.0).collect();
         return centerline(mask, w, h, opts);
     }
     let fit = fit_options(opts);
-    iso_contours(&img.pixels, w, h, &lut)
+    iso_contours(&img.pixels, w, h, lut)
         .into_iter()
         .filter(|pts| pts.len() >= 3 && area(pts).abs() >= opts.min_area.max(0.0))
         .map(|pts| {
