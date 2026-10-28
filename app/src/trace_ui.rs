@@ -110,26 +110,36 @@ impl VectorLumeApp {
         }
     }
 
-    fn apply_trace(&mut self) {
+    /// Übernimmt das Ergebnis: jede Kontur ein eigenes Objekt. Was in einem äußeren Umriss liegt, wird mit ihm
+    /// gruppiert (z. B. je Magnet oder Aufkleber eine Gruppe), alles Übrige bildet eine gemeinsame Gruppe. So lässt
+    /// sich jedes Teil gleich einzeln anordnen und mit „Gruppierung lösen“ bis auf einzelne Konturen zerlegen.
+    pub(crate) fn apply_trace(&mut self) {
         let Some(paths) = self.trace.result.clone() else { return };
         let Some(id) = self.trace.target else { return };
         if paths.is_empty() {
             self.toast(ToastKind::Info, tr("Mit diesen Einstellungen wurden keine Konturen gefunden."));
             return;
         }
-        let mut all = VectorPath::default();
-        for p in paths.iter() {
-            all.append(p.clone());
-        }
         self.checkpoint();
-        let new_id = self.doc.add_path(tr("Nachgezeichnet"), self.trace_layer(), all);
+        let layer = self.trace_layer();
+        let ids: Vec<ObjectId> =
+            paths.iter().map(|p| self.doc.add_path(tr("Nachgezeichnet"), layer, p.clone())).collect();
+        let parts = self.doc.auto_group(&ids);
+        let loose: Vec<ObjectId> =
+            ids.iter().copied().filter(|id| self.doc.get(*id).is_some_and(|o| o.group.is_none())).collect();
+        self.doc.group(&loose);
         if self.trace.remove_image {
             self.doc.remove(&[id]);
         }
-        self.selection = vec![new_id];
+        self.selection = ids;
         self.mark_changed();
         self.trace.open = false;
-        self.toast(ToastKind::Success, trs(&format!("{} Konturen erzeugt.", paths.len())));
+        let msg = if parts > 1 {
+            trs(&format!("{} Konturen erzeugt, {} Teile einzeln gruppiert.", paths.len(), parts))
+        } else {
+            trs(&format!("{} Konturen erzeugt.", paths.len()))
+        };
+        self.toast(ToastKind::Success, msg);
     }
 }
 

@@ -286,6 +286,67 @@ fn centerline_flow(render: bool) {
     assert_eq!(polys.iter().filter(|p| p.closed).count(), 1);
 }
 
+/// Nachzeichnen für Ausschneideteile (z. B. Kühlschrankmagnete): jede Kontur ein Objekt, jedes Teil mit allem darin
+/// eine eigene Gruppe, Streuteile gemeinsam; Gruppen lassen sich lösen und – auch über Ebenen hinweg – neu bilden.
+#[test]
+fn traced_parts_are_grouped_and_can_be_regrouped() {
+    let mut h = harness(false);
+    let (w, hgt) = (200u32, 100u32);
+    let ink = |x: f64, y: f64| {
+        // zwei Teile: Rand (Ring) mit Punkt in der Mitte, dazu zwei lose Flecken
+        let part = |cx: f64| {
+            let d = (x - cx).hypot(y - 50.0);
+            (35.0..42.0).contains(&d) || d < 8.0
+        };
+        let speck = |cx: f64, cy: f64| (x - cx).abs() < 3.0 && (y - cy).abs() < 3.0;
+        part(50.0) || part(150.0) || speck(100.0, 8.0) || speck(100.0, 92.0)
+    };
+    let pixels = (0..w * hgt).map(|i| if ink((i % w) as f64 + 0.5, (i / w) as f64 + 0.5) { 0 } else { 255 }).collect();
+    let image = vl_core::ImageObject {
+        image: std::sync::Arc::new(vl_core::RasterImage::new(w, hgt, pixels)),
+        width_mm: 100.0,
+        height_mm: 50.0,
+        adjust: Default::default(),
+        clip: vec![],
+    };
+    let img = h.state_mut().doc.add_image("Magnete", 0, image, Point::new(20.0, 20.0));
+    h.state_mut().selection = vec![img];
+    h.state_mut().open_trace();
+    for _ in 0..200 {
+        h.run_ok();
+        if h.state().trace.result.is_some() && !h.state().trace.busy {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    h.state_mut().apply_trace();
+    let app = h.state_mut();
+    let traced: Vec<vl_core::ObjectId> = app.selection.clone();
+    // je Teil: Außenrand, Innenrand, Punkt; dazu zwei Flecken
+    assert_eq!(traced.len(), 8);
+    let group_of = |app: &crate::app::VectorLumeApp, id| app.doc.get(id).unwrap().group;
+    let groups: std::collections::HashSet<_> = traced.iter().map(|&id| group_of(app, id)).collect();
+    assert_eq!(groups.len(), 3, "zwei Teile und die Flecken");
+    assert!(groups.iter().all(Option::is_some));
+    // ein Teil auswählen (Klick wählt die ganze Gruppe) und lösen: nur dessen drei Konturen werden frei
+    let left = *traced
+        .iter()
+        .find(|&&id| app.doc.bounds_of(&[id]).center().x < 50.0 && app.doc.bounds_of(&[id]).width() > 30.0)
+        .unwrap();
+    app.selection = app.doc.expand_groups(&[left]);
+    assert_eq!(app.selection.len(), 3);
+    app.ungroup();
+    assert!(app.selection.iter().all(|&id| group_of(app, id).is_none()));
+    assert_eq!(traced.iter().filter(|&&id| group_of(app, id).is_none()).count(), 3);
+    // neu gruppieren, eine Kontur liegt dabei auf einer anderen Ebene: die Gruppe hält trotzdem zusammen
+    let (a, b) = (app.selection[0], app.selection[1]);
+    app.doc.get_mut(b).unwrap().layer = 1;
+    app.selection = vec![a, b];
+    app.group();
+    assert!(group_of(app, a).is_some() && group_of(app, a) == group_of(app, b));
+    assert_eq!(app.doc.expand_groups(&[a]).len(), 2);
+}
+
 #[test]
 fn centerline_trace_of_line_art() {
     centerline_flow(false);

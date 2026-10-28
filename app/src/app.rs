@@ -1133,7 +1133,20 @@ impl VectorLumeApp {
             return;
         }
         if !self.doc.objects_in(&self.selection).any(|o| o.group.is_some()) {
-            self.toast(ToastKind::Info, tr("Die Auswahl enthält keine Gruppe."));
+            // Ein Pfad aus mehreren Formen (z. B. aus älteren Versionen nachgezeichnet) ist keine Gruppe
+            let compound = self
+                .doc
+                .objects_in(&self.selection)
+                .any(|o| matches!(&o.shape, Shape::Path(p) if p.subpaths.len() > 1));
+            if compound {
+                self.toast(
+                    ToastKind::Info,
+                    tr("Die Auswahl enthält keine Gruppe, sondern einen Pfad aus mehreren Formen. „Zerlegen“ trennt \
+                        ihn in einzelne Formen, „Automatisch gruppieren“ fasst danach Ineinanderliegendes zusammen."),
+                );
+            } else {
+                self.toast(ToastKind::Info, tr("Die Auswahl enthält keine Gruppe."));
+            }
             return;
         }
         self.checkpoint();

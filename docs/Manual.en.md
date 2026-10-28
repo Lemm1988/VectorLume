@@ -72,7 +72,7 @@ Imported photos sit on an image layer. Choose the method:
 - *3D slices*: depth over several passes.
 - *Pass-through*: laser the image unchanged when it is already black and white.
 
-Brightness, contrast, gamma, denoise and sharpen are in the image settings. *Arrange → Crop image to shape* limits an image to any shape. *Trace image…* turns an image into vector shapes, also as a centerline. Outlines are computed from the grey values between the pixels, so a smooth image that isn't too small works best. *Smooth* ranges from straight lines (0) to round curves (1), *Simplify* sets how far a curve may deviate from the image, and bends sharper than the *corner angle* stay pointed.
+Brightness, contrast, gamma, denoise and sharpen are in the image settings. *Arrange → Crop image to shape* limits an image to any shape. *Trace image…* turns an image into vector shapes, also as a centerline. Outlines are computed from the grey values between the pixels, so a smooth image that isn't too small works best. *Smooth* ranges from straight lines (0) to round curves (1), *Simplify* sets how far a curve may deviate from the image, and bends sharper than the *corner angle* stay pointed. After *Apply* every contour is its own object; whatever lies inside an outer outline (e.g. a magnet or sticker) is grouped with it and can be moved on its own right away. *Ungroup* splits a part further into its contours.
 
 **3D models** (STL, OBJ) are imported like images. In the dialog, choose the view, the width and the resolution. VectorLume creates a depth map from the model: high areas become light, low areas dark. With the image mode *Grayscale* or *3D slices* this becomes a relief. *Invert* reverses it, e.g. for stamps and molds.
 
@@ -80,7 +80,7 @@ Brightness, contrast, gamma, denoise and sharpen are in the image settings. *Arr
 
 The *Arrange* menu contains:
 
-- **Group**, **Break apart** and **Auto-group**. The latter combines parts with their holes, e.g. after a DXF import.
+- **Group**, **Break apart** and **Auto-group**. The latter combines parts with their holes, e.g. after a DXF import. Groups are independent of layers: a group may contain, for example, the cut outline and the engraving of a part, and each object keeps its layer.
 - **Alignment**, **Distribute**, **Same size**, **Order**, **Dock**, **Mirror** and **Rotate**.
 - **Center on work area** and **Move to bed position** (corners, edge centers, center).
 - **Boolean operations**, **Weld** and **Offset**.

@@ -1600,6 +1600,8 @@ pub static EN: &[(&str, &str)] = &[
     ("LightBurn ist eine Marke der LightBurn Software, LLC. VectorLume ist ein eigenständiges Programm und steht in keiner Verbindung zu LightBurn Software; der Name dient nur dazu, das Dateiformat (.lbrn2) zu benennen, damit eigene Projekte weiterverwendet werden können.", "LightBurn is a trademark of LightBurn Software, LLC. VectorLume is an independent program and is not affiliated with LightBurn Software; the name is used only to identify the file format (.lbrn2) so that your own projects can be reused."),
     ("© 2026 P. Lemm. Alle Rechte vorbehalten – kostenlos nutzbar nach den Nutzungsbedingungen (Freeware, ohne Gewähr).", "© 2026 P. Lemm. All rights reserved – free to use under the terms of use (freeware, no warranty)."),
     ("Nutzungsbedingungen anzeigen", "Show terms of use"),
+    ("Die Auswahl enthält keine Gruppe, sondern einen Pfad aus mehreren Formen. „Zerlegen“ trennt ihn in einzelne Formen, „Automatisch gruppieren“ fasst danach Ineinanderliegendes zusammen.", "The selection contains no group but a single path made of several shapes. \"Break apart\" splits it into separate shapes; \"Auto-group\" then combines shapes that lie inside each other."),
+    ("{} Konturen erzeugt, {} Teile einzeln gruppiert.", "{} contours created, {} parts grouped individually."),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
