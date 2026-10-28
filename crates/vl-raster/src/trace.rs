@@ -1,6 +1,6 @@
-//! Bild nachzeichnen: Schwellwert → Schwarzweiß-Maske → geschlossene Konturen entlang der Pixelkanten,
-//! vereinfacht (Douglas-Peucker) und optional zu Bézierkurven geglättet. Ergebnis in Pixelkoordinaten
-//! (x nach rechts, y nach unten, Pixel (0,0) belegt 0…1).
+//! Bild nachzeichnen: geschlossene Konturen auf dem Schwellwert, aus den Grauwerten mit Unterpixel-Genauigkeit
+//! bestimmt (Marching Squares), dann mit Ecken-Erkennung zu wenigen glatten Bézierkurven angepasst
+//! (`vl_core::fit`). Ergebnis in Pixelkoordinaten (x nach rechts, y nach unten, Pixel (0,0) belegt 0…1).
 //!
 //! Mit `centerline` entstehen stattdessen Mittellinien: die Maske wird auf ein Pixel Breite ausgedünnt
 //! (Zhang-Suen), das Skelett zwischen End- und Verzweigungspunkten in offene Linienzüge zerlegt, kurze Fransen
@@ -34,7 +34,7 @@ impl Default for TraceOptions {
         Self {
             threshold: 128,
             invert: false,
-            min_area: 4.0,
+            min_area: 2.0,
             tolerance: 0.8,
             smoothing: 0.7,
             corner_angle: 65.0,
@@ -43,9 +43,6 @@ impl Default for TraceOptions {
     }
 }
 
-/// Richtungen im Uhrzeigersinn (Bildschirmkoordinaten): rechts, unten, links, oben.
-const DIRS: [(i64, i64); 4] = [(1, 0), (0, 1), (-1, 0), (0, -1)];
-
 /// Zeichnet das Bild nach. `adjust` wird vor dem Schwellwert angewendet (wie in der Ansicht).
 pub fn trace(img: &RasterImage, adjust: &ImageAdjust, opts: &TraceOptions) -> Vec<VectorPath> {
     let (w, h) = (img.width as usize, img.height as usize);
@@ -53,82 +50,124 @@ pub fn trace(img: &RasterImage, adjust: &ImageAdjust, opts: &TraceOptions) -> Ve
         return Vec::new();
     }
     let identity = adjust.is_identity();
-    let lut: Vec<bool> = (0..=255u8)
+    // Abstand zum Schwellwert je Grauwert, > 0 = Motiv. Die Schwelle liegt zwischen zwei ganzen Grauwerten,
+    // damit kein Pixel genau auf ihr liegt.
+    let level = opts.threshold as f32 - 0.5;
+    let sign = if opts.invert { -1.0 } else { 1.0 };
+    let lut: Vec<f32> = (0..=255u8)
         .map(|v| {
-            let g = if identity { v } else { (adjust.apply(v as f32 / 255.0) * 255.0).round() as u8 };
-            (g < opts.threshold) != opts.invert
+            let g = if identity { v as f32 } else { adjust.apply(v as f32 / 255.0) * 255.0 };
+            (level - g) * sign
         })
         .collect();
-    let inside = |x: i64, y: i64| -> bool {
-        x >= 0
-            && y >= 0
-            && (x as usize) < w
-            && (y as usize) < h
-            && lut[img.pixels[y as usize * w + x as usize] as usize]
-    };
     if opts.centerline {
-        let mask = img.pixels.iter().map(|&v| lut[v as usize]).collect();
+        let mask = img.pixels.iter().map(|&v| lut[v as usize] > 0.0).collect();
         return centerline(mask, w, h, opts);
     }
+    let fit = fit_options(opts);
+    iso_contours(&img.pixels, w, h, &lut)
+        .into_iter()
+        .filter(|pts| pts.len() >= 3 && area(pts).abs() >= opts.min_area.max(0.0))
+        .map(|pts| {
+            // Dünne Formen (feine Striche, kleine Punkte) bekommen eine engere Toleranz und kürzere Messweite,
+            // sonst würden sie verbogen oder ihre Enden rund geschliffen. Dicke ≈ 2 · Fläche / Umfang.
+            let thickness = 2.0 * area(&pts).abs() / polyline_length(&pts, true).max(1e-9);
+            let fit = vl_core::fit::FitOptions {
+                tolerance: fit.tolerance.min((0.3 * thickness).max(0.1)),
+                reach: fit.reach.min(thickness.max(1.0)),
+                ..fit
+            };
+            vl_core::fit::fit_points(&pts, true, &fit)
+        })
+        .filter(|p| !p.is_empty())
+        .collect()
+}
 
-    // Ausgehende Kanten je Ecke als Bitmaske (Bit = Richtung). Motiv liegt rechts der Laufrichtung.
-    let vw = w + 1;
-    let mut out = vec![0u8; vw * (h + 1)];
-    let vid = |x: i64, y: i64| y as usize * vw + x as usize;
-    for y in 0..h as i64 {
-        for x in 0..w as i64 {
-            if !inside(x, y) {
+fn fit_options(opts: &TraceOptions) -> vl_core::fit::FitOptions {
+    let tolerance = opts.tolerance.max(0.0);
+    vl_core::fit::FitOptions {
+        tolerance,
+        smoothing: opts.smoothing,
+        corner_deg: opts.corner_angle,
+        reach: 1.5 + tolerance,
+    }
+}
+
+/// Konturen auf der Schwelle, mit Unterpixel-Genauigkeit (Marching Squares): Die Abtastpunkte sind die
+/// Pixelmitten, auf jeder Kante zwischen Motiv und Hintergrund wird die Lage der Schwelle aus den beiden
+/// Grauwerten linear eingerechnet. Bei harten Schwarzweiß-Bildern sind das die Mitten der Pixelkanten, bei
+/// weichen Kanten (Kantenglättung, Fotos, vergrößerte Bilder) folgt die Kontur dem tatsächlichen Verlauf
+/// zwischen den Pixeln. Rings um das Bild liegt ein Rand ohne Motiv, alle Konturen sind daher geschlossen;
+/// das Motiv liegt rechts der Laufrichtung, Löcher laufen andersherum.
+fn iso_contours(pixels: &[u8], w: usize, h: usize, lut: &[f32]) -> Vec<Vec<Point>> {
+    // Gitter mit Rand: Abtastpunkt (gx, gy) = Pixel (gx − 1, gy − 1), Mitte bei (gx − 0.5, gy − 0.5)
+    let (gw, gh) = (w + 2, h + 2);
+    let val = |gx: usize, gy: usize| -> f32 {
+        if gx == 0 || gy == 0 || gx > w || gy > h {
+            f32::NEG_INFINITY
+        } else {
+            lut[pixels[(gy - 1) * w + gx - 1] as usize]
+        }
+    };
+    // Kanten-Nummern: waagrecht (gx, gy)–(gx + 1, gy) gerade, senkrecht (gx, gy)–(gx, gy + 1) ungerade
+    let horiz = |gx: usize, gy: usize| 2 * (gy * gw + gx) as u64;
+    let vert = |gx: usize, gy: usize| 2 * (gy * gw + gx) as u64 + 1;
+    let mut next: HashMap<u64, u64> = HashMap::new();
+    let mut order: Vec<u64> = Vec::new();
+    for gy in 0..gh - 1 {
+        for gx in 0..gw - 1 {
+            let v = [val(gx, gy), val(gx + 1, gy), val(gx + 1, gy + 1), val(gx, gy + 1)];
+            let ins = v.map(|x| x > 0.0);
+            if ins == [ins[0]; 4] {
                 continue;
             }
-            if !inside(x, y - 1) {
-                out[vid(x, y)] |= 1 << 0; // oben: nach rechts
-            }
-            if !inside(x + 1, y) {
-                out[vid(x + 1, y)] |= 1 << 1; // rechts: nach unten
-            }
-            if !inside(x, y + 1) {
-                out[vid(x + 1, y + 1)] |= 1 << 2; // unten: nach links
-            }
-            if !inside(x - 1, y) {
-                out[vid(x, y + 1)] |= 1 << 3; // links: nach oben
-            }
-        }
-    }
-
-    let mut result = Vec::new();
-    for start in 0..out.len() {
-        while out[start] != 0 {
-            let (sx, sy) = ((start % vw) as i64, (start / vw) as i64);
-            let mut d = out[start].trailing_zeros() as usize;
-            let (mut x, mut y) = (sx, sy);
-            // Mittelpunkte der Pixelkanten ergeben schräge statt treppenförmiger Linien.
-            let mut pts: Vec<Point> = Vec::new();
-            loop {
-                out[vid(x, y)] &= !(1 << d);
-                let (dx, dy) = DIRS[d];
-                pts.push(Point::new(x as f64 + dx as f64 * 0.5, y as f64 + dy as f64 * 0.5));
-                x += dx;
-                y += dy;
-                if (x, y) == (sx, sy) {
-                    break;
+            // Ecken im Uhrzeigersinn: oben links, oben rechts, unten rechts, unten links; Kante k verbindet
+            // Ecke k mit Ecke k + 1. Ein Übergang Motiv → Hintergrund „verlässt“, der umgekehrte „betritt“.
+            let edges = [horiz(gx, gy), vert(gx + 1, gy), horiz(gx, gy + 1), vert(gx, gy)];
+            let cross: Vec<(u64, bool)> =
+                (0..4).filter(|&k| ins[k] != ins[(k + 1) % 4]).map(|k| (edges[k], ins[k])).collect();
+            if cross.len() == 2 {
+                let (leave, enter) = if cross[0].1 { (cross[0].0, cross[1].0) } else { (cross[1].0, cross[0].0) };
+                next.insert(leave, enter);
+                order.push(leave);
+            } else {
+                // Sattel: Liegt die Mitte im Motiv, hängen die beiden Motiv-Ecken zusammen (zur nächsten
+                // betretenen Kante im Uhrzeigersinn), sonst werden sie einzeln umrundet.
+                let joined = v.iter().sum::<f32>() / 4.0 > 0.0;
+                for k in (0..4).filter(|&k| cross[k].1) {
+                    let enter = if joined { cross[(k + 1) % 4].0 } else { cross[(k + 3) % 4].0 };
+                    next.insert(cross[k].0, enter);
+                    order.push(cross[k].0);
                 }
-                // Rechts abbiegen (zum Motiv hin) hat Vorrang: diagonal berührende Pixel bleiben getrennt.
-                let m = out[vid(x, y)];
-                let Some(next) = [(d + 1) % 4, d, (d + 3) % 4].into_iter().find(|&n| m & (1 << n) != 0) else {
-                    break;
-                };
-                d = next;
-            }
-            if pts.len() < 4 || area(&pts).abs() < opts.min_area.max(0.0) {
-                continue;
-            }
-            let simplified = vl_core::ops::simplify_points(&pts, true, opts.tolerance.max(0.0));
-            if simplified.len() >= 3 {
-                result.push(vl_core::ops::smooth_points(&simplified, true, opts.smoothing, opts.corner_angle));
             }
         }
     }
-    result
+    let point = |e: u64| -> Point {
+        let k = (e / 2) as usize;
+        let (gx, gy) = (k % gw, k / gw);
+        let horizontal = e.is_multiple_of(2);
+        let (a, b) = if horizontal { (val(gx, gy), val(gx + 1, gy)) } else { (val(gx, gy), val(gx, gy + 1)) };
+        // Am Bildrand liegt die Kontur auf der Pixelkante
+        let t = if a.is_finite() && b.is_finite() { (a / (a - b)) as f64 } else { 0.5 };
+        if horizontal {
+            Point::new(gx as f64 - 0.5 + t, gy as f64 - 0.5)
+        } else {
+            Point::new(gx as f64 - 0.5, gy as f64 - 0.5 + t)
+        }
+    };
+    let mut loops = Vec::new();
+    for start in order {
+        let mut pts = Vec::new();
+        let mut e = start;
+        while let Some(n) = next.remove(&e) {
+            pts.push(point(e));
+            e = n;
+        }
+        if !pts.is_empty() {
+            loops.push(pts);
+        }
+    }
+    loops
 }
 
 /// Nachbarn im Uhrzeigersinn ab oben: N, NO, O, SO, S, SW, W, NW.
@@ -150,15 +189,15 @@ fn centerline(mut mask: Vec<bool>, w: usize, h: usize, opts: &TraceOptions) -> V
     collapse_bridges(&mut strokes, width + 1.0);
     let (open, mut closed) = join_at_nodes(strokes, (1.5 * width).max(3.0));
     closed.extend(rings);
-    let tol = opts.tolerance.max(0.0);
+    let fit = fit_options(opts);
     let mut result = Vec::new();
     for (pts, is_closed) in open.iter().map(|p| (p, false)).chain(closed.iter().map(|p| (p, true))) {
         if pts.len() < 2 || polyline_length(pts, is_closed) < 1.5 {
             continue;
         }
-        let simplified = vl_core::ops::simplify_points(pts, is_closed, tol);
-        if simplified.len() >= if is_closed { 3 } else { 2 } {
-            result.push(vl_core::ops::smooth_points(&simplified, is_closed, opts.smoothing, opts.corner_angle));
+        let path = vl_core::fit::fit_points(pts, is_closed, &fit);
+        if !path.is_empty() {
+            result.push(path);
         }
     }
     result
@@ -663,6 +702,42 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Weiche Kanten (kantengeglättet, vergrößert): die Kontur folgt dem Grauverlauf zwischen den Pixeln statt
+    /// der Pixeltreppe, und „Glätten“ macht aus dem Vieleck wenige Kurven.
+    #[test]
+    fn soft_edges_are_traced_between_pixels() {
+        // Kreis Radius 12.3 px, Randpixel nach Flächenanteil grau (4×4 Unterabtastung)
+        let (c, r) = (Point::new(20.0, 20.0), 12.3);
+        let mut px = Vec::new();
+        for y in 0..40 {
+            for x in 0..40 {
+                let inside = (0..16)
+                    .filter(|k| {
+                        let q = Point::new(
+                            x as f64 + (k % 4) as f64 / 4.0 + 0.125,
+                            y as f64 + (k / 4) as f64 / 4.0 + 0.125,
+                        );
+                        q.distance(c) < r
+                    })
+                    .count();
+                px.push((255.0 * (1.0 - inside as f64 / 16.0)).round() as u8);
+            }
+        }
+        let img = RasterImage::new(40, 40, px);
+        let opts = TraceOptions { tolerance: 0.1, ..TraceOptions::default() };
+        let paths = trace(&img, &ImageAdjust::default(), &opts);
+        assert_eq!(paths.len(), 1);
+        let poly = &paths[0].flatten(&Affine::IDENTITY, 0.01)[0];
+        for q in &poly.points {
+            assert!((q.distance(c) - r).abs() < 0.12, "{q:?}: {}", q.distance(c));
+        }
+        // geglättet: wenige Kurven; ohne Glätten: nur gerade Linien
+        let segs = &paths[0].subpaths[0].segments;
+        assert!(segs.len() <= 12 && segs.iter().all(|s| matches!(s, vl_core::Segment::Cubic(..))), "{}", segs.len());
+        let flat = trace(&img, &ImageAdjust::default(), &TraceOptions { smoothing: 0.0, ..opts });
+        assert!(flat[0].subpaths[0].segments.iter().all(|s| matches!(s, vl_core::Segment::Line(..))));
     }
 
     #[test]

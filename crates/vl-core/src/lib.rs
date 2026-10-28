@@ -7,6 +7,7 @@ pub mod corners;
 pub mod dock;
 pub mod document;
 pub mod firmware;
+pub mod fit;
 pub mod gear;
 pub mod geom;
 pub mod hinge;
