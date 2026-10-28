@@ -274,7 +274,9 @@ fn thin(mask: &mut [bool], w: usize, h: usize) {
 }
 
 /// Zerlegt das Skelett in Linienzüge zwischen Knoten und in geschlossene Ringe. Benachbarte Verzweigungspixel
-/// bilden zusammen einen Knoten (Mittelpunkt der Gruppe), damit Kreuzungen nicht in viele Kleinststücke zerfallen.
+/// bilden zusammen einen Knoten (Mittelpunkt der Gruppe), damit Kreuzungen nicht in viele Kleinststücke zerfallen –
+/// bei kompakten Gruppen. Verschmelzen in dichten Schraffuren viele Striche zu einem Klumpen, bleibt er ein Knoten,
+/// jede Linie endet aber an ihrem eigenen Anschlusspixel – sonst liefen alle sternförmig zu seinem Mittelpunkt.
 fn skeleton_strokes(mask: &[bool], w: usize, h: usize) -> (Vec<Stroke>, Vec<Vec<Point>>) {
     let n = mask.len();
     let neighbors = |i: usize| {
@@ -288,9 +290,11 @@ fn skeleton_strokes(mask: &[bool], w: usize, h: usize) -> (Vec<Stroke>, Vec<Vec<
     };
     let degree: Vec<u8> = (0..n).map(|i| if mask[i] { neighbors(i).count() as u8 } else { 0 }).collect();
     let center = |i: usize| Point::new((i % w) as f64 + 0.5, (i / w) as f64 + 0.5);
-    // Gruppen benachbarter Verzweigungspixel
+    // Gruppen benachbarter Verzweigungspixel; nur kompakte haben einen gemeinsamen Mittelpunkt
+    const MAX_GROUP: usize = 4;
     let mut group = vec![usize::MAX; n];
-    let mut group_center: Vec<Point> = Vec::new();
+    let mut group_center: Vec<Option<Point>> = Vec::new();
+    let mut members = Vec::new();
     for start in 0..n {
         if degree[start] < 3 || group[start] != usize::MAX {
             continue;
@@ -298,10 +302,9 @@ fn skeleton_strokes(mask: &[bool], w: usize, h: usize) -> (Vec<Stroke>, Vec<Vec<
         let id = group_center.len();
         let mut stack = vec![start];
         group[start] = id;
-        let (mut sum, mut count) = (Point::ZERO, 0.0);
+        members.clear();
         while let Some(i) = stack.pop() {
-            sum += center(i);
-            count += 1.0;
+            members.push(i);
             for j in neighbors(i) {
                 if degree[j] >= 3 && group[j] == usize::MAX {
                     group[j] = id;
@@ -309,10 +312,16 @@ fn skeleton_strokes(mask: &[bool], w: usize, h: usize) -> (Vec<Stroke>, Vec<Vec<
                 }
             }
         }
-        group_center.push(sum * (1.0 / count));
+        let span = members.iter().fold(vl_core::Rect::EMPTY, |mut r, &i| {
+            r.include(center(i));
+            r
+        });
+        let compact = members.len() <= MAX_GROUP && span.width() <= 2.0 && span.height() <= 2.0;
+        let sum = members.iter().fold(Point::ZERO, |s, &i| s + center(i));
+        group_center.push(compact.then(|| sum * (1.0 / members.len() as f64)));
     }
     let node_key = |i: usize| if degree[i] >= 3 { n + group[i] } else { i };
-    let node_point = |i: usize| if degree[i] >= 3 { group_center[group[i]] } else { center(i) };
+    let node_point = |i: usize| if degree[i] >= 3 { group_center[group[i]].unwrap_or(center(i)) } else { center(i) };
     let is_node = |i: usize| degree[i] != 2;
     let edge = |a: usize, b: usize| (a.min(b), a.max(b));
     let mut used: HashSet<(usize, usize)> = HashSet::new();
@@ -381,26 +390,41 @@ fn prune_spurs(strokes: &mut Vec<Stroke>, max_len: f64) {
 }
 
 /// Kurze Brücken zwischen zwei Verzweigungen (an schrägen Kreuzungen spaltet die Ausdünnung den Knoten auf)
-/// werden zu einem Knoten in ihrer Mitte zusammengezogen.
+/// werden zu einem Knoten in ihrer Mitte zusammengezogen. Jeder Knoten höchstens einmal: sonst wanderte er in
+/// dichten Schraffuren von Brücke zu Brücke und zöge weit entfernte Linienenden zu einem Stern zusammen.
 fn collapse_bridges(strokes: &mut Vec<Stroke>, max_len: f64) {
+    let mut merged: HashSet<usize> = HashSet::new();
     loop {
         let count = end_counts(strokes);
         let Some(k) = strokes.iter().position(|s| {
-            s.a != s.b && count[&s.a] >= 3 && count[&s.b] >= 3 && polyline_length(&s.pts, false) < max_len
+            s.a != s.b
+                && !merged.contains(&s.a)
+                && !merged.contains(&s.b)
+                && count[&s.a] >= 3
+                && count[&s.b] >= 3
+                && polyline_length(&s.pts, false) < max_len
         }) else {
             break;
         };
         let bridge = strokes.remove(k);
-        let mid = bridge.pts[0].lerp(bridge.pts[bridge.pts.len() - 1], 0.5);
+        merged.extend([bridge.a, bridge.b]);
+        let (p, q) = (bridge.pts[0], bridge.pts[bridge.pts.len() - 1]);
+        let mid = p.lerp(q, 0.5);
+        // Nur Enden an der Brücke rücken in ihre Mitte; an einem großen Knoten enden Linien auch weiter entfernt
+        let near = |e: Point| e.distance(p) <= max_len || e.distance(q) <= max_len;
         for s in strokes.iter_mut() {
             if s.a == bridge.a || s.a == bridge.b {
                 s.a = bridge.a;
-                s.pts[0] = mid;
+                if near(s.pts[0]) {
+                    s.pts[0] = mid;
+                }
             }
             if s.b == bridge.a || s.b == bridge.b {
                 s.b = bridge.a;
                 let last = s.pts.len() - 1;
-                s.pts[last] = mid;
+                if near(s.pts[last]) {
+                    s.pts[last] = mid;
+                }
             }
         }
     }
@@ -599,6 +623,43 @@ mod tests {
             for poly in paths.iter().flat_map(|p| p.flatten(&Affine::IDENTITY, 0.01)) {
                 for q in &poly.points {
                     assert!(q.x >= -0.5 && q.x <= 90.5 && q.y >= -0.5 && q.y <= 70.5, "{q:?}");
+                }
+            }
+        }
+    }
+
+    /// Mittellinien in dichter Kreuzschraffur (wie Fell- oder Schattenstriche): jede Linie verläuft auf dem Motiv,
+    /// keine Sterne aus Linien, die zu einem weit entfernten Knoten gezogen werden.
+    #[test]
+    fn centerlines_stay_on_dense_hatching() {
+        let (w, h) = (120u32, 90u32);
+        let on = |x: u32, y: u32| {
+            let (x, y) = (x as i64, y as i64);
+            (x > 5 && x < 115 && y > 5 && y < 85)
+                && ((x + y).rem_euclid(5) < 2 || (x - 2 * y).rem_euclid(6) < 2 || (3 * x + y).rem_euclid(9) < 2)
+        };
+        let img = image(w, h, on);
+        let opts = TraceOptions { centerline: true, ..TraceOptions::default() };
+        let paths = trace(&img, &ImageAdjust::default(), &opts);
+        assert!(!paths.is_empty());
+        let near_ink = |p: Point| {
+            let (cx, cy) = (p.x.floor() as i64, p.y.floor() as i64);
+            (-2..=2).any(|dy| {
+                (-2..=2).any(|dx| {
+                    let (x, y) = (cx + dx, cy + dy);
+                    x >= 0 && y >= 0 && x < w as i64 && y < h as i64 && on(x as u32, y as u32)
+                })
+            })
+        };
+        for poly in paths.iter().flat_map(|p| p.flatten(&Affine::IDENTITY, 0.01)) {
+            let n = poly.points.len();
+            let segs = if poly.closed { n } else { n - 1 };
+            for i in 0..segs {
+                let (a, b) = (poly.points[i], poly.points[(i + 1) % n]);
+                let steps = (a.distance(b).ceil() as usize).max(1);
+                for k in 0..=steps {
+                    let q = a.lerp(b, k as f64 / steps as f64);
+                    assert!(near_ink(q), "Linie abseits des Motivs bei {q:?} ({a:?} → {b:?})");
                 }
             }
         }
