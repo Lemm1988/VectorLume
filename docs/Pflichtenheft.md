@@ -311,7 +311,9 @@ Licence (Weitergabe mit Software erlaubt). Damit bleiben Veröffentlichung als O
 
 **Weitergabe:** `tools\package.ps1` erzeugt das Setup (Inno Setup 6, Benutzerinstallation ohne Adminrechte, gleicher
 Ordner und gleiche Dateitypen wie `install.ps1`, Deinstallation über *Apps*, Assistent deutsch/englisch) und ein portables
-ZIP. Beide enthalten `THIRD-PARTY-LICENSES.html` mit den Lizenztexten aller mitgelieferten Bibliotheken (cargo-about;
+ZIP. Beide enthalten die Nutzungsbedingungen `LICENSE.txt` (aus `LICENSE`: alle Rechte vorbehalten, kostenlose Nutzung
+der veröffentlichten Versionen, Haftung nach §§ 521 ff. BGB, Lasersicherheit; im Setup als Lizenzseite, im Info-Dialog
+verlinkt) und `THIRD-PARTY-LICENSES.html` mit den Lizenztexten aller mitgelieferten Bibliotheken (cargo-about;
 `tools\about.toml` listet die zulässigen Lizenzen – eine neue, nicht aufgeführte Lizenz bricht die Paketierung ab).
 Der Info-Dialog verlinkt die Datei. Inno Setup darf auch für kommerzielle Software verwendet werden. Code-Signatur ⏳
 (ohne Zertifikat warnt SmartScreen).

@@ -15,6 +15,7 @@ AppName=VectorLume
 AppVersion={#AppVersion}
 AppVerName=VectorLume {#AppVersion}
 AppPublisher=VectorLume
+AppCopyright=© 2026 P. Lemm
 VersionInfoVersion={#AppVersion}
 VersionInfoDescription=VectorLume Setup
 DefaultDirName={localappdata}\Programs\VectorLume
@@ -24,6 +25,8 @@ PrivilegesRequired=lowest
 OutputDir=..\dist
 OutputBaseFilename=VectorLume-Setup-{#AppVersion}
 SetupIconFile={#Stage}\vectorlume.ico
+; Nutzungsbedingungen (LICENSE im Repository) als Lizenzseite
+LicenseFile={#Stage}\LICENSE.txt
 UninstallDisplayIcon={app}\vectorlume.exe
 UninstallDisplayName=VectorLume
 Compression=lzma2/max
@@ -57,6 +60,7 @@ Name: "lbrn2"; Description: "{cm:OpenWithLightBurn}"; GroupDescription: "{cm:Fil
 [Files]
 Source: "{#Stage}\vectorlume.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Stage}\THIRD-PARTY-LICENSES.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Stage}\LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\VectorLume"; Filename: "{app}\vectorlume.exe"; WorkingDir: "{app}"; Comment: "VectorLume"

@@ -190,6 +190,10 @@ These are the defaults. Change them under *Edit → Keyboard shortcuts…*: clic
 - **Parts do not fall out**: increase passes or power, check the focus, remove tabs.
 - **Program error**: VectorLume writes an error report (`crash.log` in the settings folder) and shows it at the next start. Please include it when reporting bugs.
 
+## Terms of use
+
+VectorLume is freeware: the published program versions may be used free of charge for private and commercial purposes; all other rights are reserved. The setup shows the full terms of use, including liability and laser safety notes, during installation; afterwards they are stored as `LICENSE.txt` in the program folder (*Help → About VectorLume → Show terms of use*).
+
 ## Trademarks
 
 LightBurn is a trademark of LightBurn Software, LLC. VectorLume is an independent program and is not affiliated with LightBurn Software; the name is used only to identify the file format (.lbrn2) so that your own projects can be reused.

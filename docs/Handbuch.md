@@ -190,6 +190,10 @@ Das ist die Standardbelegung. Unter *Bearbeiten → Tastenkürzel…* änderst d
 - **Teile fallen nicht heraus**: Durchgänge oder Leistung erhöhen, Fokus prüfen, Laschen entfernen.
 - **Programmfehler**: VectorLume schreibt einen Fehlerbericht (`crash.log` im Einstellungsordner) und zeigt ihn beim nächsten Start an. Bitte bei Fehlermeldungen mitschicken.
 
+## Nutzungsbedingungen
+
+VectorLume ist Freeware: Die veröffentlichten Programmversionen dürfen kostenlos privat und gewerblich genutzt werden, alle übrigen Rechte bleiben vorbehalten. Die vollständigen Nutzungsbedingungen mit Haftungsregelung und Hinweisen zur Lasersicherheit zeigt das Setup bei der Installation; danach liegen sie als `LICENSE.txt` im Programmordner (*Hilfe → Über VectorLume → Nutzungsbedingungen anzeigen*).
+
 ## Marken
 
 LightBurn ist eine Marke der LightBurn Software, LLC. VectorLume ist ein eigenständiges Programm und steht in keiner Verbindung zu LightBurn Software; der Name dient nur dazu, das Dateiformat (.lbrn2) zu benennen, damit eigene Projekte weiterverwendet werden können.

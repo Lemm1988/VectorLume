@@ -374,7 +374,12 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 edit_keys = true;
             }
             ui.add_space(6.0);
-            ui.label(RichText::new(tr("Alle Rechte vorbehalten.")).small().color(pal.text_weak));
+            ui.label(
+                RichText::new(tr("© 2026 P. Lemm. Alle Rechte vorbehalten – kostenlos nutzbar nach den \
+                                  Nutzungsbedingungen (Freeware, ohne Gewähr)."))
+                .small()
+                .color(pal.text_weak),
+            );
             ui.label(
                 RichText::new(tr("LightBurn ist eine Marke der LightBurn Software, LLC. VectorLume ist ein eigenständiges \
                                   Programm und steht in keiner Verbindung zu LightBurn Software; der Name dient nur dazu, \
@@ -399,9 +404,14 @@ fn about(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 .small()
                 .color(pal.text_weak),
             );
-            // Liegt dem Setup bzw. dem portablen Paket bei (tools\package.ps1)
-            let licenses = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("THIRD-PARTY-LICENSES.html")));
-            if let Some(path) = licenses.filter(|p| p.is_file())
+            // Liegen dem Setup bzw. dem portablen Paket bei (tools\package.ps1)
+            let dir = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.to_path_buf()));
+            if let Some(path) = dir.as_ref().map(|d| d.join("LICENSE.txt")).filter(|p| p.is_file())
+                && ui.link(tr("Nutzungsbedingungen anzeigen")).clicked()
+            {
+                crate::system::open_in_editor(&path);
+            }
+            if let Some(path) = dir.map(|d| d.join("THIRD-PARTY-LICENSES.html")).filter(|p| p.is_file())
                 && ui.link(tr("Lizenzen der Bibliotheken anzeigen")).clicked()
             {
                 crate::system::show_in_explorer(&path);

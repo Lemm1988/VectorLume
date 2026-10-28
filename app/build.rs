@@ -16,7 +16,7 @@ fn main() {
     res.set_icon(ico.to_str().unwrap())
         .set("ProductName", "VectorLume")
         .set("FileDescription", "VectorLume - Laser-Software")
-        .set("LegalCopyright", "Alle Rechte vorbehalten");
+        .set("LegalCopyright", "Copyright (C) 2026 P. Lemm. Alle Rechte vorbehalten");
     if let Err(e) = res.compile() {
         // Ohne Windows-SDK (rc.exe) bleibt die .exe ohne Symbol, der Build läuft trotzdem.
         println!("cargo:warning=Programmsymbol nicht eingebettet: {e}");

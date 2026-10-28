@@ -1,6 +1,6 @@
 # Erzeugt die Pakete zur Weitergabe in dist\:
 #   VectorLume-Setup-<Version>.exe   Setup fuer den aktuellen Benutzer (ohne Adminrechte, mit Deinstallation)
-#   VectorLume-<Version>-portable.zip  nur Programm und Lizenzliste, ohne Installation
+#   VectorLume-<Version>-portable.zip  nur Programm, Nutzungsbedingungen und Lizenzliste, ohne Installation
 #   powershell -ExecutionPolicy Bypass -File tools\package.ps1            (bauen + paketieren)
 #   powershell -ExecutionPolicy Bypass -File tools\package.ps1 -NoBuild   (vorhandenen Release-Build verwenden)
 # Benoetigt Inno Setup 6 (winget install JRSoftware.InnoSetup) und cargo-about (cargo install cargo-about --locked).
@@ -44,12 +44,18 @@ try {
     cargo about generate --config 'tools\about.toml' --output-file $licenses --fail 'tools\about.hbs'
     if ($LASTEXITCODE -ne 0) { throw 'Lizenzliste fehlgeschlagen.' }
 
+    # Nutzungsbedingungen: Lizenzseite im Setup und Datei neben dem Programm
+    # (UTF-8 mit BOM und CRLF, damit Inno Setup und Editor die Umlaute und Zeilen richtig zeigen)
+    $terms = Join-Path $stage 'LICENSE.txt'
+    $text = [System.IO.File]::ReadAllText((Join-Path $root 'LICENSE')) -replace "`r?`n", "`r`n"
+    [System.IO.File]::WriteAllText($terms, $text, (New-Object System.Text.UTF8Encoding $true))
+
     & $iscc /Qp "/DAppVersion=$version" "/DStage=$stage" 'tools\setup.iss'
     if ($LASTEXITCODE -ne 0) { throw 'Setup fehlgeschlagen.' }
 
     $zip = Join-Path $dist "VectorLume-$version-portable.zip"
     if (Test-Path $zip) { Remove-Item $zip }
-    Compress-Archive -Path (Join-Path $stage 'vectorlume.exe'), $licenses -DestinationPath $zip
+    Compress-Archive -Path (Join-Path $stage 'vectorlume.exe'), $terms, $licenses -DestinationPath $zip
 } finally {
     Pop-Location
 }

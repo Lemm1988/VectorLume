@@ -1,0 +1,170 @@
+VectorLume – Nutzungsbedingungen / Terms of Use
+
+Copyright © 2026 P. Lemm (GitHub: Lemm1988). Alle Rechte vorbehalten. All rights reserved.
+
+DEUTSCH (maßgebliche Fassung)
+-----------------------------
+
+1. Urheberrecht
+
+VectorLume – Quelltext, Programmdateien, Dokumentation, Symbole und Grafiken – ist urheberrechtlich
+geschützt. Alle Rechte liegen beim Urheber, soweit diese Bedingungen nichts anderes ausdrücklich
+erlauben. Dass der Quelltext öffentlich einsehbar ist, macht das Projekt nicht zu
+Open-Source-Software; eine Open-Source-Lizenz wird nicht erteilt.
+
+2. Erlaubte Nutzung
+
+Die vom Urheber veröffentlichten Programmversionen (Setup und portables Paket) dürfen kostenlos
+heruntergeladen, installiert und für private wie gewerbliche Zwecke genutzt werden (Freeware).
+
+Dateien und Werkstücke, die Sie mit VectorLume erstellen, gehören Ihnen; der Urheber erhebt daran
+keine Rechte.
+
+3. Nicht gestattet
+
+Über die Nutzung nach Nr. 2 hinaus ist es ohne vorherige Zustimmung des Urhebers (Textform genügt,
+z. B. E-Mail) nicht gestattet,
+
+   a) den Quelltext, die Programmdateien oder Inhalte ganz oder teilweise zu vervielfältigen, zu
+      verändern, zu übersetzen (auch zu kompilieren), in andere Software oder Werke zu übernehmen
+      oder eigene Instanzen daraus zu betreiben;
+   b) das Projekt oder Teile davon weiterzugeben, zu veröffentlichen, zu verkaufen, zu vermieten
+      oder als eigenes Werk auszugeben;
+   c) Urheber-, Lizenz- und Markenhinweise zu entfernen oder zu verändern.
+
+Das Verlinken auf das Repository bzw. die offizielle Download-Seite ist ausdrücklich erlaubt.
+Unberührt bleiben die gesetzlich erlaubten Nutzungen (insbesondere §§ 44a ff., 69d und 69e UrhG)
+sowie das Ansehen und Forken des Repositorys auf GitHub im Rahmen der GitHub-Nutzungsbedingungen.
+
+4. Bestandteile Dritter
+
+VectorLume verwendet Bibliotheken und Schriften Dritter (u. a. egui, usvg, lopdf, image, serialport,
+nokhwa und die Hershey-Einlinienschriften). Sie sind mit ihren Lizenztexten in der Datei
+THIRD-PARTY-LICENSES.html aufgeführt, die jeder Programmversion beiliegt und im Info-Dialog verlinkt
+ist. Für sie gelten ausschließlich deren eigene Lizenzen; diese Bedingungen schränken die Rechte aus
+jenen Lizenzen nicht ein.
+
+5. Haftung und Gewährleistung
+
+Die Überlassung ist unentgeltlich. Der Urheber haftet deshalb nur für Vorsatz und grobe
+Fahrlässigkeit sowie für arglistig verschwiegene Mängel (§§ 521, 523, 524 BGB). Die Haftung nach dem
+Produkthaftungsgesetz und jede sonstige zwingende gesetzliche Haftung bleiben unberührt.
+
+Es wird keine Gewähr dafür übernommen, dass VectorLume fehlerfrei arbeitet oder für einen bestimmten
+Zweck geeignet ist. Ein Anspruch auf Fehlerbehebung, Updates oder Support besteht nicht. Sichern Sie
+Ihre Daten regelmäßig.
+
+Insbesondere wird nicht zugesichert, dass VectorLume mit einem bestimmten Lasergerät, einer
+bestimmten Firmware oder einem bestimmten Material wie erwartet zusammenarbeitet.
+
+6. Lasersicherheit
+
+VectorLume steuert Lasergeräte. Laserstrahlung kann Augen und Haut schwer verletzen, Material
+entzünden und Brände auslösen; Dämpfe können gesundheitsschädlich sein; ein Laserkopf, der gegen ein
+Hindernis oder über seinen Verfahrbereich hinaus fährt, kann das Gerät beschädigen. Fehler in
+Einstellungen, Dateien, Firmware oder im Programm können zu unerwarteten Bewegungen oder
+unerwarteter Laserleistung führen. Für den sicheren Betrieb sind allein Sie verantwortlich.
+Insbesondere:
+
+   – das Gerät nie unbeaufsichtigt laufen lassen und einen Feuerlöscher bereithalten;
+   – eine zur Wellenlänge passende Laserschutzbrille tragen und eine Absaugung bzw. Belüftung
+     verwenden;
+   – nur geeignete Materialien bearbeiten (z. B. kein PVC);
+   – jeden Auftrag vor dem Start mit Vorschau und Rahmenfahrt prüfen und sicherstellen, dass der
+     Laserkopf frei verfahren kann;
+   – die Anleitung und die Sicherheitshinweise des Geräteherstellers sowie die geltenden
+     Vorschriften beachten.
+
+7. Marken
+
+LightBurn ist eine Marke der LightBurn Software, LLC. VectorLume ist ein eigenständiges Programm und
+steht in keiner Verbindung zu LightBurn Software; der Name dient nur dazu, das Dateiformat (.lbrn2)
+zu benennen. Alle anderen genannten Produkt- und Firmennamen sind Marken ihrer jeweiligen Inhaber.
+
+8. Schlussbestimmungen
+
+Es gilt das Recht der Bundesrepublik Deutschland. Zwingende Verbraucherschutzvorschriften des
+Staates, in dem Sie Ihren gewöhnlichen Aufenthalt haben, bleiben unberührt. Ist eine Bestimmung
+unwirksam, bleiben die übrigen wirksam. Kontakt (z. B. für eine Zustimmung nach Nr. 3):
+https://github.com/Lemm1988
+
+ENGLISH (translation – in case of doubt, the German version prevails)
+---------------------------------------------------------------------
+
+1. Copyright
+
+VectorLume – source code, program files, documentation, icons and graphics – is protected by
+copyright. All rights remain with the author unless these terms expressly permit otherwise. The fact
+that the source code is publicly visible does not make this project open-source software; no
+open-source licence is granted.
+
+2. Permitted use
+
+The program versions published by the author (installer and portable package) may be downloaded,
+installed and used free of charge for private and commercial purposes (freeware).
+
+Files and workpieces you create with VectorLume are yours; the author claims no rights in them.
+
+3. Not permitted
+
+Beyond the use permitted under section 2, you may not, without the author's prior consent (text
+form, e.g. e-mail, suffices):
+
+   a) reproduce, modify or translate (including compile) the source code, program files or content
+      in whole or in part, incorporate them into other software or works, or run your own instances
+      of them;
+   b) distribute, publish, sell or rent out the project or parts of it, or pass it off as your own
+      work;
+   c) remove or alter copyright, licence or trademark notices.
+
+Linking to the repository or the official download page is expressly permitted. Uses permitted by
+law (in particular sections 44a et seq., 69d and 69e of the German Copyright Act) and viewing and
+forking the repository on GitHub under the GitHub Terms of Service remain unaffected.
+
+4. Third-party components
+
+VectorLume uses third-party libraries and fonts (including egui, usvg, lopdf, image, serialport,
+nokhwa and the Hershey single-line fonts). They are listed with their licence texts in the file
+THIRD-PARTY-LICENSES.html, which accompanies every program version and is linked in the About
+dialog. They are governed exclusively by their own licences; these terms do not restrict the rights
+granted by those licences.
+
+5. Liability and warranty
+
+The software is provided free of charge. The author is therefore liable only for intent and gross
+negligence and for fraudulently concealed defects (sections 521, 523, 524 German Civil Code).
+Liability under the German Product Liability Act and any other mandatory statutory liability remain
+unaffected.
+
+No warranty is given that VectorLume works without errors or is fit for a particular purpose. There
+is no entitlement to bug fixes, updates or support. Back up your data regularly.
+
+In particular, it is not warranted that VectorLume works as expected with a particular laser
+machine, firmware or material.
+
+6. Laser safety
+
+VectorLume controls laser machines. Laser radiation can severely injure eyes and skin, ignite
+material and start fires; fumes can be harmful; a laser head that runs into an obstacle or beyond
+its travel range can damage the machine. Errors in settings, files, firmware or the program can
+cause unexpected movements or unexpected laser output. You alone are responsible for safe operation.
+In particular:
+
+   – never leave the machine running unattended and keep a fire extinguisher at hand;
+   – wear laser safety goggles suitable for the wavelength and use extraction or ventilation;
+   – only process suitable materials (e.g. no PVC);
+   – check every job with the preview and the frame function before starting, and make sure the
+     laser head can move freely;
+   – follow the manufacturer's instructions and safety notes and the applicable regulations.
+
+7. Trademarks
+
+LightBurn is a trademark of LightBurn Software, LLC. VectorLume is an independent program and is not
+affiliated with LightBurn Software; the name is used only to identify the file format (.lbrn2). All
+other product and company names mentioned are trademarks of their respective owners.
+
+8. Final provisions
+
+These terms are governed by German law. Mandatory consumer protection provisions of the country of
+your habitual residence remain unaffected. If a provision is invalid, the remaining provisions
+remain valid. Contact (e.g. for consent under section 3): https://github.com/Lemm1988

@@ -5,7 +5,7 @@
 | Projekt | VectorLume – Software zum Gestalten und Steuern von Laser-Gravier- und Schneidmaschinen |
 | Auftraggeber | Projektinhaber (GitHub: Lemm1988) |
 | Stand | 24.10.2026, Version 1.0 |
-| Status | privat, Veröffentlichung als Open Source zu einem späteren Zeitpunkt, Verkauf nicht ausgeschlossen |
+| Status | Quelltext öffentlich einsehbar, alle Rechte vorbehalten; kostenlose Nutzung der veröffentlichten Versionen (Freeware, `LICENSE`); Open Source oder Verkauf später nicht ausgeschlossen |
 
 ## 1. Ausgangssituation
 

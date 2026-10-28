@@ -3,7 +3,9 @@
 Moderne Software zum Gestalten und Lasern für GRBL-Diodenlaser (zuerst für den **Sculpfun SF-A9 40 W**),
 geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
 
-> Der Quelltext ist öffentlich einsehbar, eine Lizenz ist aber noch nicht vergeben – alle Rechte vorbehalten.
+> Der Quelltext ist öffentlich einsehbar, VectorLume ist aber keine Open-Source-Software: alle Rechte vorbehalten.
+> Die veröffentlichten Programmversionen dürfen kostenlos privat und gewerblich genutzt werden (Freeware) –
+> Einzelheiten, Haftung und Hinweise zur Lasersicherheit stehen in den [Nutzungsbedingungen](LICENSE).
 
 ## Funktionen
 
@@ -64,8 +66,9 @@ cargo build --release            # target/release/vectorlume.exe
 ```
 
 **Weitergabe:** `powershell -ExecutionPolicy Bypass -File tools\package.ps1` baut das Programm und legt in `dist\`
-das Setup (`VectorLume-Setup-<Version>.exe`, Inno Setup 6) und ein portables ZIP ab, jeweils mit der Lizenzliste aller
-Bibliotheken (`THIRD-PARTY-LICENSES.html`, erzeugt mit cargo-about). Benötigt einmalig
+das Setup (`VectorLume-Setup-<Version>.exe`, Inno Setup 6) und ein portables ZIP ab, jeweils mit den
+Nutzungsbedingungen (`LICENSE.txt` aus `LICENSE`, im Setup als Lizenzseite) und der Lizenzliste aller Bibliotheken
+(`THIRD-PARTY-LICENSES.html`, erzeugt mit cargo-about). Benötigt einmalig
 `winget install JRSoftware.InnoSetup` und `cargo install cargo-about --locked --features cli`. Die Version steht in
 `Cargo.toml` (`[workspace.package]`). Das Setup ist nicht signiert – Windows SmartScreen warnt beim ersten Start.
 

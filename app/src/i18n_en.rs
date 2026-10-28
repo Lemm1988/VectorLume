@@ -1598,6 +1598,8 @@ pub static EN: &[(&str, &str)] = &[
     ("Der Anlauf (Overscan) würde am Rand bis {} mm über die Arbeitsfläche hinausreichen und wird dort gekürzt, damit der Kopf nicht gegen den Endschalter fährt. Die Kante kann dort etwas dunkler werden; für den vollen Anlauf das Motiv {} mm weiter vom Rand weg legen.", "The run-up (overscan) would extend up to {} mm beyond the work area at the edge and is shortened there so the head does not hit the limit switch. The edge there may turn out slightly darker; for the full run-up place the design {} mm further from the edge."),
     ("Alle Rechte vorbehalten.", "All rights reserved."),
     ("LightBurn ist eine Marke der LightBurn Software, LLC. VectorLume ist ein eigenständiges Programm und steht in keiner Verbindung zu LightBurn Software; der Name dient nur dazu, das Dateiformat (.lbrn2) zu benennen, damit eigene Projekte weiterverwendet werden können.", "LightBurn is a trademark of LightBurn Software, LLC. VectorLume is an independent program and is not affiliated with LightBurn Software; the name is used only to identify the file format (.lbrn2) so that your own projects can be reused."),
+    ("© 2026 P. Lemm. Alle Rechte vorbehalten – kostenlos nutzbar nach den Nutzungsbedingungen (Freeware, ohne Gewähr).", "© 2026 P. Lemm. All rights reserved – free to use under the terms of use (freeware, no warranty)."),
+    ("Nutzungsbedingungen anzeigen", "Show terms of use"),
 ];
 
 /// Quelltexte für den Vollständigkeitstest.
