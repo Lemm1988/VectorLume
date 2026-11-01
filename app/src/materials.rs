@@ -381,7 +381,7 @@ fn material_test(app: &mut VectorLumeApp, ctx: &egui::Context) {
             ui.add_space(8.0);
             ui.separator();
             ui.horizontal(|ui| {
-                let ready = app.test.job.is_some();
+                let ready = app.test.job.is_some() && app.settings.has_device();
                 let connected = app.machine.connected && !app.machine.job_running;
                 if ui
                     .add_enabled(ready && connected, Button::new(trs(&format!("{} Rahmen", icon::BOUNDING_BOX))))

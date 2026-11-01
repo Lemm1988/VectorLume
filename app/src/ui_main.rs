@@ -5,7 +5,7 @@ use crate::hotkeys::Action;
 use crate::i18n::{tr, trs};
 use crate::settings::ThemeChoice;
 use crate::theme;
-use crate::units::UnitField;
+use crate::units::{self, UnitField};
 use egui::{
     Align, Button, Color32, CornerRadius, DragValue, Frame, Key, KeyboardShortcut, Layout, Margin, Modifiers, RichText,
     Sense, Stroke, Ui, vec2,
@@ -665,6 +665,9 @@ fn laser_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
     if menu_item(ui, tr("Materialbibliothek…"), "", true) {
         app.materials.open = true;
     }
+    if menu_item(ui, tr("Umkehrspiel messen…"), "", true) {
+        app.open_backlash_test();
+    }
     ui.separator();
     if menu_item(ui, tr("Drehachse…"), "", true) {
         app.show_rotary = true;
@@ -676,7 +679,7 @@ fn laser_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
         app.open_print_cut();
     }
     if menu_item(ui, tr("Gerät einrichten…"), "", !app.machine.job_running) {
-        app.open_setup_wizard(false);
+        app.open_setup_wizard();
     }
     if menu_item(ui, tr("Maschineneinstellungen…"), "", true) {
         app.show_device_settings = true;
@@ -685,6 +688,9 @@ fn laser_menu(app: &mut VectorLumeApp, ui: &mut Ui) {
         app.open_grbl_params();
     }
 }
+
+/// Nachkommastellen der Maßfelder in mm (1 µm).
+const MM_DECIMALS: usize = 3;
 
 /// X/Y/B/H der Auswahl in Maschinenkoordinaten bearbeiten.
 fn properties(app: &mut VectorLumeApp, ui: &mut Ui) {
@@ -696,7 +702,7 @@ fn properties(app: &mut VectorLumeApp, ui: &mut Ui) {
     ui.add_enabled_ui(has, |ui| {
         let field = |ui: &mut Ui, label: &str, v: &mut f64| {
             ui.label(RichText::new(label).color(theme::of(ui).text_weak));
-            ui.add(DragValue::new(v).speed(0.2).max_decimals(2).mm().range(-10000.0..=10000.0))
+            ui.add(DragValue::new(v).speed(0.2).max_decimals(MM_DECIMALS).mm().range(-10000.0..=10000.0))
         };
         let rx = field(ui, "X", &mut x);
         let ry = field(ui, "Y", &mut y);
@@ -726,21 +732,33 @@ fn properties(app: &mut VectorLumeApp, ui: &mut Ui) {
             return;
         }
         let ids = app.selection.clone();
-        if rx.changed() || ry.changed() {
+        // Nur echte Eingaben übernehmen, nicht den beim Verlassen zurückgeschriebenen Anzeigewert
+        let rx_changed = rx.changed() && units::len_changed(mr.min.x, x, MM_DECIMALS);
+        let ry_changed = ry.changed() && units::len_changed(mr.min.y, y, MM_DECIMALS);
+        let rw_changed = rw.changed() && units::len_changed(b.width(), w, MM_DECIMALS);
+        let rh_changed = rh.changed() && units::len_changed(b.height(), h, MM_DECIMALS);
+        if rx_changed || ry_changed {
+            let (x, y) = (if rx_changed { x } else { mr.min.x }, if ry_changed { y } else { mr.min.y });
             let dm = Point::new(x - mr.min.x, y - mr.min.y);
             let dd = profile.screen_to_machine_delta(dm);
             app.checkpoint_coalesced("position");
             app.doc.transform_objects(&ids, &Affine::translate(dd.x, dd.y));
             app.mark_changed();
         }
-        if (rw.changed() && b.width() > 1e-6) || (rh.changed() && b.height() > 1e-6) {
+        if (rw_changed && b.width() > 1e-6) || (rh_changed && b.height() > 1e-6) {
             let anchor = profile.machine_to_doc(mr.min);
             let (mut sx, mut sy) = (
                 if b.width() > 1e-6 { w.max(0.01) / b.width() } else { 1.0 },
                 if b.height() > 1e-6 { h.max(0.01) / b.height() } else { 1.0 },
             );
+            if !rw_changed {
+                sx = 1.0;
+            }
+            if !rh_changed {
+                sy = 1.0;
+            }
             if app.lock_ratio {
-                if rw.changed() {
+                if rw_changed {
                     sy = sx;
                 } else {
                     sx = sy;
@@ -763,12 +781,13 @@ fn primitive_fields(app: &mut VectorLumeApp, ui: &mut Ui) {
     let mut changed = None;
     match p {
         Primitive::Rect { .. } => {
-            let mut r = obj.corner_radius().unwrap_or(0.0);
+            let old = obj.corner_radius().unwrap_or(0.0);
+            let mut r = old;
             ui.label(RichText::new(icon::FRAME_CORNERS).color(weak)).on_hover_text(tr("Eckenradius"));
             let resp = ui
-                .add(DragValue::new(&mut r).speed(0.1).range(0.0..=1000.0).max_decimals(2).mm())
+                .add(DragValue::new(&mut r).speed(0.1).range(0.0..=1000.0).max_decimals(MM_DECIMALS).mm())
                 .on_hover_text(tr("Eckenradius des Rechtecks"));
-            if resp.changed() {
+            if resp.changed() && units::len_changed(old, r, MM_DECIMALS) {
                 app.checkpoint_coalesced("primitive");
                 if let Some(o) = app.doc.get_mut(id) {
                     o.set_corner_radius(r);

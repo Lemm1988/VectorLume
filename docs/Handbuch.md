@@ -1,13 +1,19 @@
 # VectorLume – Handbuch
 
-VectorLume ist ein Programm zum Gestalten und Lasern für Diodenlaser mit GRBL-Steuerung, z. B. den Sculpfun SF-A9. Du zeichnest oder importierst Formen, legst für jede Farbebene fest, wie gelasert wird, prüfst das Ergebnis in der Vorschau und schickst den Job direkt an den Laser.
+VectorLume ist ein Programm zum Gestalten und Lasern für Laser mit GRBL-, Marlin- oder Smoothieware-Steuerung – das sind fast alle Diodenlaser (z. B. Sculpfun, Ortur, Atomstack, xTool D1, Creality Falcon, Two Trees, Longer) und umgebaute CO₂-Laser. Du zeichnest oder importierst Formen, legst für jede Farbebene fest, wie gelasert wird, prüfst das Ergebnis in der Vorschau und schickst den Job direkt an den Laser.
 
 > Sicherheit zuerst: Laserschutzbrille tragen, nie unbeaufsichtigt lasern, für Absaugung und Brandschutz sorgen und neue Einstellungen zuerst mit wenig Leistung an einem Reststück testen.
 
 ## Installation und erster Start
 
 1. `VectorLume-Setup-<Version>.exe` ausführen. Adminrechte sind nicht nötig; entfernen lässt sich das Programm über *Einstellungen → Apps*.
-2. VectorLume über die Verknüpfung auf dem Desktop oder im Startmenü starten. Beim ersten Start führt der Assistent **Gerät einrichten** in vier Schritten durch Steuerung (GRBL, Marlin, Smoothieware), Verbindung, Arbeitsfläche mit Nullpunkt-Ecke und Namen. Ist der Laser angeschlossen, liest er Arbeitsfläche und S-Max direkt aus der Steuerung. Später erreichst du ihn über *Laser → Gerät einrichten…* (legt ein weiteres Gerät an).
+2. VectorLume über die Verknüpfung auf dem Desktop oder im Startmenü starten. Beim ersten Start richtest du deinen Laser mit dem Assistenten **Gerät einrichten** ein – ohne eingerichtetes Gerät lässt sich weder verbinden noch G-Code speichern, denn erst das Gerät legt Arbeitsfläche, Nullpunkt und Leistungsbereich fest. Die vier Schritte:
+   1. **Laser**: Modell aus dem Katalog wählen (nach Hersteller sortiert, mit Suche). Fehlt dein Modell, passt **GRBL-Laser** unter *Allgemein* für fast alle Diodenlaser. Unter *Nicht unterstützte Laser* steht, welche Steuerungen VectorLume nicht ansprechen kann (z. B. Ruida-CO₂-Laser, Galvo-Laser mit EZCAD, neuere xTool-Geräte mit eigenem Protokoll).
+   2. **Verbindung**: Ist der Laser angeschlossen, liest VectorLume Arbeitsfläche (`$130`/`$131`) und S-Max (`$30`) direkt aus der Steuerung. Der Schritt lässt sich überspringen.
+   3. **Steuerung & Fläche**: Steuerung, Breite und Höhe, Nullpunkt-Ecke, S-Max und Leistungsmodus (M4 dynamisch oder M3 konstant) prüfen.
+   4. **Name** vergeben und fertigstellen.
+
+   Mit **Später einrichten** kannst du zunächst nur entwerfen; der Assistent erscheint dann beim nächsten Start wieder. Weitere Geräte legst du über *Laser → Gerät einrichten…* an.
 3. *Hilfe → Beispielprojekt laden* zeigt alle Bearbeitungsarten an einem Beispiel.
 
 Die Sprache (Deutsch/Englisch), das Design (dunkel/hell) und die Einheit (mm/Zoll) stellst du unter *Ansicht* ein. `.vlume`-Projekte öffnen sich per Doppelklick; LightBurn-Projekte (`.lbrn2`) öffnest du über *Datei → Öffnen*.
@@ -18,10 +24,10 @@ Ohne angeschlossenen Laser kannst du alles mit dem Anschluss **Simulator** auspr
 
 1. Den Laser per USB anschließen und einschalten. Windows meldet ihn als COM-Anschluss. Erscheint keiner, fehlt meist der USB-Treiber des Laserherstellers.
 2. Rechts im Reiter **Laser** den Anschluss wählen und **Verbinden** klicken. In der **Konsole** siehst du, was die Steuerung meldet.
-3. *Laser → Maschineneinstellungen…*: Mit **Werte vom Gerät** übernimmst du Arbeitsfläche und S-Max (`$30`) aus der Steuerung. Prüfe auch, an welcher Ecke der Nullpunkt liegt (beim SF-A9 vorne links).
+3. *Laser → Maschineneinstellungen…*: Mit **Werte vom Gerät** übernimmst du Arbeitsfläche und S-Max (`$30`) aus der Steuerung. Prüfe auch, an welcher Ecke der Nullpunkt liegt (bei den meisten Diodenlasern vorne links): Fährt der Rahmen gespiegelt, stimmt die Ecke nicht.
 4. VectorLume prüft den Laser-Modus. Steht er aus (`$32=0`), bleibt der Laser bei Leerfahrten an. Mit einem Klick auf **$32=1 senden** schaltest du ihn dauerhaft ein.
 
-Mehrere Laser verwaltest du in den Maschineneinstellungen als eigene Geräte. Netzwerk-Steuerungen (z. B. FluidNC) verbindest du über den Anschluss *Netzwerk*.
+Mehrere Laser verwaltest du in den Maschineneinstellungen als eigene Geräte; **Vorlage übernehmen…** setzt Steuerung, Arbeitsfläche und Nullpunkt eines Katalog-Geräts, ohne Name und gemessene Werte (Scan-Versatz, Umkehrspiel) zu verlieren. Netzwerk-Steuerungen (z. B. FluidNC) verbindest du über den Anschluss *Netzwerk*.
 
 ## Die Oberfläche
 
@@ -112,6 +118,23 @@ Unter *Anordnen → Generatoren*:
 2. Streifen herausnehmen, dicht zusammenschieben und quer messen (oder den Spalt im Rahmen messen).
 3. Messwert eingeben und **Auf Ebene … übernehmen** klicken.
 
+**Umkehrspiel messen** (*Laser → Umkehrspiel messen…*): Riemen und Spindeln haben etwas Spiel. Wechselt eine Achse die Richtung, bleibt der Kopf um diesen Betrag zurück – Schlitze werden dann je nach Lage breiter oder schmaler als gezeichnet, Kreise unrund. VectorLume gleicht das aus, indem es an jedem Umkehrpunkt einer Kontur das Spiel zusätzlich fährt (Laser bleibt an, die Linie wird nicht unterbrochen).
+
+1. Das Muster mit wenig Leistung lasern (je ein Nonius für X und Y, wie beim Messschieber).
+2. Je Achse die Stelle suchen, an der sich ein oberer und ein unterer Strich genau decken. Die Striche von der langen Mitte bis dorthin zählen und die Seite („+“ oder „−“ neben dem Muster) wählen. Jeder Strich entspricht 0,05 mm.
+3. **Übernehmen** klicken und das Muster zur Kontrolle noch einmal lasern: Jetzt decken sich die Mittelstriche.
+
+Die Werte stehen auch in den Maschineneinstellungen unter *Umkehrspiel* (0 = kein Ausgleich).
+
+**Maßgenau schneiden – Checkliste:** VectorLume gibt die Zeichnung auf 1 µm genau als G-Code aus (das prüfen automatische Tests für jede Drehung und jede Nullpunkt-Ecke). Weicht das geschnittene Teil ab, liegt es an der Mechanik und am Laserstrahl:
+
+- **Schnittbreite**: Der Strahl brennt auf beiden Seiten der Linie Material weg. Ohne Ausgleich wird ein 3,8 mm breiter Schlitz um die Schnittbreite breiter (bei Sperrholz oft 0,1–0,3 mm). Schnittbreite ermitteln und auf der Schneid-Ebene eintragen.
+- **Geschwindigkeit**: Langsames Schneiden mit voller Leistung verbreitert den Schnitt deutlich. Lieber die Werte aus der Parametertabelle des Herstellers bzw. einen Materialtest verwenden und dieselben Werte für die Schnittbreiten-Messung nehmen.
+- **Umkehrspiel** messen und ausgleichen (siehe oben).
+- **Innen vor außen schneiden** eingeschaltet lassen (Job-Einstellungen): Sonst kann ein Teil herausfallen oder verrutschen, bevor seine Löcher geschnitten sind. VectorLume weist beim Start darauf hin.
+- **Fokus** und eine plane Auflage prüfen; Riemen gleichmäßig spannen.
+- In den Feldern X/Y/B/H zeigt VectorLume Maße auf 0,001 mm. Das bloße Anklicken eines Feldes verändert die Form nicht.
+
 ## Lasern
 
 1. **Vorschau** (Alt+P): zeigt den fertigen Job mit Laufzeit, Leerfahrten und Abspielregler.
@@ -188,6 +211,8 @@ Das ist die Standardbelegung. Unter *Bearbeiten → Tastenkürzel…* änderst d
 - **Der Job liegt an der falschen Stelle**: Nullpunkt-Ecke in den Maschineneinstellungen und *Start von* prüfen; vor dem Start den Rahmen fahren.
 - **Gravur zu dunkel oder zu hell**: Materialtest machen; bei Bildern Zeilenabstand (dpi) und Bildeinstellungen anpassen.
 - **Teile fallen nicht heraus**: Durchgänge oder Leistung erhöhen, Fokus prüfen, Laschen entfernen.
+- **Schlitze oder Löcher haben nicht das gezeichnete Maß** (z. B. mal 4,1, mal 4,3 statt 3,8 mm): Schnittbreite ermitteln und eintragen, Umkehrspiel messen und „Innen vor außen schneiden“ einschalten – siehe *Material einstellen → Maßgenau schneiden*.
+- **„Kein Laser eingerichtet“**: *Laser → Gerät einrichten…* aufrufen oder ein Gerät aus einer `.vldevice`-Datei importieren.
 - **Programmfehler**: VectorLume schreibt einen Fehlerbericht (`crash.log` im Einstellungsordner) und zeigt ihn beim nächsten Start an. Bitte bei Fehlermeldungen mitschicken.
 
 ## Nutzungsbedingungen

@@ -314,6 +314,7 @@ pub struct VectorLumeApp {
     pub hinge: crate::hinge_tool::HingeTool,
     pub puzzle: crate::puzzle_tool::PuzzleTool,
     pub kerf: crate::kerf_tool::KerfTool,
+    pub backlash: crate::backlash_ui::BacklashUi,
     pub gear: crate::gear_tool::GearTool,
     pub grbl: crate::grbl_params::GrblParams,
     pub manual: crate::manual::Manual,
@@ -434,6 +435,7 @@ impl VectorLumeApp {
             hinge: Default::default(),
             puzzle: Default::default(),
             kerf: Default::default(),
+            backlash: Default::default(),
             gear: Default::default(),
             grbl: Default::default(),
             manual: Default::default(),
@@ -471,8 +473,9 @@ impl VectorLumeApp {
             app.modal = Some(Modal::Recover { path, meta });
         }
         app.pending_crash = crate::crash::take_previous().map(|p| (p, false));
-        if app.settings.first_run {
-            app.open_setup_wizard(true);
+        // Wie beim ersten Start: solange kein Laser eingerichtet ist, öffnet sich der Assistent
+        if !app.settings.has_device() {
+            app.open_setup_wizard();
         }
         // Dateien aus der Befehlszeile öffnen bzw. importieren („Öffnen mit …“).
         for arg in std::env::args_os().skip(1) {
@@ -821,6 +824,9 @@ impl VectorLumeApp {
     }
 
     pub fn export_gcode_dialog(&mut self) {
+        if !self.require_device() {
+            return;
+        }
         let name = self
             .file_path
             .as_ref()
@@ -1531,6 +1537,9 @@ impl VectorLumeApp {
     }
 
     pub fn write_gcode(&mut self, job: &Job, path: &Path) {
+        if !self.require_device() {
+            return;
+        }
         // ohne Kopie des (bei Fotos Hunderte MB großen) Textes schreiben
         let written = std::fs::File::create(path).and_then(|mut f| {
             use std::io::Write;
@@ -1629,6 +1638,9 @@ impl VectorLumeApp {
     // ---------------------------------------------------------------- Gerät
 
     pub fn connect(&mut self) {
+        if !self.require_device() {
+            return;
+        }
         self.connect_with(None);
     }
 

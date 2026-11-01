@@ -1,7 +1,8 @@
 # VectorLume
 
-Moderne Software zum Gestalten und Lasern für GRBL-Diodenlaser (zuerst für den **Sculpfun SF-A9 40 W**),
-geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
+Moderne Software zum Gestalten und Lasern für Laser mit GRBL-Steuerung – fast alle Diodenlaser (Sculpfun, Ortur,
+Atomstack, xTool D1, Creality Falcon, Two Trees, Longer, NEJE, Comgrow …) und umgebaute CO₂-Laser –, geschrieben in
+Rust. Marlin und Smoothieware werden experimentell unterstützt.
 
 > Der Quelltext ist öffentlich einsehbar, VectorLume ist aber keine Open-Source-Software: alle Rechte vorbehalten.
 > Die veröffentlichten Programmversionen dürfen kostenlos privat und gewerblich genutzt werden (Freeware) –
@@ -27,6 +28,10 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
 - **Material:** Materialtest-Generator und Materialbibliothek; Z-Versatz je Durchgang für Geräte mit Z-Achse;
   Scan-Versatz-Ausgleich für saubere Kanten beim beidseitigen Gravieren (*Maschineneinstellungen*); mehrere Geräte
   mit Umschalten, Import und Export (`.vldevice`)
+- **Geräte:** Einrichtung beim ersten Start mit Gerätekatalog (Hersteller, Modelle, Suche; allgemeine Einträge für
+  GRBL, FluidNC/grblHAL, Marlin, Smoothieware); Arbeitsfläche und S-Max werden beim Verbinden aus der Steuerung gelesen
+- **Maßgenauigkeit:** G-Code auf 1 µm genau (getestet für jede Drehung und Nullpunkt-Ecke), Schnittbreitenausgleich,
+  **Umkehrspiel-Ausgleich** mit Nonius-Messmuster (*Laser → Umkehrspiel messen…*)
 - **Kamera:** Webcam oder Foto der Arbeitsfläche, über vier Passpunkte entzerrt und halbtransparent unter dem
   Entwurf angezeigt (*Laser → Kamera…*)
 - **Drucken & Schneiden:** Entwurf über zwei mitgedruckte Passermarken auf bedrucktes Material ausrichten
@@ -50,8 +55,9 @@ geschrieben in Rust. Marlin und Smoothieware werden experimentell unterstützt.
    `.vlume`-Projekte öffnen sich per Doppelklick; LightBurn-Projekte (`.lbrn2`) über *Öffnen mit → VectorLume*
    oder *Datei → Öffnen* (die Zuordnung zu LightBurn bleibt).
 2. *Hilfe → Beispielprojekt laden* zeigt alle Ebenenarten.
-3. Rechts unter **Laser** den Anschluss wählen (USB-Port des SF-A9 oder „Simulator“) und **Verbinden**.
-4. *Laser → Maschineneinstellungen → Werte vom Gerät* übernimmt Arbeitsfläche und S-Max aus der Steuerung.
+3. Beim ersten Start den Laser im Assistenten **Gerät einrichten** aus dem Katalog wählen (ohne Gerät lässt sich
+   weder verbinden noch G-Code speichern). Arbeitsfläche und S-Max liest der Assistent beim Verbinden aus der Steuerung.
+4. Rechts unter **Laser** den Anschluss wählen (USB-Port des Lasers oder „Simulator“) und **Verbinden**.
 5. **Vorschau** (Alt+P) prüfen, **Rahmen** fahren, dann **Job starten**.
 
 > **Sicherheit:** Laserschutzbrille tragen, nie unbeaufsichtigt lasern, neue Einstellungen zuerst mit geringer Leistung testen.

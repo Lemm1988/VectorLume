@@ -718,6 +718,29 @@ fn laser_ui(app: &mut VectorLumeApp, ui: &mut Ui) {
     card(ui, |ui| {
         section_title(ui, icon::PLUGS, tr("Verbindung"));
         ui.add_space(4.0);
+        if !app.settings.has_device() {
+            ui.label(RichText::new(tr("Kein Laser eingerichtet.")).color(pal.warning));
+            ui.label(
+                RichText::new(tr(
+                    "Ohne Gerät kennt VectorLume weder Arbeitsfläche noch Nullpunkt und Leistungsbereich.",
+                ))
+                .small()
+                .color(pal.text_weak),
+            );
+            ui.add_space(4.0);
+            if ui
+                .add(
+                    Button::new(
+                        RichText::new(trs(&format!("{} Gerät einrichten…", icon::MAGIC_WAND))).color(Color32::WHITE),
+                    )
+                    .fill(pal.accent),
+                )
+                .clicked()
+            {
+                app.open_setup_wizard();
+            }
+            return;
+        }
         let names = app.settings.device_names();
         if names.len() > 1 {
             let current = app.settings.device_index;

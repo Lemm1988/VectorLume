@@ -46,6 +46,9 @@ pub struct ScanOffset {
     pub offset: f64,
 }
 
+/// Größtes einstellbares Umkehrspiel (mm). Mehr deutet auf einen lockeren Riemen hin – der gehört gespannt.
+pub const MAX_BACKLASH: f64 = 2.0;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct MachineProfile {
@@ -80,18 +83,19 @@ pub struct MachineProfile {
     pub scan_offsets: Vec<ScanOffset>,
     /// Längere weiße Lücken in Bildzeilen im Eilgang überfahren statt mit Gravurgeschwindigkeit.
     pub fast_whitespace: bool,
+    /// Umkehrspiel der X-Achse in mm (Riemen/Spindel); 0 = kein Ausgleich. Wird beim Schneiden (Linienebenen)
+    /// ausgeglichen, gemessen mit *Laser → Umkehrspiel messen…*.
+    pub backlash_x: f64,
+    /// Umkehrspiel der Y-Achse in mm.
+    pub backlash_y: f64,
 }
 
+/// Allgemeiner GRBL-Diodenlaser (400 × 400 mm, Nullpunkt vorne links). Konkrete Geräte stehen im
+/// [`catalog`](crate::catalog); beim Verbinden werden Arbeitsfläche und S-Max aus der Steuerung gelesen.
 impl Default for MachineProfile {
     fn default() -> Self {
-        Self::sculpfun_sf_a9()
-    }
-}
-
-impl MachineProfile {
-    pub fn sculpfun_sf_a9() -> Self {
         Self {
-            name: "Sculpfun SF-A9 40W".into(),
+            name: "GRBL-Laser".into(),
             firmware: Firmware::Grbl,
             bed_width: 400.0,
             bed_height: 400.0,
@@ -113,7 +117,21 @@ impl MachineProfile {
             rotary: Rotary::default(),
             scan_offsets: Vec::new(),
             fast_whitespace: false,
+            backlash_x: 0.0,
+            backlash_y: 0.0,
         }
+    }
+}
+
+impl MachineProfile {
+    pub fn sculpfun_sf_a9() -> Self {
+        Self { name: "Sculpfun SF-A9 40W".into(), ..Self::default() }
+    }
+
+    /// Umkehrspiel je Ausgabeachse (mm). Mit Drehachse an Y gilt das Spiel der Y-Achse nicht (andere Mechanik).
+    pub fn backlash(&self) -> Point {
+        let clean = |v: f64| if v.is_finite() { v.clamp(0.0, MAX_BACKLASH) } else { 0.0 };
+        Point::new(clean(self.backlash_x), if self.rotary.enabled { 0.0 } else { clean(self.backlash_y) })
     }
 
     /// Verschiebung jeder Füll- bzw. Bildzeile gegen ihre Fahrtrichtung (halber gemessener Versatz). Zwischen den

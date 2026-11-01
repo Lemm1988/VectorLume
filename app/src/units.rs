@@ -184,6 +184,21 @@ pub fn jog_steps() -> Vec<f64> {
     }
 }
 
+/// Ob ein Längenfeld (mit `mm_decimals` Nachkommastellen in mm) wirklich geändert wurde.
+///
+/// egui schreibt beim Verlassen eines Zahlenfelds den gerundeten Anzeigetext zurück, auch wenn niemand etwas eingegeben
+/// hat. Ohne diese Prüfung würde ein Teil schon durch bloßes Anklicken des Breitenfelds um Bruchteile eines µm skaliert
+/// oder verschoben – und jeder weitere Klick verfälschte es weiter. Abweichungen innerhalb der Anzeigegenauigkeit
+/// (halbe letzte Stelle, in Zoll 0,0005") gelten deshalb nicht als Eingabe.
+pub fn len_changed(old: f64, new: f64, mm_decimals: usize) -> bool {
+    let step = match units() {
+        Units::Mm => 10f64.powi(-(mm_decimals as i32)),
+        Units::Inch => 0.001 * MM_PER_INCH,
+    };
+    // egui kürzt Nullen bereits, wenn der Wert in f32-Genauigkeit stimmt (relativ ~2·10⁻⁶)
+    (new - old).abs() > (step / 2.0).max(old.abs() * 4e-6) + 1e-12
+}
+
 /// Zahl ohne überflüssige Nullen (Lineale, Schrittweiten).
 pub fn trim(v: f64, max_decimals: usize) -> String {
     let s = format!("{v:.max_decimals$}");
@@ -262,5 +277,20 @@ mod tests {
         set_units(Units::Mm);
         assert_eq!(trim(2.50, 2), "2.5");
         assert_eq!(trim(10.0, 1), "10");
+    }
+
+    #[test]
+    fn committing_the_shown_value_is_no_change() {
+        set_units(Units::Mm);
+        // 3,8000040757 mm wird als „3.8“ angezeigt; das Zurückschreiben von 3,8 ist keine Änderung
+        assert!(!len_changed(3.8000040757, 3.8, 3));
+        assert!(!len_changed(60.0004, 60.0, 3));
+        assert!(!len_changed(1000.0015, 1000.0, 3), "egui zeigt hier „1000“");
+        assert!(len_changed(3.8, 3.801, 3));
+        assert!(len_changed(3.8, 4.0, 3));
+        set_units(Units::Inch);
+        assert!(!len_changed(3.8, 0.150 * MM_PER_INCH, 3), "3,8 mm = 0.1496\" → „0.150“");
+        assert!(len_changed(3.8, 0.151 * MM_PER_INCH, 3));
+        set_units(Units::Mm);
     }
 }

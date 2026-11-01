@@ -20,6 +20,7 @@ pub fn show(app: &mut VectorLumeApp, ctx: &egui::Context) {
     crate::hinge_tool::show(app, ctx);
     crate::puzzle_tool::show(app, ctx);
     crate::kerf_tool::show(app, ctx);
+    crate::backlash_ui::show(app, ctx);
     crate::gear_tool::show(app, ctx);
     crate::grbl_params::show(app, ctx);
     crate::manual::show(app, ctx);
@@ -40,10 +41,15 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
         return;
     }
     let mut open = true;
+    if !app.settings.has_device() {
+        no_device_window(app, ctx);
+        return;
+    }
     let mut p = app.settings.profile.clone();
     let have_device_values = !app.machine.settings.is_empty();
     let mut apply_device = false;
     let mut device_action: Option<DeviceAction> = None;
+    let mut open_backlash = false;
     egui::Window::new(trs(&format!("{} Maschineneinstellungen", icon::GEAR)))
         .open(&mut open)
         .collapsible(false)
@@ -151,6 +157,21 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                          Zwischenwerte werden interpoliert. Ohne Eintrag ist der Ausgleich aus."));
                 scan_offsets_ui(ui, &mut p.scan_offsets);
                 ui.end_row();
+                ui.label(tr("Umkehrspiel")).on_hover_text(tr(
+                    "Spiel der Riemen bzw. Spindeln beim Richtungswechsel. VectorLume fährt es an jedem Umkehrpunkt \
+                     einer Kontur zusätzlich, damit Schlitze, Löcher und Kreise exakt die gezeichneten Maße bekommen. \
+                     Mit „Messen…“ ermitteln; 0 = kein Ausgleich.",
+                ));
+                ui.horizontal(|ui| {
+                    let max = vl_cam::machine::MAX_BACKLASH;
+                    for (axis, v) in [("X ", &mut p.backlash_x), ("Y ", &mut p.backlash_y)] {
+                        ui.add(DragValue::new(v).speed(0.005).range(0.0..=max).max_decimals(3).prefix(axis).mm());
+                    }
+                    if ui.button(tr("Messen…")).clicked() {
+                        open_backlash = true;
+                    }
+                });
+                ui.end_row();
                 ui.label(tr("Bildgravur"));
                 ui.checkbox(&mut p.fast_whitespace, tr("Weiße Lücken im Eilgang überfahren")).on_hover_text(tr(
                     "Lange weiße Stellen innerhalb einer Bildzeile werden nicht mit Gravurgeschwindigkeit, sondern \
@@ -187,14 +208,30 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 {
                     apply_device = true;
                 }
-                if ui.button(tr("Sculpfun SF-A9 Standard")).clicked() {
-                    // Drehachse (Zubehör) und gemessener Scan-Versatz bleiben erhalten.
-                    p = MachineProfile {
-                        rotary: p.rotary.clone(),
-                        scan_offsets: p.scan_offsets.clone(),
-                        ..MachineProfile::sculpfun_sf_a9()
-                    };
-                }
+                // Vorlage aus dem Katalog; Name, Drehachse (Zubehör) und alles Gemessene bleiben erhalten.
+                egui::ComboBox::from_id_salt("template")
+                    .selected_text(tr("Vorlage übernehmen…"))
+                    .width(190.0)
+                    .height(320.0)
+                    .show_ui(ui, |ui| {
+                        for m in vl_cam::catalog::MODELS {
+                            if ui.selectable_label(false, trs(&m.title())).clicked() {
+                                p = MachineProfile {
+                                    name: p.name.clone(),
+                                    rotary: p.rotary.clone(),
+                                    scan_offsets: p.scan_offsets.clone(),
+                                    backlash_x: p.backlash_x,
+                                    backlash_y: p.backlash_y,
+                                    baud: p.baud,
+                                    ..m.profile()
+                                };
+                            }
+                        }
+                    })
+                    .response
+                    .on_hover_text(tr(
+                        "Steuerung, Arbeitsfläche, Nullpunkt und Leistungsbereich eines Katalog-Geräts übernehmen",
+                    ));
             });
         });
     if p != app.settings.profile {
@@ -210,12 +247,12 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
     if apply_device {
         app.apply_device_settings();
     }
+    if open_backlash {
+        app.open_backlash_test();
+    }
     match device_action {
         Some(DeviceAction::Switch(i)) => app.switch_device(i),
-        Some(DeviceAction::New) => {
-            app.settings.add_device(MachineProfile { name: tr("Neues Gerät").into(), ..Default::default() });
-            app.after_device_change();
-        }
+        Some(DeviceAction::New) => app.open_setup_wizard(),
         Some(DeviceAction::Duplicate) => {
             let mut copy = app.settings.profile.clone();
             copy.name = trs(&format!("{} (Kopie)", copy.name));
@@ -230,6 +267,39 @@ fn device_settings(app: &mut VectorLumeApp, ctx: &egui::Context) {
         Some(DeviceAction::Import) => app.import_device_dialog(),
         Some(DeviceAction::Export) => app.export_device_dialog(),
         None => {}
+    }
+    if !open {
+        app.show_device_settings = false;
+    }
+}
+
+/// Maschineneinstellungen ohne eingerichtetes Gerät: nur Einrichten oder Importieren.
+fn no_device_window(app: &mut VectorLumeApp, ctx: &egui::Context) {
+    let mut open = true;
+    let (mut setup, mut import) = (false, false);
+    egui::Window::new(trs(&format!("{} Maschineneinstellungen", icon::GEAR)))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .pivot(Align2::CENTER_CENTER)
+        .default_pos(ctx.content_rect().center())
+        .show(ctx, |ui| {
+            ui.label(tr("Noch kein Laser eingerichtet."));
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                setup = ui.button(trs(&format!("{} Gerät einrichten…", icon::MAGIC_WAND))).clicked();
+                import = ui
+                    .button(trs(&format!("{} Gerät importieren…", icon::DOWNLOAD_SIMPLE)))
+                    .on_hover_text(tr("Gerät aus Datei importieren"))
+                    .clicked();
+            });
+        });
+    if setup {
+        app.show_device_settings = false;
+        app.open_setup_wizard();
+    }
+    if import {
+        app.import_device_dialog();
     }
     if !open {
         app.show_device_settings = false;
@@ -266,7 +336,7 @@ fn device_row(app: &VectorLumeApp, ui: &mut egui::Ui, action: &mut Option<Device
         })
         .response
         .on_disabled_hover_text(tr("Zum Wechseln erst die Verbindung trennen"));
-        if ui.button(icon::PLUS).on_hover_text(tr("Neues Gerät")).clicked() {
+        if ui.button(icon::PLUS).on_hover_text(tr("Neues Gerät (Assistent)")).clicked() {
             *action = Some(DeviceAction::New);
         }
         if ui.button(icon::COPY).on_hover_text(tr("Gerät duplizieren")).clicked() {

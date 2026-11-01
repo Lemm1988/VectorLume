@@ -29,6 +29,8 @@ pub struct GcodeOptions {
     pub return_to: Option<Point>,
     pub comments: Vec<String>,
     pub layer_names: Vec<String>,
+    /// Umkehrspiel je Ausgabeachse in mm (0 = kein Ausgleich), siehe [`Emitter::plan`].
+    pub backlash: Point,
 }
 
 /// Koordinaten werden intern in Mikrometern gerundet. Dadurch sind relative Bewegungen exakt
@@ -78,19 +80,70 @@ struct Emitter<'a> {
     /// Wiederverwendeter Puffer für die gerade entstehende Zeile.
     scratch: String,
     opts: &'a GcodeOptions,
-    /// Zuletzt ausgegebene Position; `None` = unbekannt (Absolutmodus vor der ersten Bewegung).
+    /// Zuletzt ausgegebene Motorposition; `None` = unbekannt (Absolutmodus vor der ersten Bewegung).
     pos: Option<(i64, i64)>,
     motion: Option<u8>,
     feed: Option<i64>,
     s: Option<i64>,
     /// Z-Höhe in µm relativ zur Fokushöhe beim Jobstart.
     z: i64,
+    /// Umkehrspiel je Achse in µm.
+    backlash: [i64; 2],
+    /// Sollposition des Kopfes (ohne Spielausgleich) nach der letzten Bewegung.
+    target: Option<(i64, i64)>,
+    /// Letzte Bewegungsrichtung je Achse (+1/−1, 0 = unbekannt).
+    dir: [i8; 2],
+    /// Aktueller Ausgleich: Motorposition = Sollposition + `comp`.
+    comp: [i64; 2],
+    /// Der laufende Block wird ausgeglichen (nur Linienebenen, siehe [`emit`]).
+    compensate: bool,
 }
 
 impl Emitter<'_> {
-    /// Hängt die Achsenwörter für `p` an `line` an; `false`, wenn sich die Position nicht ändert.
-    fn push_axes(&mut self, line: &mut String, p: Point) -> bool {
-        let target = (to_um(p.x), to_um(p.y));
+    /// Umkehrspiel ausgleichen. Ein Riemen- oder Spindelantrieb hat Spiel: kehrt eine Achse die Richtung um, dreht der
+    /// Motor erst um das Spiel `b`, bevor sich der Kopf bewegt. Nach einer Bewegung in −-Richtung steht der Kopf deshalb
+    /// um `b` weiter im Plus als der Motor. Ausgleich: in −-Richtung wird `b` weniger weit gefahren (Motor = Soll − b),
+    /// in +-Richtung genau auf das Soll.
+    ///
+    /// Gibt die Motorposition für `target` zurück und – nur bei Vorschub und einer echten Umkehr – zusätzlich die
+    /// Motorposition, an der das Spiel aufgeholt wird: Dieser kurze Zug bewegt nur den Motor, der Kopf steht still,
+    /// danach verläuft die Bahn ohne Knick. Bei Eilgängen wird der Ausgleich einfach mitgefahren.
+    fn plan(&mut self, target: (i64, i64), feed: bool) -> ((i64, i64), Option<(i64, i64)>) {
+        let mut reversed = false;
+        let before = self.target;
+        if let Some(cur) = before {
+            let delta = [target.0 - cur.0, target.1 - cur.1];
+            for (dir, delta) in self.dir.iter_mut().zip(delta) {
+                let d = delta.signum() as i8;
+                if d != 0 && d != *dir {
+                    reversed |= *dir != 0;
+                    *dir = d;
+                }
+            }
+        }
+        let comp = std::array::from_fn(|k| if self.compensate && self.dir[k] < 0 { -self.backlash[k] } else { 0 });
+        // Absolut nie unter 0: Maschinen mit Softlimits meldeten sonst einen Alarm. Am Nullpunktrand (näher als das
+        // Spiel) bleibt der Ausgleich dadurch unvollständig.
+        let absolute = self.opts.coord_mode == CoordMode::Absolute;
+        let motor = |t: (i64, i64)| {
+            let m = (t.0 + comp[0], t.1 + comp[1]);
+            if absolute {
+                (if t.0 >= 0 { m.0.max(0) } else { m.0 }, if t.1 >= 0 { m.1.max(0) } else { m.1 })
+            } else {
+                m
+            }
+        };
+        let take_up = match before {
+            Some(cur) if feed && reversed && comp != self.comp => Some(motor(cur)),
+            _ => None,
+        };
+        self.comp = comp;
+        self.target = Some(target);
+        (motor(target), take_up)
+    }
+
+    /// Hängt die Achsenwörter für die Motorposition `target` (µm) an `line` an; `false`, wenn sie sich nicht ändert.
+    fn push_axes(&mut self, line: &mut String, target: (i64, i64)) -> bool {
         if self.pos == Some(target) {
             return false;
         }
@@ -118,10 +171,15 @@ impl Emitter<'_> {
     }
 
     fn rapid(&mut self, p: Point) {
+        let (motor, _) = self.plan((to_um(p.x), to_um(p.y)), false);
+        self.rapid_motor(motor);
+    }
+
+    fn rapid_motor(&mut self, motor: (i64, i64)) {
         let mut line = std::mem::take(&mut self.scratch);
         line.clear();
         line.push_str("G0 ");
-        if self.push_axes(&mut line, p) {
+        if self.push_axes(&mut line, motor) {
             self.motion = Some(0);
             self.out.push(&line);
         }
@@ -144,13 +202,22 @@ impl Emitter<'_> {
     }
 
     fn feed_move(&mut self, p: Point, feed: f64, power: f32) {
+        let (motor, take_up) = self.plan((to_um(p.x), to_um(p.y)), true);
+        if let Some(t) = take_up {
+            // gleiche Leistung: keine Leerfahrt mitten in der Kontur (sonst entstünde dort eine Fortsetzungsstelle)
+            self.feed_motor(t, feed, power);
+        }
+        self.feed_motor(motor, feed, power);
+    }
+
+    fn feed_motor(&mut self, motor: (i64, i64), feed: f64, power: f32) {
         use std::fmt::Write;
         let mut line = std::mem::take(&mut self.scratch);
         line.clear();
         if self.motion != Some(1) {
             line.push_str("G1 ");
         }
-        if !self.push_axes(&mut line, p) {
+        if !self.push_axes(&mut line, motor) {
             self.scratch = line;
             return;
         }
@@ -211,8 +278,22 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
     // grob 20 Zeichen je Rasterzeile
     let lines = ops + 2 * tp.blocks.len() + opts.comments.len() + 16;
     let out = LineBuf::with_capacity(lines, lines * 20);
-    let mut e =
-        Emitter { out, scratch: String::with_capacity(48), opts, pos: start, motion: None, feed: None, s: None, z: 0 };
+    let backlash = [to_um(opts.backlash.x.max(0.0)), to_um(opts.backlash.y.max(0.0))];
+    let mut e = Emitter {
+        out,
+        scratch: String::with_capacity(48),
+        opts,
+        pos: start,
+        motion: None,
+        feed: None,
+        s: None,
+        z: 0,
+        backlash,
+        target: start,
+        dir: [0; 2],
+        comp: [0; 2],
+        compensate: false,
+    };
     for c in &opts.comments {
         e.out.push(&ascii_comment(c));
     }
@@ -234,12 +315,17 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
     let mut mode = laser_on(false);
     e.out.extend(mode.clone());
     e.s = mode.is_some().then_some(0);
+    if backlash != [0, 0] && tp.blocks.iter().any(|b| b.kind == BlockKind::Line && !b.ops.is_empty()) {
+        prime_backlash(&mut e, tp, map);
+    }
 
     let mut air = false;
     for block in &tp.blocks {
         if block.ops.is_empty() {
             continue;
         }
+        // Füll- und Bildzeilen gleicht der gemessene Scan-Versatz aus (er enthält das Spiel bereits).
+        e.compensate = block.kind == BlockKind::Line;
         let kind = match block.kind {
             BlockKind::Line => "Linie",
             BlockKind::Fill => "Fuellen",
@@ -278,6 +364,8 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
         e.out.push(&opts.air_off);
     }
     if let Some(p) = opts.return_to {
+        // Rückfahrt ohne Ausgleich: danach stimmen Motor- und Startposition wieder genau überein.
+        e.compensate = false;
         e.rapid(p);
     }
     if opts.coord_mode == CoordMode::Relative {
@@ -285,6 +373,27 @@ pub fn emit(tp: &Toolpath, map: &dyn Fn(Point) -> Point, opts: &GcodeOptions) ->
     }
     e.out.push(&ascii_comment("Ende"));
     e.out
+}
+
+/// Vor dem ersten Zug ist unbekannt, auf welcher Seite das Spiel gerade anliegt. Deshalb wird der erste Punkt von
+/// einem Hilfspunkt aus angefahren, der etwas weiter Richtung Mitte des Jobs liegt (also auf der Arbeitsfläche): Diese
+/// letzte Anfahrt ist länger als das Spiel, danach ist die Richtung jeder Achse bekannt.
+fn prime_backlash(e: &mut Emitter, tp: &Toolpath, map: &dyn Fn(Point) -> Point) {
+    let Some(first) = tp.blocks.iter().flat_map(|b| &b.ops).next().map(|op| map(op.target())) else { return };
+    let mut bounds = vl_core::Rect::EMPTY;
+    for op in tp.blocks.iter().flat_map(|b| &b.ops) {
+        bounds.include(map(op.target()));
+    }
+    let c = bounds.center();
+    let reach = (2.0 * e.opts.backlash.x.max(e.opts.backlash.y)).max(0.5);
+    let side = |v: f64, mid: f64| if mid >= v { reach } else { -reach };
+    let aux = Point::new(first.x + side(first.x, c.x), first.y + side(first.y, c.y));
+    let aux_um = (to_um(aux.x), to_um(aux.y));
+    e.rapid_motor(aux_um);
+    // Ab hier gilt die Richtung der nächsten Bewegung (zum ersten Punkt) als bekannt, ohne Aufholzug.
+    e.target = Some(aux_um);
+    e.dir = [0; 2];
+    e.comp = [0; 2];
 }
 
 /// Zeilen einer fremden G-Code-Datei zum Senden: ohne Kommentare, Leerzeilen, Programmklammern `%` und BOM.
@@ -335,6 +444,7 @@ mod tests {
             return_to: Some(Point::ZERO),
             comments: vec!["Test äöü".into()],
             layer_names: vec![],
+            backlash: Point::ZERO,
         }
     }
 
@@ -449,6 +559,163 @@ mod tests {
             ]
         );
         assert!(g[0].is_ascii());
+    }
+
+    /// Mechanik mit Umkehrspiel: der Kopf `h` folgt dem Motor `m` erst, wenn das Spiel aufgeholt ist (h ∈ [m, m + b]).
+    struct Slack {
+        m: [f64; 2],
+        h: [f64; 2],
+        b: [f64; 2],
+    }
+
+    impl Slack {
+        fn go(&mut self, to: [f64; 2]) {
+            self.m = to;
+            for ((h, m), b) in self.h.iter_mut().zip(to).zip(self.b) {
+                *h = h.clamp(m, m + b);
+            }
+        }
+    }
+
+    /// Fährt G-Code (absolut) auf der Mechanik ab. Ergebnis: Kopfpositionen am Ende jedes Brennzugs, bei dem sich der
+    /// Kopf bewegt, und die Zahl der Knicke – Brennzüge, bei denen der Kopf dem Motor nur teilweise folgt. Erlaubt ist
+    /// nur: genau mitfahren (gerade Linie) oder ganz stillstehen (Spiel wird aufgeholt).
+    fn run_on_slack(
+        code: &[String],
+        slack: &mut Slack,
+        checked: impl Fn([f64; 2]) -> bool,
+    ) -> (Vec<(i64, i64)>, Vec<String>) {
+        let (mut motion, mut s) = (0, 0.0);
+        let mut burned = Vec::new();
+        let mut kinks = Vec::new();
+        for line in code {
+            let mut to = slack.m;
+            let mut moves = false;
+            for w in line.split_whitespace() {
+                let (c, v) = w.split_at(1);
+                match c {
+                    "G" => motion = v.parse().unwrap(),
+                    "X" | "Y" => {
+                        to[(c == "Y") as usize] = v.parse().unwrap();
+                        moves = true;
+                    }
+                    "S" => s = v.parse().unwrap(),
+                    _ => {}
+                }
+            }
+            if !moves {
+                continue;
+            }
+            let (m0, h0) = (slack.m, slack.h);
+            slack.go(to);
+            if motion == 1 && s > 0.0 && checked(to) {
+                let follows = (0..2).all(|k| ((slack.h[k] - h0[k]) - (slack.m[k] - m0[k])).abs() < 1e-9);
+                let still = (0..2).all(|k| (slack.h[k] - h0[k]).abs() < 1e-9);
+                if !(follows || still) {
+                    kinks.push(format!("{line}: Kopf {h0:?} → {:?}", slack.h));
+                }
+                if !still {
+                    burned.push((to_um(slack.h[0]), to_um(slack.h[1])));
+                }
+            }
+        }
+        (burned, kinks)
+    }
+
+    #[test]
+    fn backlash_compensation_lands_exactly() {
+        // Kontur mit Schlitz (Umkehr in X und Y), dann eine Füllzeile hin und zurück, dann noch eine Kontur.
+        let slot = [(10.0, 10.0), (30.0, 10.0), (30.0, 20.0), (21.9, 20.0), (21.9, 14.0), (18.1, 14.0), (18.1, 20.0)];
+        let contour = |dx: f64| {
+            let mut ops = vec![Op::Rapid(Point::new(slot[0].0 + dx, slot[0].1))];
+            for &(x, y) in slot[1..].iter().chain([(10.0, 20.0), slot[0]].iter()) {
+                ops.push(Op::Move { to: Point::new(x + dx, y), power: 0.8 });
+            }
+            ops
+        };
+        let block = |kind, ops| Block {
+            layer: 0,
+            kind,
+            pass: 0,
+            feed: 600.0,
+            air: false,
+            constant_power: false,
+            ops,
+            raster: None,
+            z: None,
+        };
+        let fill = vec![
+            Op::Rapid(Point::new(40.0, 5.0)),
+            Op::Move { to: Point::new(50.0, 5.0), power: 0.3 },
+            Op::Move { to: Point::new(50.0, 5.1), power: 0.0 },
+            Op::Move { to: Point::new(40.0, 5.1), power: 0.3 },
+        ];
+        let tp = Toolpath {
+            blocks: vec![
+                block(BlockKind::Line, contour(0.0)),
+                block(BlockKind::Fill, fill),
+                block(BlockKind::Line, contour(50.0)),
+            ],
+            rasters: vec![],
+        };
+        let expected: Vec<(i64, i64)> = [&tp.blocks[0], &tp.blocks[2]]
+            .iter()
+            .flat_map(|b| &b.ops)
+            .filter_map(|op| match *op {
+                Op::Move { to, .. } => Some((to_um(to.x), to_um(to.y))),
+                Op::Rapid(_) => None,
+            })
+            .collect();
+        // Füllzeilen gleicht der Scan-Versatz aus, nicht der Spielausgleich
+        let outside_fill = |p: [f64; 2]| p[0] < 39.0 || p[0] > 51.0;
+        let b = [0.15, 0.25];
+        let o = GcodeOptions { backlash: Point::new(b[0], b[1]), return_to: None, ..opts(CoordMode::Absolute) };
+        let code = strip_for_streaming(&emit(&tp, &|p| p, &o)).to_vec();
+        // Unbekannter Zustand vor dem Job: Spiel liegt auf der einen oder der anderen Seite an
+        for start_h in [[0.0, 0.0], [b[0], b[1]], [0.0, b[1]]] {
+            let mut slack = Slack { m: [0.0; 2], h: start_h, b };
+            let (burned, kinks) = run_on_slack(&code, &mut slack, outside_fill);
+            assert!(kinks.is_empty(), "Knicke in der Bahn: {kinks:?}");
+            assert_eq!(burned, expected, "Startzustand {start_h:?}\n{}", code.join("\n"));
+        }
+        // Ohne Ausgleich landet derselbe Schlitz auf der Mechanik um das Spiel daneben
+        let plain = strip_for_streaming(&emit(&tp, &|p| p, &opts(CoordMode::Absolute))).to_vec();
+        let mut slack = Slack { m: [0.0; 2], h: [0.0; 2], b };
+        let (burned, kinks) = run_on_slack(&plain, &mut slack, outside_fill);
+        assert!(!kinks.is_empty() && burned != expected, "ohne Ausgleich ist die Mechanik nicht exakt");
+        // Ohne Spiel ändert sich nichts gegenüber der bisherigen Ausgabe (keine zusätzlichen Zeilen)
+        let zero = GcodeOptions { backlash: Point::ZERO, ..opts(CoordMode::Absolute) };
+        assert_eq!(strip_for_streaming(&emit(&tp, &|p| p, &zero)).to_vec(), plain);
+    }
+
+    #[test]
+    fn backlash_take_up_keeps_power_and_is_not_a_travel_move() {
+        let o = GcodeOptions { backlash: Point::new(0.2, 0.2), ..opts(CoordMode::Absolute) };
+        let code = strip_for_streaming(&emit(&square(), &|p| p, &o)).to_vec();
+        // Aufholzüge brennen mit derselben Leistung weiter: keine zusätzliche Fortsetzungsstelle in der Kontur
+        let plain = opts(CoordMode::Absolute);
+        let with = crate::resume::resume_points(&strip_for_streaming(&emit(&square(), &|p| p, &o)));
+        let without = crate::resume::resume_points(&strip_for_streaming(&emit(&square(), &|p| p, &plain)));
+        assert_eq!(with.len(), without.len(), "{code:?}");
+        assert_eq!(code.iter().filter(|l| l.contains(" S")).count(), 2, "nur Einschalten und erster Zug: {code:?}");
+        // Absolut nie unter 0 (Softlimits): die Rückfahrt zu 0/0 bleibt 0/0
+        assert!(!code.iter().any(|l| l.contains("X-") || l.contains("Y-")), "{code:?}");
+        assert_eq!(code.last().unwrap(), "G0 X0 Y0");
+        // Relativ: alle Bewegungen zusammen ergeben wieder den Start (der Ausgleich hebt sich auf)
+        let rel = GcodeOptions { backlash: Point::new(0.2, 0.2), ..opts(CoordMode::Relative) };
+        let code = strip_for_streaming(&emit(&square(), &|p| p, &rel)).to_vec();
+        let (mut x, mut y) = (0i64, 0i64);
+        for line in &code {
+            for word in line.split_whitespace() {
+                if let Some(v) = word.strip_prefix('X') {
+                    x += to_um(v.parse::<f64>().unwrap());
+                }
+                if let Some(v) = word.strip_prefix('Y') {
+                    y += to_um(v.parse::<f64>().unwrap());
+                }
+            }
+        }
+        assert_eq!((x, y), (0, 0), "{code:?}");
     }
 
     #[test]

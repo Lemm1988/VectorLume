@@ -4,6 +4,7 @@
 
 mod app;
 mod autosave;
+mod backlash_ui;
 mod box_gen;
 mod camera;
 mod canvas;

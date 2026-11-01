@@ -36,6 +36,11 @@ fn harness_sized(render: bool, size: egui::Vec2) -> Harness<'static, VectorLumeA
         app.modal = None;
         app.pending_crash = None;
         app.setup.open = false;
+        // Die meisten Tests brauchen ein eingerichtetes Gerät (Simulator, G-Code); nicht gespeichert
+        if !app.settings.has_device() {
+            let p = app.settings.profile.clone();
+            app.settings.add_device(p);
+        }
     }
     h.run_ok();
     h
@@ -842,8 +847,9 @@ fn frame_loop_repeats_until_switched_off() {
     wait_until(&mut h, |app| !app.machine.connected);
 }
 
-/// Einrichtungsassistent beim ersten Start: Steuerung, Verbindung zum Simulator (Arbeitsfläche aus `$$`),
-/// Nullpunkt, Name. Eigener Einstellungsordner, damit das neue Gerät keine anderen Tests beeinflusst.
+/// Einrichtungsassistent beim ersten Start: Laser aus dem Katalog, Verbindung zum Simulator (Arbeitsfläche aus
+/// `$$`), Nullpunkt, Name. Ohne Gerät lässt sich nicht verbinden. Eigener Einstellungsordner, damit das neue Gerät
+/// keine anderen Tests beeinflusst.
 fn setup_wizard_flow(render: bool) {
     use egui_phosphor::regular as icon;
     let dir = std::env::temp_dir().join(format!("vectorlume-ui-setup-{}-{render}", std::process::id()));
@@ -851,8 +857,32 @@ fn setup_wizard_flow(render: bool) {
     crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = Some(dir.clone()));
     let mut h = harness(render);
     assert!(h.state().settings.first_run, "ohne Einstellungsdatei");
-    h.state_mut().open_setup_wizard(true);
+    {
+        // wie nach einer Neuinstallation: noch kein Gerät
+        let app = h.state_mut();
+        app.settings.devices.clear();
+        app.selected_port = vl_device::SIMULATOR_PORT.into();
+        app.connect();
+        assert!(!app.machine.connected && app.setup.open, "ohne Gerät öffnet „Verbinden“ den Assistenten");
+    }
     h.run_ok();
+    assert!(h.query_by_label("Kein Laser eingerichtet.").is_some(), "Hinweis in der Seitenleiste");
+    // „Weiter“ erst nach der Wahl eines Lasers; die Suche filtert die Liste
+    h.get_by_label("Weiter").click();
+    h.run_ok();
+    assert_eq!(h.state().setup.step, 0);
+    if render {
+        save(&mut h, "einrichtung_katalog");
+    }
+    h.state_mut().setup.search = "s30 ultra".into();
+    h.run_ok();
+    assert!(h.query_by_label("Ortur").is_none());
+    h.get_by_label("S30 Ultra   ·   600 × 600 mm").click();
+    h.run_ok();
+    {
+        let w = &h.state().setup;
+        assert_eq!((w.profile.name.as_str(), w.profile.bed_width), ("Sculpfun S30 Ultra", 600.0));
+    }
     if render {
         save(&mut h, "einrichtung");
     }
@@ -886,7 +916,7 @@ fn setup_wizard_flow(render: bool) {
     h.run_ok();
     let app = h.state();
     assert!(!app.setup.open);
-    assert_eq!(app.settings.devices.len(), 1, "erstes Gerät ersetzt");
+    assert_eq!(app.settings.devices.len(), 1, "erstes Gerät");
     assert_eq!(app.settings.profile.name, "Testlaser");
     assert_eq!(app.settings.profile.origin, vl_cam::OriginCorner::RearLeft);
     assert_eq!((app.settings.profile.bed_width, app.settings.profile.s_max), (400.0, 1000.0));
@@ -895,7 +925,7 @@ fn setup_wizard_flow(render: bool) {
     wait_until(&mut h, |app| !app.machine.connected);
     // gespeichert: beim nächsten Start kein Assistent mehr
     let again = crate::settings::AppSettings::load();
-    assert!(!again.first_run && again.profile.name == "Testlaser");
+    assert!(!again.first_run && again.has_device() && again.profile.name == "Testlaser");
     crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = None);
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -2227,4 +2257,56 @@ fn sharp_contour_tips_draw_without_needles() {
     ));
     assert!(b.min.x > -3.0 && b.max.x < 13.0 && b.max.y < 13.0, "{b:?}");
     assert!(matches!(crate::canvas::outline(vec![Pos2::ZERO, Pos2::ZERO], true, Stroke::NONE), egui::Shape::Noop));
+}
+
+/// Umkehrspiel messen: Ablesung eingeben und ins Geräteprofil übernehmen. Eigener Einstellungsordner, damit der
+/// Ausgleich nicht in die G-Code-Ausgabe anderer Tests gerät.
+fn backlash_flow(render: bool) {
+    use crate::backlash_ui::Reading;
+    let dir = std::env::temp_dir().join(format!("vectorlume-ui-backlash-{}-{render}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = Some(dir.clone()));
+    let mut h = harness(render);
+    {
+        let app = h.state_mut();
+        (app.settings.profile.backlash_x, app.settings.profile.backlash_y) = (0.0, 0.0);
+        app.open_backlash_test();
+    }
+    h.run_ok();
+    {
+        let app = h.state_mut();
+        assert!(app.backlash.open);
+        app.backlash.x = Reading { plus: true, steps: 3 };
+        app.backlash.y = Reading { plus: true, steps: 5 };
+    }
+    h.run_ok();
+    if render {
+        save(&mut h, "umkehrspiel");
+    }
+    h.get_by_label_contains("Übernehmen").click();
+    h.run_ok();
+    {
+        let app = h.state();
+        assert_eq!((app.settings.profile.backlash_x, app.settings.profile.backlash_y), (0.15, 0.25));
+        assert_eq!((app.backlash.x, app.backlash.y), (Reading::default(), Reading::default()));
+    }
+    // Zu viel Ausgleich: Ablesung auf der „−“-Seite verringert ihn wieder
+    h.state_mut().backlash.x = Reading { plus: false, steps: 1 };
+    h.run_ok();
+    h.get_by_label_contains("Übernehmen").click();
+    h.run_ok();
+    assert_eq!(h.state().settings.profile.backlash_x, 0.1);
+    crate::settings::TEST_CONFIG_DIR.with(|d| *d.borrow_mut() = None);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn backlash_reading_is_applied() {
+    backlash_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_backlash() {
+    backlash_flow(true);
 }

@@ -1,13 +1,19 @@
 # VectorLume – Manual
 
-VectorLume is a program for designing and lasering with GRBL-controlled diode lasers such as the Sculpfun SF-A9. You draw or import shapes, choose for each color layer how it is lasered, check the result in the preview and send the job straight to the laser.
+VectorLume is a program for designing and lasering with lasers that use a GRBL, Marlin or Smoothieware controller – almost all diode lasers (e.g. Sculpfun, Ortur, Atomstack, xTool D1, Creality Falcon, Two Trees, Longer) and converted CO₂ lasers. You draw or import shapes, choose for each color layer how it is lasered, check the result in the preview and send the job straight to the laser.
 
 > Safety first: wear laser safety glasses, never leave the laser unattended, provide fume extraction and fire protection, and test new settings with low power on a scrap piece first.
 
 ## Installation and first start
 
 1. Run `VectorLume-Setup-<version>.exe`. No admin rights are needed; uninstall it via *Settings → Apps*.
-2. Start VectorLume from the shortcut on the desktop or in the Start menu. On the first start the **Set up device** assistant guides you in four steps through the controller (GRBL, Marlin, Smoothieware), the connection, the work area with its origin corner and a name. With the laser connected, it reads the work area and S-max straight from the controller. Later you find it under *Laser → Set up device…* (adds another device).
+2. Start VectorLume from the shortcut on the desktop or in the Start menu. On the first start you set up your laser with the **Set up device** wizard – without a device you can neither connect nor save G-code, because the device defines the work area, origin and power range. The four steps:
+   1. **Laser**: choose your model from the catalogue (sorted by maker, with search). If your model is missing, **GRBL laser** under *Generic* fits almost all diode lasers. *Unsupported lasers* lists the controllers VectorLume cannot drive (e.g. Ruida CO₂ lasers, galvo lasers with EZCAD, newer xTool devices with their own protocol).
+   2. **Connection**: with the laser connected, VectorLume reads the work area (`$130`/`$131`) and S-max (`$30`) straight from the controller. You can skip this step.
+   3. **Controller & area**: check the controller, width and height, origin corner, S-max and power mode (M4 dynamic or M3 constant).
+   4. Give it a **name** and finish.
+
+   **Set up later** lets you design first; the wizard then appears again at the next start. Add further devices via *Laser → Set up device…*.
 3. *Help → Load sample project* shows all processing types in one example.
 
 Choose the language (German/English), the theme (dark/light) and the units (mm/inch) under *View*. `.vlume` projects open with a double-click; open LightBurn projects (`.lbrn2`) via *File → Open*.
@@ -18,10 +24,10 @@ Without a laser connected you can try everything with the **Simulator** port.
 
 1. Connect the laser via USB and switch it on. Windows reports it as a COM port. If none appears, the laser maker's USB driver is usually missing.
 2. On the right, in the **Laser** tab, choose the port and click **Connect**. The **Console** shows what the controller reports.
-3. *Laser → Machine settings…*: **Values from the device** takes the work area and S-max (`$30`) from the controller. Also check which corner is the origin (front left on the SF-A9).
+3. *Laser → Machine settings…*: **Values from the device** takes the work area and S-max (`$30`) from the controller. Also check which corner is the origin (front left on most diode lasers): if the frame runs mirrored, the corner is wrong.
 4. VectorLume checks the laser mode. If it is off (`$32=0`), the laser stays on during travel moves. **Send $32=1** switches it on permanently.
 
-Manage several lasers as separate devices in the machine settings. Connect network controllers (e.g. FluidNC) with the *Network* port.
+Manage several lasers as separate devices in the machine settings; **Apply template…** sets the controller, work area and origin of a catalogue device without losing the name and measured values (scan offset, backlash). Connect network controllers (e.g. FluidNC) with the *Network* port.
 
 ## The window
 
@@ -112,6 +118,23 @@ Under *Arrange → Generators*:
 2. Take out the strips, push them tightly together and measure across them (or measure the gap in the frame).
 3. Enter the measured value and click **Apply to layer …**.
 
+**Measure backlash** (*Laser → Measure backlash…*): belts and lead screws have some play. When an axis reverses, the head lags behind by this amount – slots then come out wider or narrower than drawn depending on where they are, and circles out of round. VectorLume compensates by adding the play at every reversal within a contour (the laser stays on, the line is not interrupted).
+
+1. Laser the pattern with low power (one vernier each for X and Y, as on a caliper).
+2. For each axis, find the spot where an upper and a lower line line up exactly. Count the lines from the long centre line to there and choose the side ("+" or "−" next to the pattern). Each line equals 0.05 mm.
+3. Click **Apply** and laser the pattern once more to check: now the centre lines line up.
+
+The values are also in the machine settings under *Backlash* (0 = no compensation).
+
+**Cutting to size – checklist:** VectorLume outputs the drawing as G-code accurate to 1 µm (automatic tests check this for every rotation and every origin corner). If the cut part differs, the cause is the mechanics and the laser beam:
+
+- **Kerf**: the beam burns away material on both sides of the line. Without compensation a 3.8 mm slot gets wider by the kerf (often 0.1–0.3 mm in plywood). Measure the kerf and enter it on the cutting layer.
+- **Speed**: cutting slowly at full power widens the cut considerably. Use the values from the maker's parameter table or a material test, and measure the kerf with the same values.
+- **Backlash**: measure and compensate it (see above).
+- Keep **Cut inner shapes before outer** switched on (job settings): otherwise a part can drop out or shift before its holes are cut. VectorLume points this out when starting.
+- Check the **focus** and a flat support; tension the belts evenly.
+- The X/Y/W/H fields show dimensions to 0.001 mm. Merely clicking into a field does not change the shape.
+
 ## Lasering
 
 1. **Preview** (Alt+P): shows the finished job with run time, travel moves and a playback slider.
@@ -188,6 +211,8 @@ These are the defaults. Change them under *Edit → Keyboard shortcuts…*: clic
 - **The job is in the wrong place**: check the origin corner in the machine settings and *Start from*; run the frame before starting.
 - **Engraving too dark or too light**: run a material test; for images adjust the line interval (dpi) and image settings.
 - **Parts do not fall out**: increase passes or power, check the focus, remove tabs.
+- **Slots or holes do not have the drawn size** (e.g. sometimes 4.1, sometimes 4.3 instead of 3.8 mm): measure and enter the kerf, measure the backlash and switch on "Cut inner shapes before outer" – see *Setting up materials → Cutting to size*.
+- **"No laser set up"**: open *Laser → Set up device…* or import a device from a `.vldevice` file.
 - **Program error**: VectorLume writes an error report (`crash.log` in the settings folder) and shows it at the next start. Please include it when reporting bugs.
 
 ## Terms of use

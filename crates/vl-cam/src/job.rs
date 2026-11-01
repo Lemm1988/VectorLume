@@ -238,7 +238,44 @@ pub fn build_job(
         );
     }
     let layer_names = doc.layers.iter().map(|l| l.name.clone()).collect();
-    Ok(finish_job(toolpath, design_bounds, profile, settings, layer_names, None))
+    let mut job = finish_job(toolpath, design_bounds, profile, settings, layer_names, None);
+    if !(settings.optimize_order && settings.inner_first) && has_nested_cuts(doc, &objects) {
+        job.notes.push(OUTER_FIRST_NOTE.into());
+    }
+    Ok(job)
+}
+
+/// Hinweis, wenn Löcher womöglich erst nach der Kontur drumherum geschnitten werden.
+pub const OUTER_FIRST_NOTE: &str = "„Innen vor außen schneiden“ ist aus: Außenkonturen können vor den Löchern und \
+    Ausschnitten darin geschnitten werden. Fällt ein Teil dabei heraus oder verrutscht, sitzen Löcher und Schlitze nicht \
+    mehr maßgenau. Die Option steht unter Job, bei „Schnittreihenfolge optimieren“.";
+
+/// Ob auf einer Schneidebene eine geschlossene Kontur innerhalb einer anderen liegt (Loch in einem Teil).
+fn has_nested_cuts(doc: &Document, objects: &[&Object]) -> bool {
+    const LIMIT: usize = 2000;
+    let mut closed: Vec<Polyline> = Vec::new();
+    for o in objects {
+        let layer = &doc.layers[o.layer];
+        if !layer.operations().any(|cs| cs.output && cs.mode == LayerMode::Line) {
+            continue;
+        }
+        if let Shape::Path(p) = &o.shape {
+            closed.extend(p.flatten(&o.transform, 0.1).into_iter().filter(|p| p.closed && p.points.len() > 2));
+        }
+        if closed.len() > LIMIT {
+            // Sehr viele Konturen: die Prüfung wäre teuer, und der Hinweis ist nur eine Empfehlung
+            return false;
+        }
+    }
+    let bounds: Vec<Rect> = closed.iter().map(|p| p.bounds()).collect();
+    (0..closed.len()).any(|outer| {
+        (0..closed.len()).any(|inner| {
+            inner != outer
+                && bounds[inner] != bounds[outer]
+                && bounds[outer].contains_rect(&bounds[inner])
+                && vl_core::path::point_in_polylines(closed[inner].points[0], std::slice::from_ref(&closed[outer]))
+        })
+    })
 }
 
 /// Ankerpunkt, Ausgabeabbildung und Startpunkt (Dokument) für einen Job mit diesen Umrissen.
@@ -351,6 +388,7 @@ pub fn finish_job(
         return_to,
         comments,
         layer_names,
+        backlash: profile.backlash(),
     };
     let gcode = emit(&toolpath, &|p| mapping.map(p), &opts);
     Job {
@@ -793,6 +831,8 @@ pub fn frame_gcode(job: &Job, profile: &MachineProfile, hull: bool) -> LineBuf {
         return_to,
         comments: vec!["VectorLume Rahmen".into()],
         layer_names: vec!["Rahmen".into()],
+        // Der Rahmen zeigt genau, wo der Job landet – also mit demselben Spielausgleich.
+        backlash: profile.backlash(),
     };
     emit(&tp, &|p| job.mapping.map(p), &opts)
 }

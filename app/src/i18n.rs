@@ -231,6 +231,27 @@ mod tests {
         }
     }
 
+    /// Texte aus vl-cam, die erst zur Laufzeit übersetzt werden (Gerätekatalog, Job-Hinweise).
+    #[test]
+    fn library_texts_are_translated() {
+        use vl_cam::catalog::{GENERIC, MODELS, UNSUPPORTED};
+        let mut texts = vec![vl_cam::job::OUTER_FIRST_NOTE, GENERIC];
+        for m in MODELS {
+            if !m.hint.is_empty() {
+                texts.push(m.hint);
+            }
+            // deutsche Modellbezeichnungen; Markennamen bleiben unübersetzt
+            if m.maker == "K40" || m.name.starts_with("GRBL-Laser") {
+                texts.push(m.name);
+            }
+        }
+        for (name, why) in UNSUPPORTED {
+            texts.extend([*name, *why]);
+        }
+        let missing: Vec<&str> = texts.into_iter().filter(|t| translate(t).is_none()).collect();
+        assert!(missing.is_empty(), "ohne Übersetzung: {missing:#?}");
+    }
+
     /// Jeder Text, der im Quelltext mit `tr("…")` oder `trs(&format!("…"` übersetzt wird, braucht einen Eintrag.
     #[test]
     fn every_source_text_is_translated() {

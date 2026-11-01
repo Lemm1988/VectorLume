@@ -45,10 +45,17 @@ pub struct AppSettings {
     pub macros: Vec<Macro>,
     /// Geänderte Tastenkürzel je Befehl (z. B. `"save": ["Ctrl+S"]`, leere Liste = keine Taste).
     pub hotkeys: BTreeMap<String, Vec<String>>,
-    /// Noch keine Einstellungsdatei vorhanden: erster Start, der Einrichtungsassistent öffnet sich.
+    /// Stand des Dateiformats. Fehlt in Dateien vor 0.19 (dann 0): Diese kannten kein „noch kein Gerät“, ihr Profil
+    /// wird als erstes Gerät übernommen.
+    #[serde(default)]
+    pub settings_version: u32,
+    /// Noch keine Einstellungsdatei vorhanden: erster Start.
     #[serde(skip)]
     pub first_run: bool,
 }
+
+/// Aktueller Stand von [`AppSettings::settings_version`].
+pub const SETTINGS_VERSION: u32 = 1;
 
 /// Benannte G-Code-Zeilen, die mit einem Klick gesendet werden (z. B. Luft an/aus, Parkposition).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -82,6 +89,7 @@ impl Default for AppSettings {
             camera: Default::default(),
             macros: Vec::new(),
             hotkeys: BTreeMap::new(),
+            settings_version: SETTINGS_VERSION,
             first_run: false,
         }
     }
@@ -117,33 +125,46 @@ impl AppSettings {
         let first_run = text.is_none();
         let mut s: Self = text.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
         s.first_run = first_run;
-        s.normalize_devices();
+        s.migrate();
         s
     }
 
-    /// Ältere Einstellungen kennen nur ein Profil: es wird das erste Gerät.
+    /// Ältere Einstellungen kennen nur ein Profil und kein „noch kein Gerät“: das Profil wird das erste Gerät.
+    fn migrate(&mut self) {
+        if self.settings_version == 0 && self.devices.is_empty() {
+            self.devices.push(self.profile.clone());
+        }
+        self.settings_version = SETTINGS_VERSION;
+        self.normalize_devices();
+    }
+
+    /// Gültiger Index; ohne Gerät bleibt `profile` die allgemeine Vorlage (für Arbeitsfläche und Vorschau).
     fn normalize_devices(&mut self) {
         if self.devices.is_empty() {
-            self.devices.push(self.profile.clone());
             self.device_index = 0;
-        }
-        if self.device_index >= self.devices.len() {
+        } else if self.device_index >= self.devices.len() {
             self.device_index = 0;
             self.profile = self.devices[0].clone();
         }
     }
 
+    /// Mindestens ein Gerät ist eingerichtet. Ohne Gerät lässt sich weder verbinden noch G-Code erzeugen.
+    pub fn has_device(&self) -> bool {
+        !self.devices.is_empty()
+    }
+
     fn sync_device(&mut self) {
         self.normalize_devices();
-        self.devices[self.device_index] = self.profile.clone();
+        if let Some(d) = self.devices.get_mut(self.device_index) {
+            *d = self.profile.clone();
+        }
     }
 
     /// Namen aller Geräte in Listenreihenfolge (das aktive mit seinem aktuellen Namen).
     pub fn device_names(&self) -> Vec<String> {
         let mut names: Vec<String> = self.devices.iter().map(|d| d.name.clone()).collect();
-        match names.get_mut(self.device_index) {
-            Some(n) => *n = self.profile.name.clone(),
-            None => names.push(self.profile.name.clone()),
+        if let Some(n) = names.get_mut(self.device_index) {
+            *n = self.profile.name.clone();
         }
         names
     }
@@ -159,11 +180,12 @@ impl AppSettings {
     /// Fügt ein Gerät hinzu und macht es aktiv.
     pub fn add_device(&mut self, profile: MachineProfile) {
         self.sync_device();
-        self.devices.push(profile);
-        self.switch_device(self.devices.len() - 1);
+        self.devices.push(profile.clone());
+        self.device_index = self.devices.len() - 1;
+        self.profile = profile;
     }
 
-    /// Entfernt das aktive Gerät (das letzte bleibt immer erhalten).
+    /// Entfernt das aktive Gerät (das letzte bleibt erhalten).
     pub fn remove_device(&mut self) -> bool {
         self.sync_device();
         if self.devices.len() < 2 {
@@ -206,9 +228,15 @@ mod tests {
 
     #[test]
     fn devices_switch_add_remove() {
-        let mut s = AppSettings { profile: named("A"), ..Default::default() };
-        s.normalize_devices();
+        // Neu installiert: noch kein Gerät; das erste kommt aus dem Assistenten
+        let mut s = AppSettings::default();
+        assert!(!s.has_device() && s.device_names().is_empty());
+        s.switch_device(0);
+        assert!(!s.remove_device());
+        s.add_device(named("A"));
+        assert!(s.has_device());
         assert_eq!(s.device_names(), ["A"]);
+        assert_eq!((s.device_index, s.devices[0].name.as_str()), (0, "A"));
         // Änderungen am aktiven Profil bleiben beim Umschalten erhalten
         s.profile.bed_width = 123.0;
         s.add_device(named("B"));
@@ -221,9 +249,15 @@ mod tests {
         assert!(s.remove_device());
         assert_eq!((s.device_index, s.profile.name.as_str()), (0, "B2"));
         assert!(!s.remove_device(), "das letzte Gerät bleibt");
-        // Einstellungen ohne Geräteliste (ältere Version)
+        // Einstellungen ohne Geräteliste (ältere Version): das Profil wird das erste Gerät
         let mut old: AppSettings = serde_json::from_str(r#"{"profile":{"name":"Alt"}}"#).unwrap();
-        old.normalize_devices();
+        assert_eq!(old.settings_version, 0);
+        old.migrate();
         assert_eq!(old.device_names(), ["Alt"]);
+        // Neuere Datei, in der noch kein Gerät eingerichtet wurde: bleibt ohne Gerät
+        let text = serde_json::to_string(&AppSettings::default()).unwrap();
+        let mut fresh: AppSettings = serde_json::from_str(&text).unwrap();
+        fresh.migrate();
+        assert!(!fresh.has_device());
     }
 }
