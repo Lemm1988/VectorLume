@@ -16,7 +16,7 @@ VectorLume is a program for designing and lasering with lasers that use a GRBL, 
    **Set up later** lets you design first; the wizard then appears again at the next start. Add further devices via *Laser → Set up device…*.
 3. *Help → Load sample project* shows all processing types in one example.
 
-Choose the language (German/English), the theme (dark/light) and the units (mm/inch) under *View*. `.vlume` projects open with a double-click; open LightBurn projects (`.lbrn2`) via *File → Open*.
+Choose the language (German/English), the theme (dark/light) and the units (mm/inch) under *View*. `.vlume` projects open with a double-click; open LightBurn projects (`.lbrn2`) and xTool projects (`.xcs`, `.xs`) via *File → Open*.
 
 Without a laser connected you can try everything with the **Simulator** port.
 
@@ -177,7 +177,8 @@ Send finished G-code files from other programs with *Laser → Send G-code file�
 
 ## Files
 
-- **Open and import**: VectorLume projects (`.vlume`), LightBurn projects (`.lbrn2`), SVG, DXF, PDF/AI, EPS (with Ghostscript installed), HPGL/PLT and images (PNG, JPG, BMP, GIF, WEBP, TIFF). You can also simply drag files onto the window.
+- **Open and import**: VectorLume projects (`.vlume`), LightBurn projects (`.lbrn2`), xTool projects (`.xcs` from Creative Space, `.xs` from Studio), SVG, DXF, PDF/AI, EPS (with Ghostscript installed), HPGL/PLT and images (PNG, JPG, BMP, GIF, WEBP, TIFF). You can also simply drag files onto the window.
+- **xTool projects**: shapes, texts (as outlines), images, groups and the layers with their processing type (cut, engrave, fill, image) are taken over – with exact position, rotation and mirroring. **Power and speed are not taken over**, because every laser needs different values: after opening, a window lists the layers that were created; before lasering, set power and speed for each layer to suit your laser and material (ideally with a material test). Projects with several canvases are placed side by side; image filters and masks from xTool are not taken over.
 - **Circuit boards**: Gerber files (copper, solder mask, silkscreen) become filled areas, the board outline becomes a cut line. Excellon drill files provide the holes as circles. If you import several files of the same board one after another, they stay aligned on top of each other. Mirror the bottom side yourself before lasering.
 - **Export**: G-code, SVG, DXF and PDF (1:1 for printing).
 - **Autosave**: unsaved work is backed up regularly and offered after a crash at the next start.
@@ -221,4 +222,4 @@ VectorLume is freeware: the published program versions may be used free of charg
 
 ## Trademarks
 
-LightBurn is a trademark of LightBurn Software, LLC. VectorLume is an independent program and is not affiliated with LightBurn Software; the name is used only to identify the file format (.lbrn2) so that your own projects can be reused.
+LightBurn is a trademark of LightBurn Software, LLC. VectorLume is an independent program and is not affiliated with LightBurn Software; the name is used only to identify the file format (.lbrn2) so that your own projects can be reused. The same applies to xTool, xTool Creative Space and xTool Studio (trademarks of their owner); VectorLume is not affiliated with these companies and only reads the file formats (.xcs, .xs).

@@ -244,6 +244,16 @@ pub enum Modal {
         title: String,
         text: String,
     },
+    /// Fremdes Projekt (xTool) übernommen: was übernommen wurde und dass die Laserwerte je Ebene für den eigenen
+    /// Laser eingestellt werden müssen.
+    ForeignProject {
+        file: String,
+        format: &'static str,
+        device: Option<String>,
+        objects: usize,
+        layers: Vec<usize>,
+        warnings: Vec<String>,
+    },
     Recover {
         path: PathBuf,
         meta: crate::autosave::Meta,
@@ -628,9 +638,10 @@ impl VectorLumeApp {
         let path = path.or_else(|| {
             crate::system::FileDialog::new()
                 .set_title(tr("Projekt öffnen"))
-                .add_filter(tr("Alle Projekte"), &[vl_core::project::PROJECT_EXTENSION, "lbrn2"])
+                .add_filter(tr("Alle Projekte"), &[vl_core::project::PROJECT_EXTENSION, "lbrn2", "xcs", "xs"])
                 .add_filter(tr("VectorLume-Projekt"), &[vl_core::project::PROJECT_EXTENSION])
                 .add_filter(tr("LightBurn-Projekt"), &["lbrn2"])
+                .add_filter(tr("xTool-Projekt (Creative Space, Studio)"), vl_io::XTOOL_EXTENSIONS)
                 .pick_file()
         });
         if let Some(p) = path {
@@ -660,6 +671,10 @@ impl VectorLumeApp {
     pub fn open_project(&mut self, path: &Path) {
         if is_lightburn(path) {
             self.open_lightburn(path);
+            return;
+        }
+        if is_xtool(path) {
+            self.open_xtool(path);
             return;
         }
         match vl_core::project::load_project(path) {
@@ -702,6 +717,38 @@ impl VectorLumeApp {
                 }
             }
             Err(e) => self.toast(ToastKind::Error, format!("{}: {e}", file_name(path))),
+        }
+    }
+
+    /// xTool-Projekt (`.xcs`, `.xs`) als neues, noch ungespeichertes VectorLume-Projekt übernehmen. Laserwerte
+    /// werden nicht übernommen; ein Hinweis nennt die Ebenen, die eingestellt werden müssen.
+    fn open_xtool(&mut self, path: &Path) {
+        let result = std::fs::read(path)
+            .map_err(|e| trs(&format!("Datei konnte nicht gelesen werden: {e}")))
+            .and_then(|data| vl_io::import_xtool(&data));
+        match result {
+            Ok(im) => {
+                let objects = im.doc.objects.len();
+                self.doc = im.doc;
+                self.reset_after_load(None);
+                self.name_hint = path.file_stem().map(|s| s.to_string_lossy().into_owned());
+                self.dirty = true;
+                if let Some(&first) = im.layers.first() {
+                    self.current_layer = first;
+                }
+                self.settings.add_recent(path.to_path_buf());
+                self.settings.save();
+                self.zoom_to_fit();
+                self.modal = Some(Modal::ForeignProject {
+                    file: file_name(path),
+                    format: im.format,
+                    device: im.device,
+                    objects,
+                    layers: im.layers,
+                    warnings: im.warnings,
+                });
+            }
+            Err(e) => self.toast(ToastKind::Error, format!("{}: {}", file_name(path), trs_lines(&e))),
         }
     }
 
@@ -762,7 +809,7 @@ impl VectorLumeApp {
 
     pub fn import_path(&mut self, path: &Path) {
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
-        if ext == vl_core::project::PROJECT_EXTENSION || is_lightburn(path) {
+        if ext == vl_core::project::PROJECT_EXTENSION || is_lightburn(path) || is_xtool(path) {
             self.open_dialog(false, Some(path.to_path_buf()));
             return;
         }
@@ -2064,6 +2111,21 @@ impl VectorLumeApp {
 
 fn is_lightburn(path: &Path) -> bool {
     path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("lbrn2"))
+}
+
+fn is_xtool(path: &Path) -> bool {
+    path.extension().and_then(|e| e.to_str()).is_some_and(vl_io::is_xtool_extension)
+}
+
+/// Mehrzeilige Meldung zeilenweise übersetzen (Aufzählungspunkte bleiben erhalten).
+pub fn trs_lines(s: &str) -> String {
+    s.lines()
+        .map(|l| match l.strip_prefix("• ") {
+            Some(rest) => format!("• {}", trs(rest)),
+            None => trs(l),
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 pub fn apply_theme(ctx: &egui::Context, theme: ThemeChoice) {

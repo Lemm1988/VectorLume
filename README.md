@@ -20,7 +20,7 @@ Rust. Marlin und Smoothieware werden experimentell unterstützt.
   entlang Pfad), Messwerkzeug, In Bitmap umwandeln, Motiv-Bibliothek, Bild nachzeichnen, Objektfang mit Ausrichtungslinien, Ebenen sperren
 - **Import/Export:** SVG (inkl. Text), DXF (inkl. Blöcke, Bögen, Splines), PDF/AI, EPS (mit installiertem
   Ghostscript), HPGL/PLT,
-  PNG/JPG/BMP/GIF/WEBP/TIFF, 3D-Modelle (STL/OBJ) als Tiefenbild, Leiterplatten (Gerber, Excellon); LightBurn-Projekte (`.lbrn2`) öffnen; Export als G-Code, SVG (mit eingebetteten Bildern), DXF und PDF (1:1 zum Drucken); eigenes
+  PNG/JPG/BMP/GIF/WEBP/TIFF, 3D-Modelle (STL/OBJ) als Tiefenbild, Leiterplatten (Gerber, Excellon); LightBurn-Projekte (`.lbrn2`) und xTool-Projekte (`.xcs`, `.xs`; ohne Leistung/Geschwindigkeit) öffnen; Export als G-Code, SVG (mit eingebetteten Bildern), DXF und PDF (1:1 zum Drucken); eigenes
   Projektformat `.vlume`; Autosicherung
 - **30 Farbebenen** (jeweils mit Unterebenen, z. B. Füllen + Kontur) mit den Modi *Linie* (Schnittbreite, Laschen, Überschnitt, Perforieren), *Füllen* (Winkel, Kreuzschraffur, Overscan),
   *Versatz-Füllen* und *Bild* (8 Dithering-Verfahren, Halbton und Linienraster mit Rasterweite/-winkel, Graustufen,
@@ -52,8 +52,8 @@ Rust. Marlin und Smoothieware werden experimentell unterstützt.
 1. Installieren mit **`VectorLume-Setup-<Version>.exe`** (ohne Adminrechte; entfernen über *Einstellungen → Apps*)
    oder aus dem Quelltext mit `powershell -ExecutionPolicy Bypass -File tools\install.ps1` – danach über die
    Verknüpfung **VectorLume** auf dem Desktop bzw. im Startmenü starten (oder `cargo run --release`).
-   `.vlume`-Projekte öffnen sich per Doppelklick; LightBurn-Projekte (`.lbrn2`) über *Öffnen mit → VectorLume*
-   oder *Datei → Öffnen* (die Zuordnung zu LightBurn bleibt).
+   `.vlume`-Projekte öffnen sich per Doppelklick; LightBurn- (`.lbrn2`) und xTool-Projekte (`.xcs`, `.xs`) über
+   *Öffnen mit → VectorLume* oder *Datei → Öffnen* (die Zuordnung zu LightBurn bzw. xTool bleibt).
 2. *Hilfe → Beispielprojekt laden* zeigt alle Ebenenarten.
 3. Beim ersten Start den Laser im Assistenten **Gerät einrichten** aus dem Katalog wählen (ohne Gerät lässt sich
    weder verbinden noch G-Code speichern). Arbeitsfläche und S-Max liest der Assistent beim Verbinden aus der Steuerung.
@@ -90,10 +90,10 @@ Einstellungen, Autosicherung und Materialbibliothek). Dateien können als Argume
 | `crates/vl-raster` | Bildaufbereitung, Dithering, Nachzeichnen |
 | `crates/vl-cam` | Werkzeugwege, Optimierung, Zeitschätzung, G-Code |
 | `crates/vl-device` | Treiber für GRBL, Marlin und Smoothieware, Streaming, Simulator |
-| `crates/vl-io` | Import (SVG, DXF, PDF/AI, EPS, HPGL, Bilder, 3D-Modelle, Gerber/Excellon, Schrift, CSV, LightBurn-Projekte), SVG-/DXF-/PDF-Export |
+| `crates/vl-io` | Import (SVG, DXF, PDF/AI, EPS, HPGL, Bilder, 3D-Modelle, Gerber/Excellon, Schrift, CSV, LightBurn- und xTool-Projekte), SVG-/DXF-/PDF-Export |
 | `app` | Oberfläche (egui) |
 | `docs` | [Lastenheft](docs/Lastenheft.md), [Pflichtenheft](docs/Pflichtenheft.md) mit Umsetzungsstand und Roadmap |
 
 ## Marken
 
-LightBurn ist eine Marke der LightBurn Software, LLC. VectorLume ist ein eigenständiges Programm und steht in keiner Verbindung zu LightBurn Software; der Name dient nur dazu, das Dateiformat (.lbrn2) zu benennen, damit eigene Projekte weiterverwendet werden können. Gelesen wird nur das Dateiformat; Programmcode, Texte, Grafiken oder Handbuchinhalte von LightBurn sind nicht enthalten.
+LightBurn ist eine Marke der LightBurn Software, LLC. VectorLume ist ein eigenständiges Programm und steht in keiner Verbindung zu LightBurn Software; der Name dient nur dazu, das Dateiformat (.lbrn2) zu benennen, damit eigene Projekte weiterverwendet werden können. Gelesen wird nur das Dateiformat; Programmcode, Texte, Grafiken oder Handbuchinhalte von LightBurn sind nicht enthalten. Das Gleiche gilt für xTool, xTool Creative Space und xTool Studio (Marken ihres Inhabers): VectorLume steht in keiner Verbindung zu diesen Firmen und liest nur die Dateiformate (.xcs, .xs).

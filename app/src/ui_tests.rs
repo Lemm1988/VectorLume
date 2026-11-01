@@ -2310,3 +2310,83 @@ fn backlash_reading_is_applied() {
 fn render_backlash() {
     backlash_flow(true);
 }
+
+/// xTool-Projekt per Drag&Drop: wird als neues Projekt übernommen, mit Bearbeitungsart je Ebene, aber ohne die
+/// Laserwerte der Datei; ein Hinweis nennt die einzustellenden Ebenen und bleibt bis zur Bestätigung stehen.
+fn xtool_flow(render: bool) {
+    let mut h = harness(render);
+    let xcs = r##"{"canvasId":"c","extId":"P2","canvas":[{"id":"c","title":"{panel}1",
+      "layerData":{"#fe0002":{"name":"#FE0002","order":1,"visible":true},"#00befe":{"name":"{Blue}","order":2,"visible":true}},
+      "displays":[
+        {"id":"a","type":"PATH","x":10,"y":10,"width":40,"height":30,"scale":{"x":1,"y":1},"graphicX":0,"graphicY":0,
+         "dPath":"M10 10 L50 10 L50 40 L10 40 Z","layerColor":"#fe0002"},
+        {"id":"b","type":"PATH","x":20,"y":20,"width":10,"height":10,"scale":{"x":1,"y":1},"graphicX":0,"graphicY":0,
+         "dPath":"M20 20 L30 20 L30 30 L20 30 Z","layerColor":"#00befe","isFill":true}]}],
+      "device":{"data":{"dataType":"Map","value":[["c",{"mode":"LASER_PLANE","displays":{"dataType":"Map","value":[
+        ["a",{"processingType":"VECTOR_CUTTING","data":{"VECTOR_CUTTING":{"parameter":{"customize":{"power":100,"speed":3}}}}}],
+        ["b",{"processingType":"FILL_VECTOR_ENGRAVING","data":{"FILL_VECTOR_ENGRAVING":{"parameter":{"customize":{"power":7,"speed":400}}}}}]]}}]]}}}"##;
+    let path = std::env::temp_dir().join("vectorlume-ui-tests").join("Schild.xcs");
+    std::fs::write(&path, xcs).unwrap();
+    h.state_mut().import_path(&path);
+    h.run_ok();
+    {
+        let app = h.state();
+        assert_eq!(app.doc.objects.len(), 2);
+        assert_eq!(app.name_hint.as_deref(), Some("Schild"));
+        assert!(app.dirty && app.file_path.is_none(), "neues, ungespeichertes Projekt");
+        let Some(crate::app::Modal::ForeignProject { layers, objects: 2, device: Some(d), .. }) = &app.modal else {
+            panic!("Hinweis fehlt");
+        };
+        assert_eq!(d, "P2");
+        let names: Vec<&str> = layers.iter().map(|&l| app.doc.layers[l].name.as_str()).collect();
+        assert_eq!(names, ["Füllen #00BEFE", "Schneiden #FE0002"], "erst füllen, zuletzt schneiden");
+        // Laserwerte aus der Datei (100 % / 3 mm/s) werden nicht übernommen
+        for &l in layers {
+            let s = &app.doc.layers[l].settings;
+            assert_eq!(*s, vl_core::CutSettings::default_for(s.mode));
+        }
+        assert_eq!(app.current_layer, layers[0]);
+    }
+    h.get_by_label_contains("Laser-Einstellungen wurden nicht übernommen");
+    // Ebenen stehen im Hinweis und in der Ebenenliste
+    for name in ["Füllen #00BEFE", "Schneiden #FE0002"] {
+        assert!(h.query_all_by_label(name).count() >= 2, "{name}");
+    }
+    if render {
+        save(&mut h, "xtool-hinweis");
+    }
+    h.get_by_label("Verstanden").click();
+    h.run_ok();
+    assert!(h.state().modal.is_none());
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn xtool_project_is_opened_with_notice() {
+    xtool_flow(false);
+}
+
+#[test]
+#[ignore = "rendert Bilder zur Sichtprüfung"]
+fn render_xtool_notice() {
+    xtool_flow(true);
+}
+
+/// Echte xTool-Datei zur Sichtprüfung: `VL_XTOOL_FILE=… cargo test -p vectorlume render_xtool_file -- --ignored`
+#[test]
+#[ignore = "braucht VL_XTOOL_FILE, rendert ein Bild"]
+fn render_xtool_file() {
+    let Some(file) = std::env::var_os("VL_XTOOL_FILE") else { return };
+    let path = std::path::PathBuf::from(file);
+    let mut h = harness(true);
+    h.state_mut().import_path(&path);
+    h.run_ok();
+    if let Some(crate::app::Modal::ForeignProject { warnings, .. }) = &h.state().modal {
+        eprintln!("Hinweise: {warnings:?}");
+    }
+    h.state_mut().modal = None;
+    h.state_mut().zoom_to_fit();
+    h.run_ok();
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("datei").to_string();
+    save(&mut h, &format!("xtool-{stem}"));
+}

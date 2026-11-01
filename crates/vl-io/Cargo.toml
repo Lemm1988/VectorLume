@@ -1,6 +1,6 @@
 [package]
 name = "vl-io"
-description = "VectorLume: Import von SVG, DXF, Bildern und Schriften"
+description = "VectorLume: Import von SVG, DXF, Bildern, Schriften und Fremdprojekten"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -19,6 +19,9 @@ ttf-parser.workspace = true
 qrcode.workspace = true
 barcoders.workspace = true
 datamatrix.workspace = true
+serde_json.workspace = true
+svgtypes.workspace = true
+flate2.workspace = true
 
 [dev-dependencies]
 vl-testkit.workspace = true

@@ -252,6 +252,31 @@ mod tests {
         assert!(missing.is_empty(), "ohne Übersetzung: {missing:#?}");
     }
 
+    /// Meldungen des xTool-Imports (Vorlagen mit `{}`), auch als „{Anzahl}× …“, und das Ergebnis eines echten
+    /// Imports mit Hinweisen.
+    #[test]
+    fn xtool_messages_are_translated() {
+        let mut missing = Vec::new();
+        for m in vl_io::xtool::MESSAGES {
+            let sample = m.replace("{}", "Probe 7");
+            for s in [sample.clone(), format!("7× {sample}")] {
+                if translate(&s).is_none_or(|en| en.contains('„') || en == s) {
+                    missing.push(s);
+                }
+            }
+        }
+        assert!(missing.is_empty(), "ohne Übersetzung: {missing:#?}");
+        let xcs = r##"{"canvas":[{"id":"c","displays":[
+            {"type":"PATH","dPath":"M0 0 L5 0 L5 5 Z","x":0,"y":0,"width":9,"height":5},
+            {"type":"WAVE","x":0,"y":0,"width":1,"height":1}]},
+            {"id":"d","displays":[{"type":"RECT","width":2,"height":2,"offsetX":0,"offsetY":0}]}]}"##;
+        let im = vl_io::import_xtool(xcs.as_bytes()).unwrap();
+        assert_eq!(im.warnings.len(), 3, "{:?}", im.warnings);
+        for w in &im.warnings {
+            assert!(translate(w).is_some(), "ohne Übersetzung: {w}");
+        }
+    }
+
     /// Jeder Text, der im Quelltext mit `tr("…")` oder `trs(&format!("…"` übersetzt wird, braucht einen Eintrag.
     #[test]
     fn every_source_text_is_translated() {

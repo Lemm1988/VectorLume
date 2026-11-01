@@ -207,6 +207,75 @@ fn lightburn_survives_damage() {
 }
 
 #[test]
+fn xtool_survives_damage() {
+    // xTool Creative Space (JSON): Pfad, gedrehtes Rechteck, Kreis, Bild, Text, Gruppe, Bearbeitungsarten
+    let xcs = format!(
+        r##"{{"canvasId":"c1","extId":"P2","canvas":[{{"id":"c1","title":"{{panel}}1",
+  "layerData":{{"#fe0002":{{"name":"Rot","order":1,"visible":true}},"#000000":{{"name":"#000000","order":2,"visible":true}}}},
+  "displays":[
+    {{"id":"p","type":"PATH","x":15,"y":25,"width":10,"height":5,"angle":0,"scale":{{"x":0.5,"y":0.5}},
+      "skew":{{"x":0,"y":0}},"pivot":{{"x":0,"y":0}},"graphicX":10,"graphicY":20,"offsetX":10,"offsetY":20,
+      "dPath":"M10 10 h20 v10 h-20 z M12 12 C 14 14 16 12 18 12 Q 20 14 22 12 A 2 2 0 0 1 26 12 Z",
+      "layerColor":"#fe0002","groupTag":"g"}},
+    {{"id":"r","type":"RECT","x":100,"y":50,"width":20,"height":10,"angle":30,"scale":{{"x":2,"y":2}},
+      "skew":{{"x":3.141593,"y":0}},"offsetX":100,"offsetY":50,"radius":2,"layerColor":"#fe0002","groupTag":"g"}},
+    {{"id":"e","type":"CIRCLE","x":40,"y":40,"width":6,"height":3,"scale":{{"x":0.01,"y":0.01}},"offsetX":40,
+      "offsetY":40,"layerColor":"#000000"}},
+    {{"id":"b","type":"BITMAP","x":0,"y":0,"width":40,"height":30,"angle":90,"scale":{{"x":10,"y":10}},"offsetX":0,
+      "offsetY":0,"originWidth":4,"originHeight":3,"base64":"data:image/png;base64,{img}","layerColor":"#000000",
+      "brightness":10,"mask":{{"x":1}}}},
+    {{"id":"t","type":"TEXT","x":50,"y":118,"width":3,"height":2,"scale":{{"x":0.1,"y":0.1}},"offsetX":50,
+      "offsetY":120,"isFill":true,"text":"AB A\nBA","style":{{"align":"center","letterSpacing":1,"leading":2}},
+      "layerColor":"#000000","fontData":{{"fontInfo":{{"lineHeight":30}},"glyphData":{{
+        "A":{{"dPath":"M0 -20 L10 -20 L10 0 L0 0 Z","advanceWidth":20,"advanceHeight":25.4}},
+        "B":{{"dPath":"M0 -20 L8 -20 Q 12 -10 8 0 L0 0 Z","advanceWidth":18,"advanceHeight":25.4}}}}}}}},
+    {{"id":"q","type":"QRCODE","x":0,"y":0,"width":1,"height":1}}
+  ]}}],
+  "device":{{"data":{{"dataType":"Map","value":[["c1",{{"mode":"LASER_PLANE","displays":{{"dataType":"Map","value":[
+    ["p",{{"processingType":"VECTOR_CUTTING","data":{{"VECTOR_CUTTING":{{"parameter":{{"customize":{{"power":100,"speed":5}}}}}}}}}}],
+    ["r",{{"processingType":"VECTOR_ENGRAVING","processIgnore":true}}],
+    ["b",{{"processingType":"BITMAP_ENGRAVING"}}],["t",{{"processingType":"FILL_VECTOR_ENGRAVING"}}]]}}}}]]}}}}}}"##,
+        img = png_base64()
+    );
+    // xTool Studio (ZIP): ausgelagerte Pfaddaten, Bild als Datei, Bearbeitung über Profile
+    let files: Vec<(&str, Vec<u8>)> = vec![
+        (
+            "project.json",
+            br#"{"activeCanvasId":"a","activeDeviceId":"D","extName":"S1","modules":{"canvases":["a"]}}"#.to_vec(),
+        ),
+        (
+            "canvases/a.json",
+            br##"{"id":"a","title":"{panel}1","layerData":{"#000000":{"name":"#000000","order":1,"visible":true}}}"##
+                .to_vec(),
+        ),
+        (
+            "canvases/a/displays-0.json",
+            br##"{"displays":[
+  {"id":"p","type":"PATH","x":0,"y":0,"width":10,"height":10,"scale":{"x":1,"y":1},"graphicX":0,"graphicY":0,
+   "layerColor":"#000000","groupTags":["g"],"vectorRef":{"vectorHash":"h","originalField":"dPath"}},
+  {"id":"i","type":"BITMAP","x":20,"y":0,"width":4,"height":3,"angle":90,"skew":{"x":3.141593,"y":0},
+   "scale":{"x":1,"y":1},"offsetX":20,"offsetY":0,"originWidth":4,"originHeight":3,"resourcePath":"resources/i.png",
+   "layerColor":"#000000","groupTags":["g"],"customData":{"processingType":"BITMAP_ENGRAVING"}}]}"##
+                .to_vec(),
+        ),
+        ("vectors/svg/data-0.json", br#"{"entries":{"h":"M0 0 L10 0 L10 10 L0 10 Z"}}"#.to_vec()),
+        (
+            "devices/device-D.json",
+            br#"{"processing":{"a":{"activeMode":"LASER_PLANE","modes":{"LASER_PLANE":{"ignoredDisplayIds":[],
+  "bindings":[{"baseProfileId":"x","displayIds":["p"]}]}}}}}"#
+                .to_vec(),
+        ),
+        ("profiles.json", br#"{"profiles":{"x":{"processingType":"VECTOR_CUTTING","values":{"power":1}}}}"#.to_vec()),
+        ("resources/i.png", png(4, 3)),
+    ];
+    let refs: Vec<(&str, &[u8])> = files.iter().map(|(n, d)| (*n, d.as_slice())).collect();
+    // ungepackt, damit die Verfälschungen auch das JSON treffen (die Prüfsumme fängt sie dann ab)
+    let xs = vl_io::zipread::write(&refs, false);
+    let packed = vl_io::zipread::write(&refs, true);
+    check("xtool", vec![xcs.into_bytes(), xs, packed], |d| vl_io::import_xtool(d).is_ok());
+}
+
+#[test]
 fn csv_survives_damage() {
     let csv = "Name;Nummer;Datum\nAnna;1;2024-01-01\n\"Bob; Jr\";2;\"x\"\"y\"\n\nÄrger;3,5;\n";
     let tsv = "\u{feff}a\tb\n1\t2\n";

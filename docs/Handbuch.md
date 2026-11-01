@@ -16,7 +16,7 @@ VectorLume ist ein Programm zum Gestalten und Lasern für Laser mit GRBL-, Marli
    Mit **Später einrichten** kannst du zunächst nur entwerfen; der Assistent erscheint dann beim nächsten Start wieder. Weitere Geräte legst du über *Laser → Gerät einrichten…* an.
 3. *Hilfe → Beispielprojekt laden* zeigt alle Bearbeitungsarten an einem Beispiel.
 
-Die Sprache (Deutsch/Englisch), das Design (dunkel/hell) und die Einheit (mm/Zoll) stellst du unter *Ansicht* ein. `.vlume`-Projekte öffnen sich per Doppelklick; LightBurn-Projekte (`.lbrn2`) öffnest du über *Datei → Öffnen*.
+Die Sprache (Deutsch/Englisch), das Design (dunkel/hell) und die Einheit (mm/Zoll) stellst du unter *Ansicht* ein. `.vlume`-Projekte öffnen sich per Doppelklick; LightBurn-Projekte (`.lbrn2`) und xTool-Projekte (`.xcs`, `.xs`) öffnest du über *Datei → Öffnen*.
 
 Ohne angeschlossenen Laser kannst du alles mit dem Anschluss **Simulator** ausprobieren.
 
@@ -177,7 +177,8 @@ Fertige G-Code-Dateien anderer Programme sendest du mit *Laser → G-Code-Datei 
 
 ## Dateien
 
-- **Öffnen und Importieren**: VectorLume-Projekte (`.vlume`), LightBurn-Projekte (`.lbrn2`), SVG, DXF, PDF/AI, EPS (mit installiertem Ghostscript), HPGL/PLT sowie Bilder (PNG, JPG, BMP, GIF, WEBP, TIFF). Dateien lassen sich auch einfach auf das Fenster ziehen.
+- **Öffnen und Importieren**: VectorLume-Projekte (`.vlume`), LightBurn-Projekte (`.lbrn2`), xTool-Projekte (`.xcs` aus Creative Space, `.xs` aus Studio), SVG, DXF, PDF/AI, EPS (mit installiertem Ghostscript), HPGL/PLT sowie Bilder (PNG, JPG, BMP, GIF, WEBP, TIFF). Dateien lassen sich auch einfach auf das Fenster ziehen.
+- **xTool-Projekte**: Übernommen werden Formen, Texte (als Umrisse), Bilder, Gruppen und die Ebenen mit ihrer Bearbeitungsart (Schneiden, Gravieren, Füllen, Bild) – mit genauer Lage, Drehung und Spiegelung. **Leistung und Geschwindigkeit werden nicht übernommen**, weil jeder Laser andere Werte braucht: Nach dem Öffnen zeigt ein Fenster die angelegten Ebenen; stelle vor dem Lasern für jede Ebene Leistung und Geschwindigkeit passend zu deinem Laser und Material ein (am besten mit einem Materialtest). Hat das Projekt mehrere Zeichenflächen, liegen sie nebeneinander; Bildfilter und Masken aus xTool werden nicht übernommen.
 - **Leiterplatten**: Gerber-Dateien (Kupfer, Lötstopp, Bestückungsdruck) werden zu gefüllten Flächen, der Platinenumriss zur Schneidlinie. Excellon-Bohrdateien liefern die Bohrungen als Kreise. Importierst du mehrere Dateien desselben Boards nacheinander, liegen sie deckungsgleich übereinander. Die Unterseite musst du zum Lasern selbst spiegeln.
 - **Exportieren**: G-Code, SVG, DXF und PDF (1:1 zum Drucken).
 - **Autosicherung**: Ungespeicherte Arbeit wird regelmäßig gesichert und nach einem Absturz beim nächsten Start angeboten.
@@ -221,4 +222,4 @@ VectorLume ist Freeware: Die veröffentlichten Programmversionen dürfen kostenl
 
 ## Marken
 
-LightBurn ist eine Marke der LightBurn Software, LLC. VectorLume ist ein eigenständiges Programm und steht in keiner Verbindung zu LightBurn Software; der Name dient nur dazu, das Dateiformat (.lbrn2) zu benennen, damit eigene Projekte weiterverwendet werden können.
+LightBurn ist eine Marke der LightBurn Software, LLC. VectorLume ist ein eigenständiges Programm und steht in keiner Verbindung zu LightBurn Software; der Name dient nur dazu, das Dateiformat (.lbrn2) zu benennen, damit eigene Projekte weiterverwendet werden können. Das Gleiche gilt für xTool, xTool Creative Space und xTool Studio (Marken ihres Inhabers); VectorLume steht in keiner Verbindung zu diesen Firmen und liest nur die Dateiformate (.xcs, .xs).

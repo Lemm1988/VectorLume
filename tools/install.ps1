@@ -1,6 +1,7 @@
 # Installiert VectorLume fuer den aktuellen Benutzer (ohne Adminrechte), legt Verknuepfungen auf dem
 # Desktop und im Startmenue an und meldet die Dateitypen an: .vlume oeffnet per Doppelklick mit VectorLume,
-# fuer LightBurn-Projekte (.lbrn2) erscheint VectorLume nur unter "Oeffnen mit" (bestehende Zuordnung bleibt).
+# fuer LightBurn-Projekte (.lbrn2) und xTool-Projekte (.xcs, .xs) erscheint VectorLume nur unter "Oeffnen mit"
+# (bestehende Zuordnung bleibt).
 #   powershell -ExecutionPolicy Bypass -File tools\install.ps1             (bauen + installieren)
 #   powershell -ExecutionPolicy Bypass -File tools\install.ps1 -NoBuild    (nur installieren)
 #   powershell -ExecutionPolicy Bypass -File tools\install.ps1 -Uninstall  (entfernen)
@@ -43,11 +44,19 @@ function Register-FileTypes {
     $with = "$classes\.lbrn2\OpenWithProgids"
     if (-not (Test-Path $with)) { New-Item -Path $with -Force | Out-Null }
     New-ItemProperty -Path $with -Name 'VectorLume.LightBurn' -Value '' -PropertyType String -Force | Out-Null
+    Set-KeyDefault "$classes\VectorLume.XTool" 'xTool-Projekt'
+    Set-KeyDefault "$classes\VectorLume.XTool\DefaultIcon" "`"$exe`",0"
+    Set-KeyDefault "$classes\VectorLume.XTool\shell\open\command" $open
+    foreach ($ext in '.xcs', '.xs') {
+        $with = "$classes\$ext\OpenWithProgids"
+        if (-not (Test-Path $with)) { New-Item -Path $with -Force | Out-Null }
+        New-ItemProperty -Path $with -Name 'VectorLume.XTool' -Value '' -PropertyType String -Force | Out-Null
+    }
     Update-ShellAssociations
 }
 
 function Unregister-FileTypes {
-    foreach ($key in "$classes\VectorLume.Project", "$classes\VectorLume.LightBurn") {
+    foreach ($key in "$classes\VectorLume.Project", "$classes\VectorLume.LightBurn", "$classes\VectorLume.XTool") {
         if (Test-Path $key) { Remove-Item -Path $key -Recurse }
     }
     if ((Test-Path "$classes\.vlume") -and (Get-Item "$classes\.vlume").GetValue('') -eq 'VectorLume.Project') {
@@ -55,6 +64,10 @@ function Unregister-FileTypes {
     }
     $with = "$classes\.lbrn2\OpenWithProgids"
     if (Test-Path $with) { Remove-ItemProperty -Path $with -Name 'VectorLume.LightBurn' -ErrorAction SilentlyContinue }
+    foreach ($ext in '.xcs', '.xs') {
+        $with = "$classes\$ext\OpenWithProgids"
+        if (Test-Path $with) { Remove-ItemProperty -Path $with -Name 'VectorLume.XTool' -ErrorAction SilentlyContinue }
+    }
     Update-ShellAssociations
 }
 
@@ -92,4 +105,4 @@ foreach ($path in $links) {
 }
 Register-FileTypes
 Write-Host "VectorLume installiert: $exe"
-Write-Host 'Verknuepfungen: Desktop und Startmenue. Dateitypen: .vlume, .lbrn2 (unter "Oeffnen mit").'
+Write-Host 'Verknuepfungen: Desktop und Startmenue. Dateitypen: .vlume, .lbrn2/.xcs/.xs (unter "Oeffnen mit").'

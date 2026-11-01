@@ -52,10 +52,15 @@ de.ProjectType=VectorLume-Projekt
 en.ProjectType=VectorLume project
 de.LightBurnType=LightBurn-Projekt
 en.LightBurnType=LightBurn project
+de.OpenWithXTool=VectorLume unter „Öffnen mit“ für xTool-Projekte (.xcs, .xs) anbieten
+en.OpenWithXTool=Offer VectorLume under "Open with" for xTool projects (.xcs, .xs)
+de.XToolType=xTool-Projekt
+en.XToolType=xTool project
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 Name: "lbrn2"; Description: "{cm:OpenWithLightBurn}"; GroupDescription: "{cm:FileTypes}"
+Name: "xtool"; Description: "{cm:OpenWithXTool}"; GroupDescription: "{cm:FileTypes}"
 
 [Files]
 Source: "{#Stage}\vectorlume.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -77,6 +82,12 @@ Root: HKA; Subkey: "Software\Classes\VectorLume.LightBurn"; ValueType: string; V
 Root: HKA; Subkey: "Software\Classes\VectorLume.LightBurn\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\vectorlume.exe"",0"; Tasks: lbrn2
 Root: HKA; Subkey: "Software\Classes\VectorLume.LightBurn\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\vectorlume.exe"" ""%1"""; Tasks: lbrn2
 Root: HKA; Subkey: "Software\Classes\.lbrn2\OpenWithProgids"; ValueType: string; ValueName: "VectorLume.LightBurn"; ValueData: ""; Flags: uninsdeletevalue; Tasks: lbrn2
+; .xcs/.xs nur unter „Öffnen mit“ – die Zuordnung zu xTool bleibt unverändert
+Root: HKA; Subkey: "Software\Classes\VectorLume.XTool"; ValueType: string; ValueName: ""; ValueData: "{cm:XToolType}"; Flags: uninsdeletekey; Tasks: xtool
+Root: HKA; Subkey: "Software\Classes\VectorLume.XTool\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\vectorlume.exe"",0"; Tasks: xtool
+Root: HKA; Subkey: "Software\Classes\VectorLume.XTool\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\vectorlume.exe"" ""%1"""; Tasks: xtool
+Root: HKA; Subkey: "Software\Classes\.xcs\OpenWithProgids"; ValueType: string; ValueName: "VectorLume.XTool"; ValueData: ""; Flags: uninsdeletevalue; Tasks: xtool
+Root: HKA; Subkey: "Software\Classes\.xs\OpenWithProgids"; ValueType: string; ValueName: "VectorLume.XTool"; ValueData: ""; Flags: uninsdeletevalue; Tasks: xtool
 
 [Run]
 Filename: "{app}\vectorlume.exe"; Description: "{cm:LaunchProgram,VectorLume}"; Flags: nowait postinstall skipifsilent

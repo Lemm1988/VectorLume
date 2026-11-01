@@ -15,6 +15,9 @@ pub mod pdf;
 pub mod pdf_export;
 pub mod svg;
 pub mod text;
+pub mod xtool;
+#[doc(hidden)]
+pub mod zipread;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -24,6 +27,7 @@ pub use barcode::{BarcodeInfo, barcode_info};
 pub use csv::parse_csv;
 pub use lightburn::{LightBurnImport, import_lightburn};
 pub use text::{TextAlign, TextSpec, font_families, render_text, system_fonts, text_to_path};
+pub use xtool::{XTOOL_EXTENSIONS, XToolImport, import_xtool, is_xtool_extension};
 
 pub const VECTOR_EXTENSIONS: &[&str] = &["svg", "svgz", "dxf", "pdf", "ai", "eps", "plt", "hpgl", "hgl"];
 pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff"];

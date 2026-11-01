@@ -528,6 +528,71 @@ fn scan_offsets_ui(ui: &mut egui::Ui, rows: &mut Vec<vl_cam::ScanOffset>) {
 /// Aktion, die nach dem Schließen einer Abfrage ausgeführt wird.
 type ModalAction = Box<dyn FnOnce(&mut VectorLumeApp)>;
 
+/// Hinweis nach dem Übernehmen eines xTool-Projekts: Laserwerte fehlen, Ebenen zum Einstellen.
+#[allow(clippy::too_many_arguments)]
+fn foreign_project(
+    ui: &mut egui::Ui,
+    app: &VectorLumeApp,
+    file: &str,
+    format: &str,
+    device: Option<&str>,
+    objects: usize,
+    layers: &[usize],
+    warnings: &[String],
+) {
+    let pal = theme::of(ui);
+    ui.label(
+        RichText::new(trs(&format!("{} xTool-Projekt übernommen", icon::FILE_ARROW_DOWN)))
+            .font(theme::strong_font(18.0)),
+    );
+    ui.add_space(6.0);
+    ui.label(trs(&format!("„{file}“ ({format}): {objects} Objekte mit Lage, Größe, Gruppen und Ebenen übernommen.")));
+    ui.add_space(6.0);
+    Frame::new().stroke(Stroke::new(1.5, pal.warning)).corner_radius(6.0).inner_margin(Margin::same(8)).show(ui, |ui| {
+        ui.label(
+            RichText::new(trs(&format!("{} Laser-Einstellungen wurden nicht übernommen", icon::WARNING)))
+                .strong()
+                .color(pal.warning),
+        );
+        ui.label(tr(
+            "Leistung, Geschwindigkeit, Durchgänge und alle anderen Laserwerte aus der Datei gelten nur für den Laser, für den sie angelegt wurde – jeder Laser ist anders. Alle Ebenen haben deshalb die Standardwerte von VectorLume.",
+        ));
+        if let Some(d) = device {
+            ui.label(RichText::new(trs(&format!("Angelegt für: xTool {d}"))).small().color(pal.text_weak));
+        }
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new(tr(
+                "Vor dem Lasern für jede Ebene Leistung und Geschwindigkeit passend zum eigenen Laser und Material einstellen (am besten mit einem Materialtest):",
+            ))
+            .strong(),
+        );
+        egui::ScrollArea::vertical().max_height(220.0).auto_shrink([false, true]).show(ui, |ui| {
+            for &l in layers {
+                let Some(layer) = app.doc.layers.get(l) else { continue };
+                ui.horizontal(|ui| {
+                    let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), egui::Sense::hover());
+                    ui.painter().rect_filled(r, CornerRadius::same(4), theme::layer_color(layer.color));
+                    ui.label(RichText::new(&layer.name).strong());
+                    ui.label(RichText::new(tr(layer.settings.mode.label())).color(pal.text_weak));
+                    if !layer.settings.output {
+                        ui.label(RichText::new(tr("wird nicht gelasert")).small().color(pal.text_weak));
+                    }
+                });
+            }
+        });
+    });
+    if !warnings.is_empty() {
+        ui.add_space(6.0);
+        ui.label(RichText::new(tr("Hinweise")).strong());
+        egui::ScrollArea::vertical().id_salt("foreign_warnings").max_height(120.0).show(ui, |ui| {
+            for w in warnings {
+                ui.label(RichText::new(format!("• {}", trs(w))).small());
+            }
+        });
+    }
+}
+
 fn modal(app: &mut VectorLumeApp, ctx: &egui::Context) {
     let Some(m) = app.modal.take() else { return };
     let mut keep = true;
@@ -744,6 +809,13 @@ fn modal(app: &mut VectorLumeApp, ctx: &egui::Context) {
                 ui.label(trs(text));
                 ui.add_space(8.0);
                 if ui.button("OK").clicked() {
+                    keep = false;
+                }
+            }
+            Modal::ForeignProject { file, format, device, objects, layers, warnings } => {
+                foreign_project(ui, app, file, format, device.as_deref(), *objects, layers, warnings);
+                ui.add_space(8.0);
+                if ui.add(Button::new(RichText::new(tr("Verstanden")).color(Color32::WHITE)).fill(pal.accent)).clicked() {
                     keep = false;
                 }
             }
